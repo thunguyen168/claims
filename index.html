@@ -243,6 +243,12 @@ input[type="range"]::-moz-range-thumb {
         <button class="btn btn-secondary" style="font-size:12px;padding:6px 10px" onclick="addSurgeEntry()">+ Add Surge Staff</button>
       </div>
 
+      <div class="form-group">
+        <label>Target Processing Time (weeks)</label>
+        <input type="number" id="targetWeeksInput" value="12" min="1" max="52" step="1" onchange="runScenario()">
+        <div style="font-size:10px;color:#64748b;margin-top:2px">All claims should be processed within this many weeks</div>
+      </div>
+
       <div style="margin-top:20px">
         <button class="btn btn-primary" onclick="runScenario()">Run Scenario</button>
         <button class="btn btn-report" onclick="generateReport()">Generate PDF Report</button>
@@ -361,7 +367,7 @@ input[type="range"]::-moz-range-thumb {
 
       <!-- Claims Forecast Chart -->
       <div class="card">
-        <div class="card-title">Claims Forecast Over 12 Weeks</div>
+        <div class="card-title" id="forecastChartTitle">Claims Forecast Over 12 Weeks</div>
         <div class="chart-container">
           <canvas id="forecastChart" height="300"></canvas>
         </div>
@@ -805,15 +811,21 @@ function runScenario() {
   const weightedDaysPerClaim = getWeightedDaysPerClaim();
   const baseClaimsPerStaff = weightedDaysPerClaim > 0 ? config.organisation.workDaysPerWeek / weightedDaysPerClaim : config.organisation.workDaysPerWeek;
 
+  const targetWeeks = parseInt(document.getElementById('targetWeeksInput').value) || 12;
+
   // Build weekly breakdown with backlog, accounting for surge resources
+  // Simulate up to max(targetWeeks, 12) weeks, or longer if backlog remains (up to 52)
+  const simWeeks = Math.max(targetWeeks, 12);
+  const maxSimWeeks = 52;
   const weeks = [];
   let cumulative = 0;
   let totalProcessed = 0;
   let backlog = 0;
   let peakWeek = 0;
   let peakClaims = 0;
+  let weeksToClear = 0;
 
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < maxSimWeeks; i++) {
     const weekNum = i + 1;
     // Calculate surge staff active this week
     let surgeStaff = 0;
@@ -823,7 +835,7 @@ function runScenario() {
     const surgeCapacity = Math.round(surgeStaff * baseClaimsPerStaff);
     const effectiveCapacity = baseWeeklyCapacity + surgeCapacity;
 
-    const newClaims = weeklyClaims[i];
+    const newClaims = i < 12 ? weeklyClaims[i] : 0;
     cumulative += newClaims;
     const available = newClaims + backlog;
     const processed = Math.min(available, effectiveCapacity);
@@ -838,9 +850,19 @@ function runScenario() {
       backlog,
       effectiveCapacity,
       surgeStaff,
-      utilisation: (newClaims / effectiveCapacity) * 100
+      utilisation: effectiveCapacity > 0 ? ((newClaims + (i > 0 ? weeks[i-1].backlog : 0)) / effectiveCapacity) * 100 : 0
     });
+
+    if (backlog === 0 && cumulative > 0) {
+      weeksToClear = weekNum;
+      // Continue simulating up to simWeeks for display but we have our answer
+      if (weekNum >= simWeeks) break;
+    }
   }
+  // If backlog never cleared
+  if (backlog > 0) weeksToClear = -1; // -1 means exceeds 52 weeks
+
+  const canMeetTarget = weeksToClear > 0 && weeksToClear <= targetWeeks;
 
   // Calculate resource needs
   const peakWeekData = weeks[peakWeek - 1];
@@ -854,16 +876,18 @@ function runScenario() {
   lastScenario = { site, incident, severity, totalClaims, weeks, peakWeek, peakClaims,
     weeklyCapacity: baseWeeklyCapacity, maxBacklog, overCapacityWeeks, additionalStaff,
     staffNeededAtPeak, claimsPerStaffPerWeek, surgeEntries: JSON.parse(JSON.stringify(surgeEntries)),
-    peakWeekSetting, weightedDaysPerClaim,
+    peakWeekSetting, weightedDaysPerClaim, targetWeeks, weeksToClear, canMeetTarget,
     claimComplexity: JSON.parse(JSON.stringify(config.claimComplexity || DEFAULT_CONFIG.claimComplexity)) };
 
   // Display results
   showResults(site, incident, severity, totalClaims, weeks, peakWeek, peakClaims,
-    baseWeeklyCapacity, maxBacklog, overCapacityWeeks, additionalStaff, staffNeededAtPeak, claimsPerStaffPerWeek);
+    baseWeeklyCapacity, maxBacklog, overCapacityWeeks, additionalStaff, staffNeededAtPeak, claimsPerStaffPerWeek,
+    targetWeeks, weeksToClear, canMeetTarget);
 }
 
 function showResults(site, incident, severity, totalClaims, weeks, peakWeek, peakClaims,
-  weeklyCapacity, maxBacklog, overCapacityWeeks, additionalStaff, staffNeededAtPeak, claimsPerStaffPerWeek) {
+  weeklyCapacity, maxBacklog, overCapacityWeeks, additionalStaff, staffNeededAtPeak, claimsPerStaffPerWeek,
+  targetWeeks, weeksToClear, canMeetTarget) {
 
   document.getElementById('welcomeArea').style.display = 'none';
   document.getElementById('resultsArea').style.display = '';
@@ -876,7 +900,7 @@ function showResults(site, incident, severity, totalClaims, weeks, peakWeek, pea
     incidentLabels[incident] + ' | ' + severityLabels[severity] + ' Severity | ' + site.location;
 
   // Metrics
-  const canHandle = overCapacityWeeks === 0;
+  const weeksToClearLabel = weeksToClear === -1 ? '52+' : weeksToClear;
   const metricsHTML = `
     <div class="metric-card">
       <div class="metric-value metric-blue">${totalClaims.toLocaleString()}</div>
@@ -887,8 +911,12 @@ function showResults(site, incident, severity, totalClaims, weeks, peakWeek, pea
       <div class="metric-label">Peak Week (${peakClaims} claims)</div>
     </div>
     <div class="metric-card">
-      <div class="metric-value ${canHandle ? 'metric-green' : 'metric-red'}">${canHandle ? 'Yes' : 'No'}</div>
-      <div class="metric-label">Can Current Capacity Handle?</div>
+      <div class="metric-value ${canMeetTarget ? 'metric-green' : 'metric-red'}">${canMeetTarget ? 'Yes' : 'No'}</div>
+      <div class="metric-label">Cleared Within ${targetWeeks} Weeks?</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value ${canMeetTarget ? 'metric-green' : 'metric-red'}">${weeksToClearLabel}</div>
+      <div class="metric-label">Weeks to Clear All Claims</div>
     </div>
     <div class="metric-card">
       <div class="metric-value ${additionalStaff === 0 ? 'metric-green' : 'metric-red'}">+${additionalStaff}</div>
@@ -905,15 +933,19 @@ function showResults(site, incident, severity, totalClaims, weeks, peakWeek, pea
   `;
   document.getElementById('metricsGrid').innerHTML = metricsHTML;
 
+  // Show weeks up to when backlog clears (or all if never clears), minimum 12
+  const displayWeekCount = weeksToClear > 0 ? Math.max(12, weeksToClear) : weeks.length;
+  const displayWeeks = weeks.slice(0, displayWeekCount);
+
   // Weekly table
   const tbody = document.getElementById('weeklyBody');
   tbody.innerHTML = '';
-  const hasSurge = weeks.some(w => w.surgeStaff > 0);
+  const hasSurge = displayWeeks.some(w => w.surgeStaff > 0);
   // Update table header if surge is active
   const thead = document.querySelector('#weeklyTable thead tr');
   thead.innerHTML = `<th>Week</th><th>New Claims</th><th>Cumulative</th><th>Capacity</th><th>Processed</th><th>Backlog</th>${hasSurge ? '<th>Surge Staff</th>' : ''}<th>Status</th>`;
 
-  weeks.forEach(w => {
+  displayWeeks.forEach(w => {
     const statusClass = w.backlog === 0 ? 'status-ok' : (w.backlog < w.effectiveCapacity ? 'status-warn' : 'status-over');
     const statusText = w.backlog === 0 ? 'On Track' : (w.backlog < w.effectiveCapacity ? 'Building Backlog' : 'Critical Backlog');
     const tr = document.createElement('tr');
@@ -951,6 +983,14 @@ function showResults(site, incident, severity, totalClaims, weeks, peakWeek, pea
           Weeks over capacity: <strong style="color:${overCapacityWeeks > 0 ? '#ef4444' : '#22c55e'}">${overCapacityWeeks}</strong>
         </p>
       </div>
+      <div>
+        <h4 style="margin-bottom:8px;font-size:14px">Target Assessment</h4>
+        <p style="font-size:13px;color:#94a3b8">
+          Target: <strong style="color:#e2e8f0">${targetWeeks} weeks</strong><br>
+          Estimated clearance: <strong style="color:${canMeetTarget ? '#22c55e' : '#ef4444'}">${weeksToClear === -1 ? '52+ weeks' : weeksToClear + ' weeks'}</strong><br>
+          Status: <strong style="color:${canMeetTarget ? '#22c55e' : '#ef4444'}">${canMeetTarget ? 'On Target' : 'Exceeds Target'}</strong>
+        </p>
+      </div>
     </div>
     <div style="margin-top:16px">
       <h4 style="margin-bottom:8px;font-size:14px">Capacity vs Demand at Peak</h4>
@@ -966,6 +1006,10 @@ function showResults(site, incident, severity, totalClaims, weeks, peakWeek, pea
 
   // Recommendations
   const recs = [];
+  if (!canMeetTarget) {
+    const clearLabel = weeksToClear === -1 ? '52+' : weeksToClear;
+    recs.push({ level: 'critical', text: `Claims will not be cleared within the ${targetWeeks}-week target (estimated ${clearLabel} weeks). Increase staff or add surge resources to meet the target.` });
+  }
   if (additionalStaff > 0) {
     recs.push({ level: 'critical', text: `Recruit or reassign ${additionalStaff} additional claims staff before peak week (Week ${peakWeek}) to avoid critical backlog.` });
   }
@@ -998,8 +1042,9 @@ function showResults(site, incident, severity, totalClaims, weeks, peakWeek, pea
   });
 
   // Draw charts
-  drawForecastChart(weeks, weeklyCapacity, surgeEntries.length > 0);
-  drawCapacityChart(weeks, weeklyCapacity);
+  document.getElementById('forecastChartTitle').textContent = 'Claims Forecast Over ' + displayWeeks.length + ' Weeks';
+  drawForecastChart(displayWeeks, weeklyCapacity, surgeEntries.length > 0);
+  drawCapacityChart(displayWeeks, weeklyCapacity);
 }
 
 // ===== CHART DRAWING (Pure Canvas, no dependencies) =====
@@ -1295,6 +1340,7 @@ function generateReport() {
   <tr><td style="font-weight:600">Base Weekly Capacity</td><td>${s.weeklyCapacity} claims/week (${config.organisation.staffCount} staff)</td></tr>
   <tr><td style="font-weight:600">Weighted Avg Days/Claim</td><td>${s.weightedDaysPerClaim.toFixed(1)} days</td></tr>
   <tr><td style="font-weight:600">Claim Complexity Mix</td><td>Auto: ${s.claimComplexity.autoProcessedPct}% | 2-day: ${s.claimComplexity.twoDayPct}% | ${s.claimComplexity.customDays}-day: ${s.claimComplexity.customDayPct}% | Standard (${s.claimComplexity.standardDays || 4}d): ${Math.max(0, 100 - s.claimComplexity.autoProcessedPct - s.claimComplexity.twoDayPct - s.claimComplexity.customDayPct)}%</td></tr>
+  <tr><td style="font-weight:600">Target Processing Time</td><td>${s.targetWeeks} weeks</td></tr>
   ${surgeRows}
 </table>
 
@@ -1302,10 +1348,10 @@ function generateReport() {
 <div class="metrics">
   <div class="metric"><div class="metric-val blue">${s.totalClaims.toLocaleString()}</div><div class="metric-lbl">Total Estimated Claims</div></div>
   <div class="metric"><div class="metric-val yellow">Week ${s.peakWeek}</div><div class="metric-lbl">Peak Week (${s.peakClaims} claims)</div></div>
-  <div class="metric"><div class="metric-val ${s.overCapacityWeeks === 0 ? 'green' : 'red'}">${s.overCapacityWeeks === 0 ? 'Yes' : 'No'}</div><div class="metric-lbl">Can Current Capacity Handle?</div></div>
+  <div class="metric"><div class="metric-val ${s.canMeetTarget ? 'green' : 'red'}">${s.canMeetTarget ? 'Yes' : 'No'}</div><div class="metric-lbl">Cleared Within ${s.targetWeeks} Weeks?</div></div>
+  <div class="metric"><div class="metric-val ${s.canMeetTarget ? 'green' : 'red'}">${s.weeksToClear === -1 ? '52+' : s.weeksToClear}</div><div class="metric-lbl">Weeks to Clear All Claims</div></div>
   <div class="metric"><div class="metric-val ${s.additionalStaff === 0 ? 'green' : 'red'}">+${s.additionalStaff}</div><div class="metric-lbl">Additional Staff Required</div></div>
   <div class="metric"><div class="metric-val yellow">${s.maxBacklog.toLocaleString()}</div><div class="metric-lbl">Peak Backlog</div></div>
-  <div class="metric"><div class="metric-val ${s.overCapacityWeeks === 0 ? 'green' : 'red'}">${s.overCapacityWeeks}</div><div class="metric-lbl">Weeks Over Capacity</div></div>
 </div>
 
 <h2>Weekly Breakdown</h2>
