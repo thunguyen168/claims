@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claims Resilience Testing Tool</title>
+<style>
+/* ===== Reset & Base ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+  background: #0f172a; color: #e2e8f0; min-height: 100vh;
+}
+a { color: #60a5fa; }
+
+/* ===== Layout ===== */
+.app { display: flex; min-height: 100vh; }
+.sidebar {
+  width: 280px; background: #1e293b; border-right: 1px solid #334155;
+  padding: 20px; flex-shrink: 0; overflow-y: auto;
+}
+.main { flex: 1; padding: 24px; overflow-y: auto; }
+
+/* ===== Navigation ===== */
+.nav-title {
+  font-size: 14px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1px; color: #94a3b8; margin-bottom: 16px;
+}
+.nav-tabs { display: flex; gap: 4px; margin-bottom: 20px; }
+.nav-tab {
+  flex: 1; padding: 8px 4px; text-align: center; font-size: 12px; font-weight: 600;
+  background: #334155; color: #94a3b8; border: none; border-radius: 6px; cursor: pointer;
+  transition: all 0.2s;
+}
+.nav-tab.active { background: #3b82f6; color: #fff; }
+.nav-tab:hover:not(.active) { background: #475569; }
+
+/* ===== Form Controls ===== */
+.form-group { margin-bottom: 16px; }
+.form-group label {
+  display: block; font-size: 12px; font-weight: 600;
+  color: #94a3b8; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;
+}
+select, input[type="number"], input[type="text"] {
+  width: 100%; padding: 10px 12px; background: #0f172a; border: 1px solid #334155;
+  border-radius: 8px; color: #e2e8f0; font-size: 14px; outline: none;
+  transition: border-color 0.2s;
+}
+select:focus, input:focus { border-color: #3b82f6; }
+.btn {
+  padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px;
+  font-weight: 600; cursor: pointer; transition: all 0.2s; width: 100%;
+}
+.btn-primary { background: #3b82f6; color: #fff; }
+.btn-primary:hover { background: #2563eb; }
+.btn-success { background: #22c55e; color: #fff; }
+.btn-success:hover { background: #16a34a; }
+.btn-danger { background: #ef4444; color: #fff; margin-top: 8px; }
+.btn-danger:hover { background: #dc2626; }
+.btn-secondary { background: #475569; color: #e2e8f0; margin-top: 8px; }
+.btn-secondary:hover { background: #64748b; }
+
+/* ===== Cards ===== */
+.card {
+  background: #1e293b; border: 1px solid #334155; border-radius: 12px;
+  padding: 20px; margin-bottom: 20px;
+}
+.card-title {
+  font-size: 16px; font-weight: 700; margin-bottom: 16px;
+  padding-bottom: 12px; border-bottom: 1px solid #334155;
+}
+
+/* ===== Metrics Grid ===== */
+.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px; }
+.metric-card {
+  background: #1e293b; border: 1px solid #334155; border-radius: 12px;
+  padding: 16px; text-align: center;
+}
+.metric-value { font-size: 28px; font-weight: 800; margin-bottom: 4px; }
+.metric-label { font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
+.metric-green { color: #22c55e; }
+.metric-yellow { color: #eab308; }
+.metric-red { color: #ef4444; }
+.metric-blue { color: #3b82f6; }
+
+/* ===== Charts (Canvas-based) ===== */
+.chart-container { position: relative; width: 100%; margin-bottom: 12px; }
+canvas { width: 100%; display: block; }
+
+/* ===== Capacity Table ===== */
+.capacity-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.capacity-table th, .capacity-table td {
+  padding: 10px 12px; text-align: left; border-bottom: 1px solid #334155;
+}
+.capacity-table th { color: #94a3b8; font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
+.status-ok { color: #22c55e; font-weight: 600; }
+.status-warn { color: #eab308; font-weight: 600; }
+.status-over { color: #ef4444; font-weight: 600; }
+
+/* ===== Recommendations ===== */
+.rec-list { list-style: none; }
+.rec-list li { padding: 10px 12px; border-left: 3px solid #3b82f6; margin-bottom: 8px; background: #0f172a; border-radius: 0 8px 8px 0; font-size: 13px; }
+.rec-list li.critical { border-left-color: #ef4444; }
+.rec-list li.warning { border-left-color: #eab308; }
+.rec-list li.info { border-left-color: #3b82f6; }
+
+/* ===== Backend Admin ===== */
+.admin-section { margin-bottom: 24px; }
+.admin-section h3 { font-size: 14px; font-weight: 700; color: #94a3b8; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+.admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.admin-grid .form-group { margin-bottom: 8px; }
+.site-card {
+  background: #0f172a; border: 1px solid #334155; border-radius: 8px;
+  padding: 16px; margin-bottom: 12px;
+}
+.site-card-header {
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;
+}
+.site-card-header h4 { font-size: 14px; font-weight: 600; }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+.tag-active { background: #22c55e22; color: #22c55e; }
+
+/* ===== Header ===== */
+.header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 24px; flex-wrap: wrap; gap: 12px;
+}
+.header h1 { font-size: 22px; font-weight: 800; }
+.header-sub { font-size: 13px; color: #94a3b8; }
+
+/* ===== Responsive ===== */
+@media (max-width: 900px) {
+  .app { flex-direction: column; }
+  .sidebar { width: 100%; border-right: none; border-bottom: 1px solid #334155; }
+  .metrics { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 500px) {
+  .metrics { grid-template-columns: 1fr; }
+  .admin-grid { grid-template-columns: 1fr; }
+}
+
+/* ===== Legend ===== */
+.chart-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; font-size: 12px; }
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.legend-swatch { width: 12px; height: 12px; border-radius: 3px; }
+
+/* ===== Toggle ===== */
+.toggle-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.toggle-label { font-size: 13px; }
+.toggle {
+  width: 40px; height: 22px; background: #475569; border-radius: 11px;
+  position: relative; cursor: pointer; transition: background 0.2s;
+}
+.toggle.on { background: #3b82f6; }
+.toggle::after {
+  content: ''; position: absolute; width: 18px; height: 18px; background: #fff;
+  border-radius: 50%; top: 2px; left: 2px; transition: transform 0.2s;
+}
+.toggle.on::after { transform: translateX(18px); }
+
+/* Progress bar */
+.progress-bar { height: 8px; background: #334155; border-radius: 4px; overflow: hidden; margin-top: 4px; }
+.progress-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="nav-title">Claims Resilience Tool</div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="switchView('scenario')">Scenario</button>
+      <button class="nav-tab" onclick="switchView('admin')">Admin</button>
+    </div>
+
+    <!-- Scenario Panel -->
+    <div id="scenarioPanel">
+      <div class="form-group">
+        <label>Select Site</label>
+        <select id="siteSelect" onchange="runScenario()"></select>
+      </div>
+      <div class="form-group">
+        <label>Incident Type</label>
+        <select id="incidentSelect" onchange="runScenario()">
+          <option value="fire">Fire</option>
+          <option value="explosion">Explosion</option>
+          <option value="radioactive">Radioactive Contamination</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Severity Level</label>
+        <select id="severitySelect" onchange="runScenario()">
+          <option value="minor">Minor - Small local impact</option>
+          <option value="moderate">Moderate - Neighbourhood impact</option>
+          <option value="major">Major - Town/city impact</option>
+          <option value="catastrophic">Catastrophic - Regional impact</option>
+        </select>
+      </div>
+      <div style="margin-top:20px">
+        <button class="btn btn-primary" onclick="runScenario()">Run Scenario</button>
+      </div>
+    </div>
+
+    <!-- Admin Panel -->
+    <div id="adminPanel" style="display:none">
+      <div class="admin-section">
+        <h3>Organisation Settings</h3>
+        <div class="form-group">
+          <label>Weekly Claim Capacity</label>
+          <input type="number" id="adminCapacity" value="75" onchange="saveAdmin()">
+        </div>
+        <div class="form-group">
+          <label>Number of Claims Staff</label>
+          <input type="number" id="adminStaff" value="8" onchange="saveAdmin()">
+        </div>
+        <div class="form-group">
+          <label>Days to Process One Claim</label>
+          <input type="number" id="adminDaysPerClaim" value="4" onchange="saveAdmin()">
+        </div>
+        <div class="form-group">
+          <label>Working Days per Week</label>
+          <input type="number" id="adminWorkDays" value="5" onchange="saveAdmin()">
+        </div>
+      </div>
+
+      <div class="admin-section">
+        <h3>Incident Multipliers</h3>
+        <div class="form-group">
+          <label>Fire Multiplier</label>
+          <input type="number" id="multFire" value="1.0" step="0.1" onchange="saveAdmin()">
+        </div>
+        <div class="form-group">
+          <label>Explosion Multiplier</label>
+          <input type="number" id="multExplosion" value="1.3" step="0.1" onchange="saveAdmin()">
+        </div>
+        <div class="form-group">
+          <label>Radioactive Multiplier</label>
+          <input type="number" id="multRadioactive" value="1.8" step="0.1" onchange="saveAdmin()">
+        </div>
+      </div>
+
+      <div class="admin-section">
+        <h3>Severity Claim Rates</h3>
+        <p style="font-size:11px;color:#64748b;margin-bottom:8px">% of affected population filing claims</p>
+        <div class="form-group">
+          <label>Minor (%)</label>
+          <input type="number" id="rateMinor" value="2" step="0.5" onchange="saveAdmin()">
+        </div>
+        <div class="form-group">
+          <label>Moderate (%)</label>
+          <input type="number" id="rateModerate" value="8" step="0.5" onchange="saveAdmin()">
+        </div>
+        <div class="form-group">
+          <label>Major (%)</label>
+          <input type="number" id="rateMajor" value="20" step="1" onchange="saveAdmin()">
+        </div>
+        <div class="form-group">
+          <label>Catastrophic (%)</label>
+          <input type="number" id="rateCatastrophic" value="45" step="1" onchange="saveAdmin()">
+        </div>
+      </div>
+
+      <div class="admin-section">
+        <h3>Sites Management</h3>
+        <div id="sitesAdminList"></div>
+        <button class="btn btn-success" onclick="addSitePrompt()" style="margin-top:12px">+ Add Site</button>
+      </div>
+
+      <div class="admin-section" style="margin-top:20px">
+        <button class="btn btn-secondary" onclick="exportConfig()">Export Config</button>
+        <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">Import Config</button>
+        <input type="file" id="importFile" accept=".json" style="display:none" onchange="importConfig(event)">
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main">
+    <div class="header">
+      <div>
+        <h1 id="mainTitle">Claims Resilience Testing</h1>
+        <div class="header-sub" id="mainSub">Select a scenario to begin analysis</div>
+      </div>
+    </div>
+
+    <div id="resultsArea" style="display:none">
+      <!-- Key Metrics -->
+      <div class="metrics" id="metricsGrid"></div>
+
+      <!-- Claims Forecast Chart -->
+      <div class="card">
+        <div class="card-title">Claims Forecast Over 12 Weeks</div>
+        <div class="chart-container">
+          <canvas id="forecastChart" height="300"></canvas>
+        </div>
+        <div class="chart-legend" id="forecastLegend"></div>
+      </div>
+
+      <!-- Capacity Chart -->
+      <div class="card">
+        <div class="card-title">Capacity Utilisation</div>
+        <div class="chart-container">
+          <canvas id="capacityChart" height="250"></canvas>
+        </div>
+        <div class="chart-legend" id="capacityLegend"></div>
+      </div>
+
+      <!-- Weekly Breakdown Table -->
+      <div class="card">
+        <div class="card-title">Weekly Breakdown</div>
+        <div style="overflow-x:auto">
+          <table class="capacity-table" id="weeklyTable">
+            <thead><tr>
+              <th>Week</th><th>New Claims</th><th>Cumulative</th><th>Processed</th><th>Backlog</th><th>Status</th>
+            </tr></thead>
+            <tbody id="weeklyBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Resource Requirements -->
+      <div class="card">
+        <div class="card-title">Resource Requirements</div>
+        <div id="resourceContent"></div>
+      </div>
+
+      <!-- Recommendations -->
+      <div class="card">
+        <div class="card-title">Recommendations</div>
+        <ul class="rec-list" id="recList"></ul>
+      </div>
+    </div>
+
+    <div id="welcomeArea">
+      <div class="card" style="text-align:center;padding:60px 20px">
+        <div style="font-size:48px;margin-bottom:16px">&#9881;</div>
+        <h2 style="margin-bottom:12px">Claims Resilience Testing Tool</h2>
+        <p style="color:#94a3b8;max-width:500px;margin:0 auto;line-height:1.6">
+          Test your organisation's claim processing resilience across different incident scenarios.
+          Select a site, incident type, and severity level from the sidebar to begin.
+        </p>
+        <p style="color:#64748b;margin-top:16px;font-size:13px">
+          Use the Admin panel to configure sites, staff capacity, and processing parameters.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== DEFAULT CONFIGURATION =====
+const DEFAULT_CONFIG = {
+  organisation: {
+    weeklyCapacity: 75,
+    staffCount: 8,
+    daysPerClaim: 4,
+    workDaysPerWeek: 5
+  },
+  incidentMultipliers: {
+    fire: 1.0,
+    explosion: 1.3,
+    radioactive: 1.8
+  },
+  severityRates: {
+    minor: 0.02,
+    moderate: 0.08,
+    major: 0.20,
+    catastrophic: 0.45
+  },
+  sites: [
+    { id: 'hinkley', name: 'Hinkley Point', location: 'Somerset, England', population: 35000, staffOnSite: 4000, active: true },
+    { id: 'sizewell', name: 'Sizewell', location: 'Suffolk, England', population: 25000, staffOnSite: 2500, active: true },
+    { id: 'heysham', name: 'Heysham', location: 'Lancashire, England', population: 30000, staffOnSite: 3000, active: true }
+  ]
+};
+
+// Load config from localStorage or use defaults
+let config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+try {
+  const saved = localStorage.getItem('claimsToolConfig');
+  if (saved) config = JSON.parse(saved);
+} catch(e) {}
+
+function saveConfig() {
+  try { localStorage.setItem('claimsToolConfig', JSON.stringify(config)); } catch(e) {}
+}
+
+// ===== VIEW SWITCHING =====
+function switchView(view) {
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  if (view === 'scenario') {
+    document.getElementById('scenarioPanel').style.display = '';
+    document.getElementById('adminPanel').style.display = 'none';
+    document.querySelectorAll('.nav-tab')[0].classList.add('active');
+  } else {
+    document.getElementById('scenarioPanel').style.display = 'none';
+    document.getElementById('adminPanel').style.display = '';
+    document.querySelectorAll('.nav-tab')[1].classList.add('active');
+    loadAdmin();
+  }
+}
+
+// ===== POPULATE SITE DROPDOWN =====
+function populateSites() {
+  const sel = document.getElementById('siteSelect');
+  sel.innerHTML = '';
+  config.sites.filter(s => s.active).forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s.id; opt.textContent = s.name + ' - ' + s.location;
+    sel.appendChild(opt);
+  });
+}
+
+// ===== ADMIN PANEL =====
+function loadAdmin() {
+  document.getElementById('adminCapacity').value = config.organisation.weeklyCapacity;
+  document.getElementById('adminStaff').value = config.organisation.staffCount;
+  document.getElementById('adminDaysPerClaim').value = config.organisation.daysPerClaim;
+  document.getElementById('adminWorkDays').value = config.organisation.workDaysPerWeek;
+  document.getElementById('multFire').value = config.incidentMultipliers.fire;
+  document.getElementById('multExplosion').value = config.incidentMultipliers.explosion;
+  document.getElementById('multRadioactive').value = config.incidentMultipliers.radioactive;
+  document.getElementById('rateMinor').value = (config.severityRates.minor * 100);
+  document.getElementById('rateModerate').value = (config.severityRates.moderate * 100);
+  document.getElementById('rateMajor').value = (config.severityRates.major * 100);
+  document.getElementById('rateCatastrophic').value = (config.severityRates.catastrophic * 100);
+  renderSitesAdmin();
+}
+
+function saveAdmin() {
+  config.organisation.weeklyCapacity = parseInt(document.getElementById('adminCapacity').value) || 75;
+  config.organisation.staffCount = parseInt(document.getElementById('adminStaff').value) || 8;
+  config.organisation.daysPerClaim = parseInt(document.getElementById('adminDaysPerClaim').value) || 4;
+  config.organisation.workDaysPerWeek = parseInt(document.getElementById('adminWorkDays').value) || 5;
+  config.incidentMultipliers.fire = parseFloat(document.getElementById('multFire').value) || 1.0;
+  config.incidentMultipliers.explosion = parseFloat(document.getElementById('multExplosion').value) || 1.3;
+  config.incidentMultipliers.radioactive = parseFloat(document.getElementById('multRadioactive').value) || 1.8;
+  config.severityRates.minor = (parseFloat(document.getElementById('rateMinor').value) || 2) / 100;
+  config.severityRates.moderate = (parseFloat(document.getElementById('rateModerate').value) || 8) / 100;
+  config.severityRates.major = (parseFloat(document.getElementById('rateMajor').value) || 20) / 100;
+  config.severityRates.catastrophic = (parseFloat(document.getElementById('rateCatastrophic').value) || 45) / 100;
+  saveConfig();
+  populateSites();
+}
+
+function renderSitesAdmin() {
+  const container = document.getElementById('sitesAdminList');
+  container.innerHTML = '';
+  config.sites.forEach((site, idx) => {
+    const div = document.createElement('div');
+    div.className = 'site-card';
+    div.innerHTML = `
+      <div class="site-card-header">
+        <h4>${site.name}</h4>
+        <span class="tag ${site.active ? 'tag-active' : ''}">${site.active ? 'Active' : 'Inactive'}</span>
+      </div>
+      <div class="admin-grid">
+        <div class="form-group">
+          <label>Name</label>
+          <input type="text" value="${site.name}" onchange="updateSite(${idx},'name',this.value)">
+        </div>
+        <div class="form-group">
+          <label>Location</label>
+          <input type="text" value="${site.location}" onchange="updateSite(${idx},'location',this.value)">
+        </div>
+        <div class="form-group">
+          <label>Local Population</label>
+          <input type="number" value="${site.population}" onchange="updateSite(${idx},'population',parseInt(this.value))">
+        </div>
+        <div class="form-group">
+          <label>Staff on Site</label>
+          <input type="number" value="${site.staffOnSite}" onchange="updateSite(${idx},'staffOnSite',parseInt(this.value))">
+        </div>
+      </div>
+      <div style="margin-top:8px;display:flex;gap:8px">
+        <button class="btn btn-secondary" style="width:auto;padding:6px 12px;font-size:12px" onclick="toggleSiteActive(${idx})">${site.active ? 'Deactivate' : 'Activate'}</button>
+        <button class="btn btn-danger" style="width:auto;padding:6px 12px;font-size:12px" onclick="removeSite(${idx})">Remove</button>
+      </div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+function updateSite(idx, field, value) {
+  config.sites[idx][field] = value;
+  if (field === 'name') {
+    config.sites[idx].id = value.toLowerCase().replace(/[^a-z0-9]/g, '_');
+  }
+  saveConfig();
+  populateSites();
+  renderSitesAdmin();
+}
+
+function toggleSiteActive(idx) {
+  config.sites[idx].active = !config.sites[idx].active;
+  saveConfig();
+  populateSites();
+  renderSitesAdmin();
+}
+
+function removeSite(idx) {
+  if (config.sites.length <= 1) { alert('You must have at least one site.'); return; }
+  config.sites.splice(idx, 1);
+  saveConfig();
+  populateSites();
+  renderSitesAdmin();
+}
+
+function addSitePrompt() {
+  const name = prompt('Enter site name:');
+  if (!name) return;
+  const location = prompt('Enter location:') || '';
+  const population = parseInt(prompt('Enter local population estimate:')) || 10000;
+  const staff = parseInt(prompt('Enter staff on site:')) || 500;
+  config.sites.push({
+    id: name.toLowerCase().replace(/[^a-z0-9]/g, '_'),
+    name: name,
+    location: location,
+    population: population,
+    staffOnSite: staff,
+    active: true
+  });
+  saveConfig();
+  populateSites();
+  renderSitesAdmin();
+}
+
+function exportConfig() {
+  const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'claims-tool-config.json';
+  a.click();
+}
+
+function importConfig(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      config = JSON.parse(e.target.result);
+      saveConfig();
+      populateSites();
+      loadAdmin();
+      alert('Configuration imported successfully.');
+    } catch(err) {
+      alert('Invalid config file.');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
+// ===== CLAIMS DISTRIBUTION MODEL =====
+// Bell-curve: claims slowly rise to a peak around week 3-4, then gradually decline
+function getWeeklyDistribution() {
+  // Using a log-normal-like shape: slow rise, peak around week 3-4, gradual decline
+  const raw = [
+    0.04,  // Week 1:  initial reports start coming in
+    0.08,  // Week 2:  awareness spreads, more filing
+    0.14,  // Week 3:  rising towards peak
+    0.18,  // Week 4:  peak week
+    0.15,  // Week 5:  starting to decline
+    0.12,  // Week 6:  continued decline
+    0.09,  // Week 7:
+    0.07,  // Week 8:
+    0.05,  // Week 9:
+    0.04,  // Week 10:
+    0.02,  // Week 11: tail end
+    0.02   // Week 12: lingering claims
+  ];
+  // Normalise to sum to 1
+  const sum = raw.reduce((a, b) => a + b, 0);
+  return raw.map(v => v / sum);
+}
+
+// ===== SCENARIO CALCULATION =====
+function runScenario() {
+  const siteId = document.getElementById('siteSelect').value;
+  const incident = document.getElementById('incidentSelect').value;
+  const severity = document.getElementById('severitySelect').value;
+
+  const site = config.sites.find(s => s.id === siteId);
+  if (!site) return;
+
+  const totalAffected = site.population + site.staffOnSite;
+  const claimRate = config.severityRates[severity];
+  const multiplier = config.incidentMultipliers[incident];
+  const totalClaims = Math.round(totalAffected * claimRate * multiplier);
+
+  const distribution = getWeeklyDistribution();
+  const weeklyClaims = distribution.map(d => Math.round(totalClaims * d));
+
+  // Adjust rounding so total matches
+  const calcTotal = weeklyClaims.reduce((a, b) => a + b, 0);
+  if (calcTotal !== totalClaims) {
+    weeklyClaims[3] += (totalClaims - calcTotal); // adjust peak week
+  }
+
+  const weeklyCapacity = config.organisation.weeklyCapacity;
+
+  // Build weekly breakdown with backlog
+  const weeks = [];
+  let cumulative = 0;
+  let totalProcessed = 0;
+  let backlog = 0;
+  let peakWeek = 0;
+  let peakClaims = 0;
+
+  for (let i = 0; i < 12; i++) {
+    const newClaims = weeklyClaims[i];
+    cumulative += newClaims;
+    const available = newClaims + backlog;
+    const processed = Math.min(available, weeklyCapacity);
+    totalProcessed += processed;
+    backlog = available - processed;
+    if (newClaims > peakClaims) { peakClaims = newClaims; peakWeek = i + 1; }
+    weeks.push({
+      week: i + 1,
+      newClaims,
+      cumulative,
+      processed,
+      backlog,
+      utilisation: (newClaims / weeklyCapacity) * 100
+    });
+  }
+
+  // Calculate resource needs
+  const peakWeekData = weeks[peakWeek - 1];
+  const maxBacklog = Math.max(...weeks.map(w => w.backlog));
+  const overCapacityWeeks = weeks.filter(w => w.newClaims > weeklyCapacity).length;
+  const claimsPerStaffPerWeek = config.organisation.workDaysPerWeek / config.organisation.daysPerClaim;
+  const staffNeededAtPeak = Math.ceil(peakClaims / claimsPerStaffPerWeek);
+  const additionalStaff = Math.max(0, staffNeededAtPeak - config.organisation.staffCount);
+
+  // Display results
+  showResults(site, incident, severity, totalClaims, weeks, peakWeek, peakClaims,
+    weeklyCapacity, maxBacklog, overCapacityWeeks, additionalStaff, staffNeededAtPeak, claimsPerStaffPerWeek);
+}
+
+function showResults(site, incident, severity, totalClaims, weeks, peakWeek, peakClaims,
+  weeklyCapacity, maxBacklog, overCapacityWeeks, additionalStaff, staffNeededAtPeak, claimsPerStaffPerWeek) {
+
+  document.getElementById('welcomeArea').style.display = 'none';
+  document.getElementById('resultsArea').style.display = '';
+
+  const incidentLabels = { fire: 'Fire', explosion: 'Explosion', radioactive: 'Radioactive Contamination' };
+  const severityLabels = { minor: 'Minor', moderate: 'Moderate', major: 'Major', catastrophic: 'Catastrophic' };
+
+  document.getElementById('mainTitle').textContent = site.name + ' - Scenario Analysis';
+  document.getElementById('mainSub').textContent =
+    incidentLabels[incident] + ' | ' + severityLabels[severity] + ' Severity | ' + site.location;
+
+  // Metrics
+  const canHandle = overCapacityWeeks === 0;
+  const metricsHTML = `
+    <div class="metric-card">
+      <div class="metric-value metric-blue">${totalClaims.toLocaleString()}</div>
+      <div class="metric-label">Total Estimated Claims</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value metric-yellow">Week ${peakWeek}</div>
+      <div class="metric-label">Peak Week (${peakClaims} claims)</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value ${canHandle ? 'metric-green' : 'metric-red'}">${canHandle ? 'Yes' : 'No'}</div>
+      <div class="metric-label">Can Current Capacity Handle?</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value ${additionalStaff === 0 ? 'metric-green' : 'metric-red'}">+${additionalStaff}</div>
+      <div class="metric-label">Additional Staff Required</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value metric-yellow">${maxBacklog.toLocaleString()}</div>
+      <div class="metric-label">Peak Backlog</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value ${overCapacityWeeks === 0 ? 'metric-green' : 'metric-red'}">${overCapacityWeeks}</div>
+      <div class="metric-label">Weeks Over Capacity</div>
+    </div>
+  `;
+  document.getElementById('metricsGrid').innerHTML = metricsHTML;
+
+  // Weekly table
+  const tbody = document.getElementById('weeklyBody');
+  tbody.innerHTML = '';
+  weeks.forEach(w => {
+    const statusClass = w.backlog === 0 ? 'status-ok' : (w.backlog < weeklyCapacity ? 'status-warn' : 'status-over');
+    const statusText = w.backlog === 0 ? 'On Track' : (w.backlog < weeklyCapacity ? 'Building Backlog' : 'Critical Backlog');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>Week ${w.week}</td>
+      <td>${w.newClaims.toLocaleString()}</td>
+      <td>${w.cumulative.toLocaleString()}</td>
+      <td>${w.processed.toLocaleString()}</td>
+      <td>${w.backlog.toLocaleString()}</td>
+      <td class="${statusClass}">${statusText}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // Resource requirements
+  const resHTML = `
+    <div class="admin-grid" style="gap:16px">
+      <div>
+        <h4 style="margin-bottom:8px;font-size:14px">Current Capacity</h4>
+        <p style="font-size:13px;color:#94a3b8">
+          Staff: <strong style="color:#e2e8f0">${config.organisation.staffCount}</strong><br>
+          Claims/week: <strong style="color:#e2e8f0">${weeklyCapacity}</strong><br>
+          Claims/staff/week: <strong style="color:#e2e8f0">${claimsPerStaffPerWeek.toFixed(1)}</strong><br>
+          Days per claim: <strong style="color:#e2e8f0">${config.organisation.daysPerClaim}</strong>
+        </p>
+      </div>
+      <div>
+        <h4 style="margin-bottom:8px;font-size:14px">Required at Peak</h4>
+        <p style="font-size:13px;color:#94a3b8">
+          Staff needed: <strong style="color:#e2e8f0">${staffNeededAtPeak}</strong><br>
+          Additional staff: <strong style="color:${additionalStaff > 0 ? '#ef4444' : '#22c55e'}">${additionalStaff > 0 ? '+' + additionalStaff : 'None'}</strong><br>
+          Peak week claims: <strong style="color:#e2e8f0">${peakClaims}</strong><br>
+          Weeks over capacity: <strong style="color:${overCapacityWeeks > 0 ? '#ef4444' : '#22c55e'}">${overCapacityWeeks}</strong>
+        </p>
+      </div>
+    </div>
+    <div style="margin-top:16px">
+      <h4 style="margin-bottom:8px;font-size:14px">Capacity vs Demand at Peak</h4>
+      <div class="progress-bar" style="height:20px;border-radius:6px">
+        <div class="progress-fill" style="width:${Math.min(100, (weeklyCapacity / peakClaims) * 100)}%;background:${weeklyCapacity >= peakClaims ? '#22c55e' : '#ef4444'};border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">
+          ${Math.round((weeklyCapacity / peakClaims) * 100)}%
+        </div>
+      </div>
+      <p style="font-size:11px;color:#64748b;margin-top:4px">Current capacity covers ${Math.round((weeklyCapacity / peakClaims) * 100)}% of peak demand</p>
+    </div>
+  `;
+  document.getElementById('resourceContent').innerHTML = resHTML;
+
+  // Recommendations
+  const recs = [];
+  if (additionalStaff > 0) {
+    recs.push({ level: 'critical', text: `Recruit or reassign ${additionalStaff} additional claims staff before peak week (Week ${peakWeek}) to avoid critical backlog.` });
+  }
+  if (maxBacklog > weeklyCapacity * 2) {
+    recs.push({ level: 'critical', text: `Peak backlog of ${maxBacklog.toLocaleString()} claims exceeds 2 weeks of capacity. Consider emergency outsourcing or mutual aid agreements.` });
+  }
+  if (overCapacityWeeks >= 4) {
+    recs.push({ level: 'warning', text: `${overCapacityWeeks} weeks exceed current capacity. Develop a surge staffing plan with pre-identified temporary resources.` });
+  }
+  if (incident === 'radioactive') {
+    recs.push({ level: 'warning', text: 'Radioactive contamination claims may require specialist assessors. Ensure qualified personnel are available or contracted.' });
+    recs.push({ level: 'info', text: 'Consider pre-positioning claim forms and guidance materials for nuclear incident scenarios.' });
+  }
+  if (totalClaims > 1000) {
+    recs.push({ level: 'warning', text: 'High claim volume expected. Implement digital/online claim submission to reduce processing bottlenecks.' });
+  }
+  if (peakWeek <= 4) {
+    recs.push({ level: 'info', text: `Claims peak in Week ${peakWeek}. Ensure incident response and claims teams are mobilised within the first 48 hours.` });
+  }
+  recs.push({ level: 'info', text: 'Establish a dedicated claims hotline and information centre for affected parties.' });
+  recs.push({ level: 'info', text: 'Coordinate with local authorities and emergency services for efficient claim validation.' });
+
+  const recList = document.getElementById('recList');
+  recList.innerHTML = '';
+  recs.forEach(r => {
+    const li = document.createElement('li');
+    li.className = r.level;
+    li.textContent = r.text;
+    recList.appendChild(li);
+  });
+
+  // Draw charts
+  drawForecastChart(weeks, weeklyCapacity);
+  drawCapacityChart(weeks, weeklyCapacity);
+}
+
+// ===== CHART DRAWING (Pure Canvas, no dependencies) =====
+
+function drawForecastChart(weeks, capacity) {
+  const canvas = document.getElementById('forecastChart');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = 300 * dpr;
+  canvas.style.height = '300px';
+  ctx.scale(dpr, dpr);
+  const W = rect.width;
+  const H = 300;
+
+  ctx.clearRect(0, 0, W, H);
+
+  const pad = { top: 20, right: 20, bottom: 40, left: 60 };
+  const chartW = W - pad.left - pad.right;
+  const chartH = H - pad.top - pad.bottom;
+
+  const maxVal = Math.max(capacity, ...weeks.map(w => w.newClaims)) * 1.15;
+  const xStep = chartW / 11;
+
+  // Grid lines
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (chartH / 4) * i;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + chartW, y); ctx.stroke();
+    ctx.fillStyle = '#64748b';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(Math.round(maxVal - (maxVal / 4) * i).toLocaleString(), pad.left - 8, y + 4);
+  }
+
+  // X labels
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#64748b';
+  weeks.forEach((w, i) => {
+    ctx.fillText('W' + w.week, pad.left + i * xStep, H - pad.bottom + 20);
+  });
+
+  // Capacity line
+  const capY = pad.top + chartH - (capacity / maxVal) * chartH;
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([6, 4]);
+  ctx.beginPath(); ctx.moveTo(pad.left, capY); ctx.lineTo(pad.left + chartW, capY); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Area fill under claims curve
+  ctx.beginPath();
+  ctx.moveTo(pad.left, pad.top + chartH);
+  weeks.forEach((w, i) => {
+    const x = pad.left + i * xStep;
+    const y = pad.top + chartH - (w.newClaims / maxVal) * chartH;
+    if (i === 0) ctx.lineTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.lineTo(pad.left + 11 * xStep, pad.top + chartH);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + chartH);
+  grad.addColorStop(0, 'rgba(59,130,246,0.3)');
+  grad.addColorStop(1, 'rgba(59,130,246,0.02)');
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Claims line with smooth curve
+  ctx.strokeStyle = '#3b82f6';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  const points = weeks.map((w, i) => ({
+    x: pad.left + i * xStep,
+    y: pad.top + chartH - (w.newClaims / maxVal) * chartH
+  }));
+
+  // Draw smooth curve using bezier
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length; i++) {
+    const prev = points[i - 1];
+    const curr = points[i];
+    const cpx = (prev.x + curr.x) / 2;
+    ctx.bezierCurveTo(cpx, prev.y, cpx, curr.y, curr.x, curr.y);
+  }
+  ctx.stroke();
+
+  // Data points
+  points.forEach(p => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+    ctx.fillStyle = '#3b82f6';
+    ctx.fill();
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  });
+
+  // Cumulative line
+  const maxCum = weeks[weeks.length - 1].cumulative * 1.1;
+  ctx.strokeStyle = '#22c55e';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  weeks.forEach((w, i) => {
+    const x = pad.left + i * xStep;
+    const y = pad.top + chartH - (w.cumulative / maxCum) * chartH;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Legend
+  document.getElementById('forecastLegend').innerHTML = `
+    <div class="legend-item"><div class="legend-swatch" style="background:#3b82f6"></div> New Claims/Week</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#22c55e"></div> Cumulative Claims</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#ef4444"></div> Weekly Capacity (${capacity})</div>
+  `;
+}
+
+function drawCapacityChart(weeks, capacity) {
+  const canvas = document.getElementById('capacityChart');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = 250 * dpr;
+  canvas.style.height = '250px';
+  ctx.scale(dpr, dpr);
+  const W = rect.width;
+  const H = 250;
+
+  ctx.clearRect(0, 0, W, H);
+
+  const pad = { top: 20, right: 20, bottom: 40, left: 60 };
+  const chartW = W - pad.left - pad.right;
+  const chartH = H - pad.top - pad.bottom;
+  const barW = (chartW / 12) * 0.7;
+  const gap = (chartW / 12) * 0.3;
+
+  const maxUtil = Math.max(100, ...weeks.map(w => w.utilisation)) * 1.15;
+
+  // Grid
+  ctx.strokeStyle = '#334155'; ctx.lineWidth = 1;
+  [0, 25, 50, 75, 100].forEach(pct => {
+    const y = pad.top + chartH - (pct / maxUtil) * chartH;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + chartW, y); ctx.stroke();
+    ctx.fillStyle = '#64748b'; ctx.font = '11px sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText(pct + '%', pad.left - 8, y + 4);
+  });
+
+  // 100% line
+  const y100 = pad.top + chartH - (100 / maxUtil) * chartH;
+  ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
+  ctx.beginPath(); ctx.moveTo(pad.left, y100); ctx.lineTo(pad.left + chartW, y100); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Bars
+  weeks.forEach((w, i) => {
+    const x = pad.left + i * (chartW / 12) + gap / 2;
+    const barH = (w.utilisation / maxUtil) * chartH;
+    const y = pad.top + chartH - barH;
+
+    let color;
+    if (w.utilisation <= 70) color = '#22c55e';
+    else if (w.utilisation <= 100) color = '#eab308';
+    else color = '#ef4444';
+
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    // Rounded top corners
+    const r = 3;
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + barW - r, y);
+    ctx.quadraticCurveTo(x + barW, y, x + barW, y + r);
+    ctx.lineTo(x + barW, pad.top + chartH);
+    ctx.lineTo(x, pad.top + chartH);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.fill();
+
+    // Label
+    ctx.fillStyle = '#e2e8f0'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(Math.round(w.utilisation) + '%', x + barW / 2, y - 6);
+
+    // X label
+    ctx.fillStyle = '#64748b'; ctx.font = '11px sans-serif';
+    ctx.fillText('W' + w.week, x + barW / 2, H - pad.bottom + 20);
+  });
+
+  document.getElementById('capacityLegend').innerHTML = `
+    <div class="legend-item"><div class="legend-swatch" style="background:#22c55e"></div> Under 70%</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#eab308"></div> 70-100%</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#ef4444"></div> Over Capacity</div>
+  `;
+}
+
+// ===== INIT =====
+populateSites();
+runScenario();
+
+// Redraw on resize
+window.addEventListener('resize', () => {
+  if (document.getElementById('resultsArea').style.display !== 'none') {
+    runScenario();
+  }
+});
+</script>
+</body>
+</html>
