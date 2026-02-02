@@ -254,20 +254,44 @@ input[type="range"]::-moz-range-thumb {
       <div class="admin-section">
         <h3>Organisation Settings</h3>
         <div class="form-group">
-          <label>Weekly Claim Capacity</label>
-          <input type="number" id="adminCapacity" value="75" onchange="saveAdmin()">
-        </div>
-        <div class="form-group">
           <label>Number of Claims Staff</label>
           <input type="number" id="adminStaff" value="8" onchange="saveAdmin()">
         </div>
         <div class="form-group">
-          <label>Days to Process One Claim</label>
-          <input type="number" id="adminDaysPerClaim" value="4" onchange="saveAdmin()">
-        </div>
-        <div class="form-group">
           <label>Working Days per Week</label>
           <input type="number" id="adminWorkDays" value="5" onchange="saveAdmin()">
+        </div>
+        <div class="form-group">
+          <label>Days to Process One Claim (standard)</label>
+          <input type="number" id="adminDaysPerClaim" value="4" step="0.5" onchange="saveAdmin()">
+        </div>
+        <div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:12px;margin-top:8px">
+          <div style="font-size:12px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Calculated Weekly Capacity</div>
+          <div id="calculatedCapacity" style="font-size:22px;font-weight:800;color:#3b82f6">10</div>
+          <div id="capacityFormula" style="font-size:11px;color:#64748b;margin-top:2px">8 staff × 5 days ÷ 4.0 avg days/claim</div>
+        </div>
+      </div>
+
+      <div class="admin-section">
+        <h3>Claim Complexity Mix</h3>
+        <p style="font-size:11px;color:#64748b;margin-bottom:10px">Adjust the proportion of claims at each processing speed. Remaining % uses standard processing time.</p>
+        <div class="range-group">
+          <label>Auto-Processed (0 days) <span class="range-value" id="autoProcessedValue">10%</span></label>
+          <input type="range" id="autoProcessedSlider" min="0" max="100" value="10" oninput="updateComplexitySlider()">
+        </div>
+        <div class="range-group">
+          <label>Fast Track - 2 Days <span class="range-value" id="twoDayValue">20%</span></label>
+          <input type="range" id="twoDaySlider" min="0" max="100" value="20" oninput="updateComplexitySlider()">
+        </div>
+        <div class="range-group" style="margin-bottom:8px">
+          <label>Medium Track <span class="range-value" id="customDayValue">30%</span></label>
+          <input type="range" id="customDaySlider" min="0" max="100" value="30" oninput="updateComplexitySlider()">
+        </div>
+        <div class="form-group" style="margin-bottom:8px">
+          <label>Medium Track Days</label>
+          <input type="number" id="customDaysInput" value="3" min="1" max="20" step="0.5" onchange="updateComplexitySlider()">
+        </div>
+        <div id="complexityBreakdown" style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px;font-size:12px">
         </div>
       </div>
 
@@ -399,10 +423,16 @@ input[type="range"]::-moz-range-thumb {
 // ===== DEFAULT CONFIGURATION =====
 const DEFAULT_CONFIG = {
   organisation: {
-    weeklyCapacity: 75,
     staffCount: 8,
     daysPerClaim: 4,
     workDaysPerWeek: 5
+  },
+  claimComplexity: {
+    autoProcessedPct: 10,    // % of claims auto-processed (0 days)
+    twoDayPct: 20,           // % of claims processed in 2 days
+    customDayPct: 30,        // % of claims processed in customDays
+    customDays: 3,           // number of days for the custom tier
+    // remainder = 100 - auto - twoDay - custom = processed in standard daysPerClaim
   },
   incidentMultipliers: {
     fire: 1.0,
@@ -426,11 +456,36 @@ const DEFAULT_CONFIG = {
 let config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
 try {
   const saved = localStorage.getItem('claimsToolConfig');
-  if (saved) config = JSON.parse(saved);
+  if (saved) {
+    config = JSON.parse(saved);
+    // Migrate old configs missing claimComplexity
+    if (!config.claimComplexity) config.claimComplexity = JSON.parse(JSON.stringify(DEFAULT_CONFIG.claimComplexity));
+  }
 } catch(e) {}
 
 function saveConfig() {
   try { localStorage.setItem('claimsToolConfig', JSON.stringify(config)); } catch(e) {}
+}
+
+// ===== CAPACITY CALCULATION =====
+// Calculate weighted average days per claim based on complexity mix
+function getWeightedDaysPerClaim() {
+  const cc = config.claimComplexity || DEFAULT_CONFIG.claimComplexity;
+  const autoPct = cc.autoProcessedPct / 100;
+  const twoDayPct = cc.twoDayPct / 100;
+  const customPct = cc.customDayPct / 100;
+  const standardPct = Math.max(0, 1 - autoPct - twoDayPct - customPct);
+  const customDays = cc.customDays || 3;
+  const standardDays = config.organisation.daysPerClaim;
+  // weighted average: auto=0 days, twoDay=2 days, custom=customDays, standard=daysPerClaim
+  return (autoPct * 0) + (twoDayPct * 2) + (customPct * customDays) + (standardPct * standardDays);
+}
+
+// Calculate weekly capacity from staff, working days, and weighted processing time
+function getWeeklyCapacity() {
+  const weightedDays = getWeightedDaysPerClaim();
+  if (weightedDays <= 0) return config.organisation.staffCount * config.organisation.workDaysPerWeek;
+  return Math.round(config.organisation.staffCount * config.organisation.workDaysPerWeek / weightedDays);
 }
 
 // ===== VIEW SWITCHING =====
@@ -461,10 +516,16 @@ function populateSites() {
 
 // ===== ADMIN PANEL =====
 function loadAdmin() {
-  document.getElementById('adminCapacity').value = config.organisation.weeklyCapacity;
   document.getElementById('adminStaff').value = config.organisation.staffCount;
   document.getElementById('adminDaysPerClaim').value = config.organisation.daysPerClaim;
   document.getElementById('adminWorkDays').value = config.organisation.workDaysPerWeek;
+  // Complexity sliders
+  const cc = config.claimComplexity || DEFAULT_CONFIG.claimComplexity;
+  document.getElementById('autoProcessedSlider').value = cc.autoProcessedPct;
+  document.getElementById('twoDaySlider').value = cc.twoDayPct;
+  document.getElementById('customDaySlider').value = cc.customDayPct;
+  document.getElementById('customDaysInput').value = cc.customDays;
+  updateComplexityDisplay();
   document.getElementById('multFire').value = config.incidentMultipliers.fire;
   document.getElementById('multExplosion').value = config.incidentMultipliers.explosion;
   document.getElementById('multRadioactive').value = config.incidentMultipliers.radioactive;
@@ -476,9 +537,8 @@ function loadAdmin() {
 }
 
 function saveAdmin() {
-  config.organisation.weeklyCapacity = parseInt(document.getElementById('adminCapacity').value) || 75;
   config.organisation.staffCount = parseInt(document.getElementById('adminStaff').value) || 8;
-  config.organisation.daysPerClaim = parseInt(document.getElementById('adminDaysPerClaim').value) || 4;
+  config.organisation.daysPerClaim = parseFloat(document.getElementById('adminDaysPerClaim').value) || 4;
   config.organisation.workDaysPerWeek = parseInt(document.getElementById('adminWorkDays').value) || 5;
   config.incidentMultipliers.fire = parseFloat(document.getElementById('multFire').value) || 1.0;
   config.incidentMultipliers.explosion = parseFloat(document.getElementById('multExplosion').value) || 1.3;
@@ -487,8 +547,62 @@ function saveAdmin() {
   config.severityRates.moderate = (parseFloat(document.getElementById('rateModerate').value) || 8) / 100;
   config.severityRates.major = (parseFloat(document.getElementById('rateMajor').value) || 20) / 100;
   config.severityRates.catastrophic = (parseFloat(document.getElementById('rateCatastrophic').value) || 45) / 100;
+  updateComplexityDisplay();
   saveConfig();
   populateSites();
+}
+
+function updateComplexitySlider() {
+  let autoPct = parseInt(document.getElementById('autoProcessedSlider').value) || 0;
+  let twoDayPct = parseInt(document.getElementById('twoDaySlider').value) || 0;
+  let customPct = parseInt(document.getElementById('customDaySlider').value) || 0;
+  const customDays = parseFloat(document.getElementById('customDaysInput').value) || 3;
+
+  // Clamp so total doesn't exceed 100
+  if (autoPct + twoDayPct + customPct > 100) {
+    customPct = Math.max(0, 100 - autoPct - twoDayPct);
+    document.getElementById('customDaySlider').value = customPct;
+  }
+
+  if (!config.claimComplexity) config.claimComplexity = {};
+  config.claimComplexity.autoProcessedPct = autoPct;
+  config.claimComplexity.twoDayPct = twoDayPct;
+  config.claimComplexity.customDayPct = customPct;
+  config.claimComplexity.customDays = customDays;
+
+  updateComplexityDisplay();
+  saveConfig();
+}
+
+function updateComplexityDisplay() {
+  const cc = config.claimComplexity || DEFAULT_CONFIG.claimComplexity;
+  const standardPct = Math.max(0, 100 - cc.autoProcessedPct - cc.twoDayPct - cc.customDayPct);
+  const weightedDays = getWeightedDaysPerClaim();
+  const weeklyCapacity = getWeeklyCapacity();
+
+  document.getElementById('autoProcessedValue').textContent = cc.autoProcessedPct + '%';
+  document.getElementById('twoDayValue').textContent = cc.twoDayPct + '%';
+  document.getElementById('customDayValue').textContent = cc.customDayPct + '%';
+
+  document.getElementById('calculatedCapacity').textContent = weeklyCapacity;
+  document.getElementById('capacityFormula').textContent =
+    config.organisation.staffCount + ' staff × ' + config.organisation.workDaysPerWeek + ' days ÷ ' + weightedDays.toFixed(1) + ' avg days/claim';
+
+  document.getElementById('complexityBreakdown').innerHTML = `
+    <div style="display:flex;gap:4px;height:16px;border-radius:4px;overflow:hidden;margin-bottom:8px">
+      ${cc.autoProcessedPct > 0 ? `<div style="width:${cc.autoProcessedPct}%;background:#22c55e" title="Auto"></div>` : ''}
+      ${cc.twoDayPct > 0 ? `<div style="width:${cc.twoDayPct}%;background:#3b82f6" title="2-day"></div>` : ''}
+      ${cc.customDayPct > 0 ? `<div style="width:${cc.customDayPct}%;background:#eab308" title="${cc.customDays}-day"></div>` : ''}
+      ${standardPct > 0 ? `<div style="width:${standardPct}%;background:#ef4444" title="Standard"></div>` : ''}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;color:#94a3b8">
+      <span><span style="color:#22c55e">●</span> Auto: ${cc.autoProcessedPct}%</span>
+      <span><span style="color:#3b82f6">●</span> 2-day: ${cc.twoDayPct}%</span>
+      <span><span style="color:#eab308">●</span> ${cc.customDays}-day: ${cc.customDayPct}%</span>
+      <span><span style="color:#ef4444">●</span> Standard (${config.organisation.daysPerClaim}d): ${standardPct}%</span>
+    </div>
+    <div style="margin-top:6px;color:#64748b;font-size:11px">Weighted avg: ${weightedDays.toFixed(1)} days/claim → <strong style="color:#3b82f6">${weeklyCapacity} claims/week</strong></div>
+  `;
 }
 
 function renderSitesAdmin() {
@@ -686,8 +800,9 @@ function runScenario() {
     weeklyClaims[peakWeekSetting - 1] += (totalClaims - calcTotal);
   }
 
-  const baseWeeklyCapacity = config.organisation.weeklyCapacity;
-  const baseClaimsPerStaff = config.organisation.workDaysPerWeek / config.organisation.daysPerClaim;
+  const baseWeeklyCapacity = getWeeklyCapacity();
+  const weightedDaysPerClaim = getWeightedDaysPerClaim();
+  const baseClaimsPerStaff = weightedDaysPerClaim > 0 ? config.organisation.workDaysPerWeek / weightedDaysPerClaim : config.organisation.workDaysPerWeek;
 
   // Build weekly breakdown with backlog, accounting for surge resources
   const weeks = [];
@@ -738,7 +853,8 @@ function runScenario() {
   lastScenario = { site, incident, severity, totalClaims, weeks, peakWeek, peakClaims,
     weeklyCapacity: baseWeeklyCapacity, maxBacklog, overCapacityWeeks, additionalStaff,
     staffNeededAtPeak, claimsPerStaffPerWeek, surgeEntries: JSON.parse(JSON.stringify(surgeEntries)),
-    peakWeekSetting };
+    peakWeekSetting, weightedDaysPerClaim,
+    claimComplexity: JSON.parse(JSON.stringify(config.claimComplexity || DEFAULT_CONFIG.claimComplexity)) };
 
   // Display results
   showResults(site, incident, severity, totalClaims, weeks, peakWeek, peakClaims,
@@ -822,7 +938,7 @@ function showResults(site, incident, severity, totalClaims, weeks, peakWeek, pea
           Staff: <strong style="color:#e2e8f0">${config.organisation.staffCount}</strong><br>
           Claims/week: <strong style="color:#e2e8f0">${weeklyCapacity}</strong><br>
           Claims/staff/week: <strong style="color:#e2e8f0">${claimsPerStaffPerWeek.toFixed(1)}</strong><br>
-          Days per claim: <strong style="color:#e2e8f0">${config.organisation.daysPerClaim}</strong>
+          Avg days per claim: <strong style="color:#e2e8f0">${getWeightedDaysPerClaim().toFixed(1)}</strong> (weighted)
         </p>
       </div>
       <div>
@@ -1176,6 +1292,8 @@ function generateReport() {
   <tr><td style="font-weight:600">Affected Population</td><td>${(s.site.population + s.site.staffOnSite).toLocaleString()} (${s.site.population.toLocaleString()} local + ${s.site.staffOnSite.toLocaleString()} staff)</td></tr>
   <tr><td style="font-weight:600">Bell Curve Peak</td><td>Week ${s.peakWeekSetting}</td></tr>
   <tr><td style="font-weight:600">Base Weekly Capacity</td><td>${s.weeklyCapacity} claims/week (${config.organisation.staffCount} staff)</td></tr>
+  <tr><td style="font-weight:600">Weighted Avg Days/Claim</td><td>${s.weightedDaysPerClaim.toFixed(1)} days</td></tr>
+  <tr><td style="font-weight:600">Claim Complexity Mix</td><td>Auto: ${s.claimComplexity.autoProcessedPct}% | 2-day: ${s.claimComplexity.twoDayPct}% | ${s.claimComplexity.customDays}-day: ${s.claimComplexity.customDayPct}% | Standard (${config.organisation.daysPerClaim}d): ${Math.max(0, 100 - s.claimComplexity.autoProcessedPct - s.claimComplexity.twoDayPct - s.claimComplexity.customDayPct)}%</td></tr>
   ${surgeRows}
 </table>
 
