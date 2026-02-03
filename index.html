@@ -1181,7 +1181,7 @@ function runScenario() {
   let peakClaims = 0;
   let periodsToClear = 0;
 
-  const maxSimPeriods = isLongTerm ? 120 : Math.max(targetWeeks, 52);
+  const maxSimPeriods = isLongTerm ? 120 : Math.max(numPeriods, 52);
 
   for (let i = 0; i < Math.min(numPeriods, maxSimPeriods); i++) {
     const periodNum = i + 1;
@@ -1228,13 +1228,37 @@ function runScenario() {
       utilisation: effectiveCapacity > 0 ? ((newClaims + (i > 0 ? periods[i-1].backlog : 0)) / effectiveCapacity) * 100 : 0
     });
 
-    if (backlog === 0 && cumulative > 0 && periodsToClear === 0) {
-      periodsToClear = periodNum;
+  }
+
+  // Find when all claims are actually cleared (backlog reaches 0 and stays 0)
+  // Look backwards to find the last period with backlog > 0
+  let lastBacklogPeriod = 0;
+  for (let i = 0; i < periods.length; i++) {
+    if (periods[i].backlog > 0) {
+      lastBacklogPeriod = periods[i].period;
     }
   }
 
-  // If backlog never cleared
-  if (backlog > 0 && periodsToClear === 0) periodsToClear = -1;
+  if (lastBacklogPeriod > 0) {
+    // Backlog existed at some point - clearance is when it finally went to 0
+    // Check if it actually cleared within our simulation
+    const nextPeriodIndex = lastBacklogPeriod; // periods array is 0-indexed
+    if (nextPeriodIndex < periods.length && periods[nextPeriodIndex].backlog === 0) {
+      periodsToClear = lastBacklogPeriod + 1;
+    } else {
+      // Backlog never fully cleared within simulation
+      periodsToClear = -1;
+    }
+  } else if (cumulative > 0) {
+    // No backlog ever built up - claims processed as they arrived
+    // Time to clear = last period where claims arrived
+    for (let i = periods.length - 1; i >= 0; i--) {
+      if (periods[i].newClaims > 0) {
+        periodsToClear = periods[i].period;
+        break;
+      }
+    }
+  }
 
   // Convert periods to weeks for display (short/medium term)
   const weeksToClear = isLongTerm ? (periodsToClear > 0 ? Math.round(periodsToClear * 4.33) : -1) : periodsToClear;
