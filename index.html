@@ -1291,7 +1291,7 @@ function runScenario() {
     periods, peakPeriod, peakClaims, weeklyCapacity: baseWeeklyCapacity, periodCapacity: basePeriodCapacity,
     maxBacklog, overCapacityPeriods, additionalStaff, staffNeededAtPeak, claimsPerStaffPerWeek,
     surgeEntries: JSON.parse(JSON.stringify(surgeEntries)), weightedDaysPerClaim,
-    targetWeeks, targetPeriods, weeksToClear, periodsToClear, canMeetTarget, isLongTerm, splits: normalizedSplits,
+    targetWeeks, targetPeriods, weeksToClear, periodsToClear, canMeetTarget, isLongTerm, splits,
     maxSimPeriods,
     claimComplexity: JSON.parse(JSON.stringify(config.claimComplexity || DEFAULT_CONFIG.claimComplexity))
   };
@@ -1324,7 +1324,7 @@ function showResults(scenario) {
     ? `${Math.round(s.maxSimPeriods / 12)}+ years`
     : `${s.maxSimPeriods}+ weeks`;
   const timeToClearLabel = s.weeksToClear === -1
-    ? maxClearLabel
+    ? (s.isLongTerm ? '10+ years' : `${s.maxSimPeriods}+ weeks`)
     : (s.isLongTerm ? s.periodsToClear + ' months' : s.weeksToClear + ' weeks');
   const targetLabel = s.isLongTerm ? s.targetPeriods + ' Months' : s.targetWeeks + ' Weeks';
   const showClaimBreakdown = s.claimType === 'both' && (s.injuryClaims > 0 || s.propertyClaims > 0);
@@ -1506,7 +1506,7 @@ function buildRecommendations(s) {
 
   // General capacity recommendations
   if (!s.canMeetTarget) {
-    const clearLabel = s.weeksToClear === -1 ? maxClearLabel : (s.isLongTerm ? s.periodsToClear + ' months' : s.weeksToClear + ' weeks');
+    const clearLabel = s.weeksToClear === -1 ? (s.isLongTerm ? '10+ years' : `${s.maxSimPeriods}+ weeks`) : (s.isLongTerm ? s.periodsToClear + ' months' : s.weeksToClear + ' weeks');
     const targetLabel = s.isLongTerm ? s.targetPeriods + '-month' : s.targetWeeks + '-week';
     recs.push({ level: 'critical', text: `Claims will not be cleared within the ${targetLabel} target (estimated ${clearLabel}). Increase staff or add surge resources.` });
   }
@@ -2174,7 +2174,7 @@ function generateReport() {
     ? `${Math.round(s.maxSimPeriods / 12)}+ years`
     : `${s.maxSimPeriods}+ weeks`;
   const timeToClearLabel = s.weeksToClear === -1
-    ? maxClearLabel
+    ? (s.isLongTerm ? '10+ years' : `${s.maxSimPeriods}+ weeks`)
     : (s.isLongTerm ? s.periodsToClear + ' months' : s.weeksToClear + ' weeks');
   const targetLabel = s.isLongTerm ? s.targetPeriods + ' Months' : s.targetWeeks + ' Weeks';
 
