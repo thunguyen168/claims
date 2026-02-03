@@ -104,6 +104,25 @@ canvas { width: 100%; display: block; }
 .rec-list li.warning { border-left-color: #eab308; }
 .rec-list li.info { border-left-color: #3b82f6; }
 
+/* ===== Warning Box ===== */
+.warning-box {
+  background: #1e293b;
+  border: 2px solid #eab308;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+.warning-box.critical {
+  border-color: #ef4444;
+  background: #1a1a2a;
+}
+.warning-box-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #ef4444;
+  margin-bottom: 8px;
+}
+
 /* ===== Backend Admin ===== */
 .admin-section { margin-bottom: 24px; }
 .admin-section h3 { font-size: 14px; font-weight: 700; color: #94a3b8; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -214,12 +233,21 @@ input[type="range"]::-moz-range-thumb {
       </div>
       <div class="form-group">
         <label>Incident Type</label>
-        <select id="incidentSelect" onchange="runScenario()">
+        <select id="incidentSelect" onchange="updateIncidentOptions(); runScenario()">
           <option value="fire">Fire</option>
           <option value="explosion">Explosion</option>
           <option value="chemical">Chemical (Toxic Release)</option>
           <option value="nuclear">Nuclear (Radiological)</option>
+          <option value="fertiliser">Fertiliser (Ammonium Nitrate)</option>
         </select>
+      </div>
+      <div class="form-group" id="blastRadiusGroup" style="display:none">
+        <label>Blast Radius Model</label>
+        <select id="blastRadiusSelect" onchange="runScenario()">
+          <option value="uniform">Uniform Distribution</option>
+          <option value="concentrated">Concentrated (Research-Based)</option>
+        </select>
+        <div style="font-size:10px;color:#64748b;margin-top:2px">90% claims within 500m for explosions</div>
       </div>
       <div class="form-group">
         <label>Claim Type</label>
@@ -264,6 +292,12 @@ input[type="range"]::-moz-range-thumb {
         <label>Target Processing Time (weeks)</label>
         <input type="number" id="targetWeeksInput" value="12" min="1" max="52" step="1" onchange="runScenario()">
         <div style="font-size:10px;color:#64748b;margin-top:2px">All claims should be processed within this many weeks</div>
+      </div>
+
+      <div class="form-group">
+        <label>Coverage Limit (£M) - Optional</label>
+        <input type="number" id="coverageLimitInput" value="" placeholder="e.g. 50" min="0" step="1" onchange="runScenario()">
+        <div style="font-size:10px;color:#64748b;margin-top:2px">Enter policy limit to check underinsurance risk</div>
       </div>
 
       <div style="margin-top:20px">
@@ -386,6 +420,12 @@ input[type="range"]::-moz-range-thumb {
       <!-- Key Metrics -->
       <div class="metrics" id="metricsGrid"></div>
 
+      <!-- Underinsurance Warning Box -->
+      <div id="underinsuranceWarning" class="warning-box critical" style="display:none">
+        <div class="warning-box-title">UNDERINSURANCE WARNING</div>
+        <div id="underinsuranceContent"></div>
+      </div>
+
       <!-- Claims Forecast Chart -->
       <div class="card">
         <div class="card-title" id="forecastChartTitle">Claims Forecast Over 12 Weeks</div>
@@ -479,6 +519,14 @@ const DEFAULT_CONFIG = {
     standardDays: 4,         // number of days for the standard tier
     // remainder = 100 - auto - twoDay - custom = processed in standardDays
   },
+  // Processing days by claim type (for more detailed analysis)
+  processingDays: {
+    propertySimple: 3,      // Simple property: 3 days
+    propertyComplex: 15,    // Complex property: 15 days
+    bi: 60,                 // Business interruption: 60 days (10-20x simple property)
+    injuryAcute: 5,         // Acute injury: 5 days
+    injuryComplex: 20       // Complex/latent injury: 20 days
+  },
   incidentMultipliers: {
     fire: 1.0,
     explosion: 1.3,
@@ -489,14 +537,39 @@ const DEFAULT_CONFIG = {
   claimTypeSplits: {
     fire: { injury: 0.25, property: 0.75 },        // Fire: mostly property claims
     explosion: { injury: 0.30, property: 0.70 },   // Explosion: more injury than fire
-    chemical: { injury: 0.60, property: 0.40 },    // Chemical: injury-dominant (Bhopal pattern)
-    nuclear: { injury: 0.35, property: 0.65 }      // Nuclear: property-heavy (evacuation/decontamination)
+    chemical: { injury: 0.75, property: 0.25 },    // FIXED: Bhopal pattern - injury dominant (574K injury vs small property)
+    nuclear: { injury: 0.35, property: 0.65 },     // Nuclear: property-heavy (evacuation/decontamination)
+    fertiliser: { injury: 0.35, property: 0.65 }   // Added fertiliser type (West, Texas pattern)
+  },
+  // Claim multiplier per person - accounts for multiple claims per affected individual
+  // Bhopal: 1M+ registered cases for ~500K exposed (household members, follow-up, repeat filings)
+  claimMultiplierPerPerson: {
+    fire: 1.0,
+    explosion: 1.1,
+    chemical: 1.8,      // Multiple claims: household members, follow-up, repeat
+    nuclear: 1.5,
+    fertiliser: 1.2
   },
   severityRates: {
     minor: 0.02,
     moderate: 0.08,
     major: 0.20,
     catastrophic: 0.45
+  },
+  // Reserve development factors for ultimate claims estimates
+  reserveDevelopmentFactors: {
+    short: { min: 1.0, max: 1.2, midpoint: 1.1, note: 'Initial estimates often low' },
+    medium: { min: 1.2, max: 1.5, midpoint: 1.35, note: 'Litigation costs emerge' },
+    long: { min: 1.5, max: 3.0, midpoint: 2.25, note: 'Latent claims emerge' },
+    chemicalLong: { min: 2.0, max: 5.0, midpoint: 3.5, note: 'Bhopal: claims for 40+ years' },
+    nuclearLong: { min: 2.5, max: 6.0, midpoint: 4.25, note: '30-year limitation period' }
+  },
+  // Blast radius claim concentration - based on West, Texas and similar explosion data
+  blastRadiusConcentration: {
+    '0-500m': 0.90,     // 90% claim density (total loss, fatalities, severe injury)
+    '500m-1km': 0.70,   // 60-80% → use 70% (significant structural, injury)
+    '1-3km': 0.30,      // 20-40% → use 30% (windows, minor structural)
+    '3-5km': 0.075      // 5-10% → use 7.5% (glass breakage, hearing)
   },
   sites: [
     { id: 'hinkley', name: 'Hinkley Point', location: 'Somerset, England', population: 35000, staffOnSite: 4000, active: true },
@@ -857,7 +930,7 @@ const CLAIM_PATTERNS = {
     injury: {
       short: { peakWeek: 3, shape: 'low_early', tailWeight: 0.40 },
       medium: { peakWeek: 8, shape: 'delayed_rise', tailWeight: 0.55 },
-      long: { peakMonth: 36, shape: 'latency_driven', tailWeight: 0.70 }  // Peak years later
+      long: { peakMonth: 84, shape: 'latency_driven', tailWeight: 0.70 }  // FIXED: Peak at ~7 years (thyroid cancers 5-20 years)
     },
     // Nuclear property: very large early-to-mid spike (evacuation, decontamination), extended plateau
     property: {
@@ -1215,11 +1288,11 @@ function generateShapedDistribution(numPeriods, peakPeriod, shape, tailWeight) {
         break;
 
       case 'latency_driven':
-        // Nuclear injury long-term: very delayed peak (latency effects)
-        val = 0.02 + 0.02 * Math.log1p(i / 10);  // Slow initial rise
-        val += 0.12 * Math.exp(-0.2 * Math.pow((i - peakPeriod) / 15, 2));  // Broad peak
+        // Nuclear injury long-term: very delayed peak (latency effects) - peak at ~month 84 (7 years)
+        val = 0.01 + 0.015 * Math.log1p(i / 20);  // Slow initial rise
+        val += 0.10 * Math.exp(-0.15 * Math.pow((i - peakPeriod) / 20, 2));  // Broader peak for month 84
         if (i > peakPeriod) {
-          val += tailWeight * Math.pow(0.98, i - peakPeriod);
+          val += tailWeight * Math.pow(0.985, i - peakPeriod);  // Slow decay after peak
         }
         break;
 
@@ -1373,13 +1446,65 @@ function getHistoricalExamples(incident) {
 }
 
 // Get reserve development factor for time horizon
-function getReserveDevelopmentFactor(timeHorizon) {
-  switch(timeHorizon) {
-    case 'short': return RESERVE_DEVELOPMENT_FACTORS['0-12months'];
-    case 'medium': return RESERVE_DEVELOPMENT_FACTORS['1-3years'];
-    case 'long': return RESERVE_DEVELOPMENT_FACTORS['7-15years'];
-    default: return RESERVE_DEVELOPMENT_FACTORS['0-12months'];
+function getReserveDevelopmentFactor(timeHorizon, incident) {
+  const factors = config.reserveDevelopmentFactors || DEFAULT_CONFIG.reserveDevelopmentFactors;
+
+  // Special case for chemical and nuclear long-term
+  if (timeHorizon === 'long') {
+    if (incident === 'chemical') {
+      return factors.chemicalLong || factors.long;
+    } else if (incident === 'nuclear') {
+      return factors.nuclearLong || factors.long;
+    }
   }
+
+  return factors[timeHorizon] || factors.short;
+}
+
+// Apply blast radius concentration model for explosion/fertiliser incidents
+function applyBlastRadiusConcentration(totalClaims, site, useConcentrated) {
+  if (!useConcentrated) {
+    return { total: totalClaims, byRadius: null };
+  }
+
+  const concentration = config.blastRadiusConcentration || DEFAULT_CONFIG.blastRadiusConcentration;
+
+  // Estimate population distribution by radius (simplified)
+  const popDistribution = {
+    '0-500m': 0.10,
+    '500m-1km': 0.20,
+    '1-3km': 0.40,
+    '3-5km': 0.30
+  };
+
+  const byRadius = {};
+  let weightedTotal = 0;
+
+  for (const radius in concentration) {
+    const popPct = popDistribution[radius] || 0;
+    const claimDensity = concentration[radius];
+    byRadius[radius] = {
+      population: Math.round(site.population * popPct),
+      claimDensity: Math.round(claimDensity * 100) + '%',
+      estimatedClaims: Math.round(totalClaims * popPct * claimDensity)
+    };
+    weightedTotal += byRadius[radius].estimatedClaims;
+  }
+
+  return { total: weightedTotal, byRadius };
+}
+
+// Get average claim value for underinsurance calculation
+function getAverageClaimValue(incident, severity) {
+  const baseValues = {
+    fire: { minor: 15000, moderate: 45000, major: 120000, catastrophic: 350000 },
+    explosion: { minor: 25000, moderate: 75000, major: 200000, catastrophic: 500000 },
+    chemical: { minor: 8000, moderate: 25000, major: 80000, catastrophic: 250000 },
+    nuclear: { minor: 50000, moderate: 150000, major: 400000, catastrophic: 900000 },
+    fertiliser: { minor: 20000, moderate: 60000, major: 180000, catastrophic: 450000 }
+  };
+
+  return baseValues[incident]?.[severity] || 50000;
 }
 
 // Get claim distribution template
@@ -1424,6 +1549,18 @@ function updatePatternDescription() {
     histRefEl.parentElement.style.display = '';
   } else if (histRefEl) {
     histRefEl.parentElement.style.display = 'none';
+  }
+}
+
+// Update incident-specific options (e.g., show blast radius for explosions)
+function updateIncidentOptions() {
+  const incident = document.getElementById('incidentSelect').value;
+  const blastGroup = document.getElementById('blastRadiusGroup');
+
+  if (incident === 'explosion' || incident === 'fertiliser') {
+    blastGroup.style.display = '';
+  } else {
+    blastGroup.style.display = 'none';
   }
 }
 
@@ -1486,7 +1623,9 @@ function runScenario() {
   const totalAffected = site.population + site.staffOnSite;
   const claimRate = config.severityRates[severity];
   const multiplier = config.incidentMultipliers[incident] || 1.0;
-  const baseTotalClaims = Math.round(totalAffected * claimRate * multiplier);
+  // Apply claim multiplier per person (accounts for multiple claims per affected individual)
+  const claimMultPerPerson = config.claimMultiplierPerPerson?.[incident] || DEFAULT_CONFIG.claimMultiplierPerPerson?.[incident] || 1.0;
+  const baseTotalClaims = Math.round(totalAffected * claimRate * multiplier * claimMultPerPerson);
 
   // Get claim type splits
   const splits = config.claimTypeSplits?.[incident] || DEFAULT_CONFIG.claimTypeSplits[incident] || { injury: 0.5, property: 0.5 };
@@ -1503,6 +1642,20 @@ function runScenario() {
   } else {
     propertyClaims = baseTotalClaims;
     totalClaims = propertyClaims;
+  }
+
+  // Apply blast radius concentration model for explosions/fertiliser
+  const blastRadiusModel = document.getElementById('blastRadiusSelect')?.value || 'uniform';
+  const useBlastConcentration = (incident === 'explosion' || incident === 'fertiliser') && blastRadiusModel === 'concentrated';
+  const blastResult = applyBlastRadiusConcentration(totalClaims, site, useBlastConcentration);
+  const blastRadiusByZone = blastResult.byRadius;
+
+  // If using concentrated model, adjust total claims based on blast radius concentration
+  if (useBlastConcentration && blastResult.total > 0) {
+    const adjustmentFactor = blastResult.total / totalClaims;
+    totalClaims = blastResult.total;
+    injuryClaims = Math.round(injuryClaims * adjustmentFactor);
+    propertyClaims = Math.round(propertyClaims * adjustmentFactor);
   }
 
   // Get time horizon configuration
@@ -1644,6 +1797,25 @@ function runScenario() {
   const staffNeededAtPeak = Math.ceil(peakClaims / (claimsPerStaffPerWeek * periodCapacityMultiplier));
   const additionalStaff = Math.max(0, staffNeededAtPeak - config.organisation.staffCount);
 
+  // Calculate ultimate claims estimates with development factors
+  const devFactor = getReserveDevelopmentFactor(timeHorizon, incident);
+  const ultimateClaimsLow = Math.round(totalClaims * devFactor.min);
+  const ultimateClaimsHigh = Math.round(totalClaims * devFactor.max);
+  const ultimateClaimsMid = Math.round(totalClaims * devFactor.midpoint);
+
+  // Underinsurance check
+  const coverageLimit = parseFloat(document.getElementById('coverageLimitInput')?.value) || null;
+  let underinsuranceRatio = null;
+  let isUnderinsured = false;
+  const avgClaimValue = getAverageClaimValue(incident, severity);
+  const estimatedTotalValue = ultimateClaimsMid * avgClaimValue;
+
+  if (coverageLimit && coverageLimit > 0) {
+    const coverageLimitValue = coverageLimit * 1000000; // Convert from £M to £
+    underinsuranceRatio = estimatedTotalValue / coverageLimitValue;
+    isUnderinsured = underinsuranceRatio > 1;
+  }
+
   // Store last scenario for report generation
   lastScenario = {
     site, incident, severity, claimType, timeHorizon, totalClaims, injuryClaims, propertyClaims,
@@ -1651,7 +1823,13 @@ function runScenario() {
     maxBacklog, overCapacityPeriods, additionalStaff, staffNeededAtPeak, claimsPerStaffPerWeek,
     surgeEntries: JSON.parse(JSON.stringify(surgeEntries)), weightedDaysPerClaim,
     targetWeeks, targetPeriods, weeksToClear, periodsToClear, canMeetTarget, isLongTerm, splits,
-    claimComplexity: JSON.parse(JSON.stringify(config.claimComplexity || DEFAULT_CONFIG.claimComplexity))
+    claimComplexity: JSON.parse(JSON.stringify(config.claimComplexity || DEFAULT_CONFIG.claimComplexity)),
+    // Ultimate claims estimates
+    devFactor, ultimateClaimsLow, ultimateClaimsHigh, ultimateClaimsMid,
+    // Blast radius concentration data
+    useBlastConcentration, blastRadiusByZone,
+    // Underinsurance data
+    coverageLimit, underinsuranceRatio, isUnderinsured, avgClaimValue, estimatedTotalValue
   };
 
   // Display results
@@ -1726,6 +1904,11 @@ function showResults(scenario) {
     <div class="metric-card">
       <div class="metric-value ${s.overCapacityPeriods === 0 ? 'metric-green' : 'metric-red'}">${s.overCapacityPeriods}</div>
       <div class="metric-label">${periodLabel}s Over Capacity</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-value" style="color:#a855f7">${s.ultimateClaimsMid.toLocaleString()}</div>
+      <div class="metric-label">Ultimate Claims (${s.devFactor.midpoint}x)</div>
+      <div style="font-size:10px;color:#64748b;margin-top:2px">Range: ${s.ultimateClaimsLow.toLocaleString()} - ${s.ultimateClaimsHigh.toLocaleString()}</div>
     </div>
   `;
   document.getElementById('metricsGrid').innerHTML = metricsHTML;
@@ -1918,7 +2101,7 @@ function showResults(scenario) {
   catHTML += `</tbody></table></div>`;
 
   // Add reserve development factors
-  const reserveFactor = getReserveDevelopmentFactor(s.timeHorizon);
+  const reserveFactor = getReserveDevelopmentFactor(s.timeHorizon, s.incident);
   if (reserveFactor) {
     catHTML += `
       <div style="margin-top:16px;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:12px">
@@ -1941,6 +2124,21 @@ function showResults(scenario) {
     li.textContent = r.text;
     recList.appendChild(li);
   });
+
+  // Update underinsurance warning
+  const underinsuranceWarning = document.getElementById('underinsuranceWarning');
+  if (s.isUnderinsured && s.coverageLimit) {
+    underinsuranceWarning.style.display = '';
+    document.getElementById('underinsuranceContent').innerHTML = `
+      <strong style="color:#ef4444">Estimated losses (£${(s.estimatedTotalValue / 1000000).toFixed(1)}M) exceed coverage limit (£${s.coverageLimit}M) by ${s.underinsuranceRatio.toFixed(1)}x</strong><br>
+      <span style="font-size:12px;color:#94a3b8">
+        Based on ${s.ultimateClaimsMid.toLocaleString()} ultimate claims × £${s.avgClaimValue.toLocaleString()} avg claim value.<br>
+        Historical parallel: West, Texas had $1M coverage vs $230M losses (230x underinsured).
+      </span>
+    `;
+  } else {
+    underinsuranceWarning.style.display = 'none';
+  }
 
   // Draw charts
   const chartTitle = s.isLongTerm ? `Claims Forecast Over ${displayPeriods.length} Months` :
@@ -1974,9 +2172,18 @@ function buildRecommendations(s) {
   }
 
   // Reserve development factor warning
-  const reserveFactor = getReserveDevelopmentFactor(s.timeHorizon);
-  if (reserveFactor && (s.incident === 'chemical' || s.incident === 'nuclear')) {
-    recs.push({ level: 'warning', text: `Reserve development factor for ${s.timeHorizon} term: ${reserveFactor.min}-${reserveFactor.max}x initial estimates. ${reserveFactor.note}.` });
+  const reserveFactorRec = getReserveDevelopmentFactor(s.timeHorizon, s.incident);
+  if (reserveFactorRec && (s.incident === 'chemical' || s.incident === 'nuclear')) {
+    recs.push({ level: 'warning', text: `Reserve development factor for ${s.timeHorizon} term: ${reserveFactorRec.min}-${reserveFactorRec.max}x initial estimates. ${reserveFactorRec.note}.` });
+  }
+
+  // BI processing time warning
+  const pd = config.processingDays || DEFAULT_CONFIG.processingDays;
+  if (pd.bi > pd.propertySimple * 10 && (s.claimType === 'both' || s.claimType === 'property')) {
+    recs.push({
+      level: 'warning',
+      text: `BI claims take ${Math.round(pd.bi / pd.propertySimple)}x longer than simple property (${pd.bi} days vs ${pd.propertySimple} days). For property incidents, BI may become the pacing constraint.`
+    });
   }
 
   // Incident-specific recommendations
@@ -2692,7 +2899,7 @@ function generateReport() {
 
 ${(() => {
     const distTemplate = getClaimDistributionTemplate(s.incident);
-    const reserveFactor = getReserveDevelopmentFactor(s.timeHorizon);
+    const reserveFactor = getReserveDevelopmentFactor(s.timeHorizon, s.incident);
     const categories = getApplicableClaimCategories(s.incident);
     const patternDesc = PATTERN_DESCRIPTIONS[s.incident];
 
