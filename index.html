@@ -499,15 +499,15 @@ const CLAIM_PATTERNS = {
   fire: {
     // Fire injury: early spike (burns/inhalation), moderate tail for disability/long-term care
     injury: {
-      short: { peakWeek: 2, shape: 'spike', tailWeight: 0.15 },
-      medium: { peakWeek: 3, shape: 'fast_decay', tailWeight: 0.10 },
-      long: { peakMonth: 2, shape: 'fast_decay', tailWeight: 0.05 }
+      short: { peakWeek: 2, shape: 'spike', tailWeight: 0.18 },
+      medium: { peakWeek: 3, shape: 'fast_decay', tailWeight: 0.14 },
+      long: { peakMonth: 2, shape: 'gradual_decay', tailWeight: 0.08 }
     },
     // Fire property: immediate spike + re-scope waves, rebuild delays
     property: {
       short: { peakWeek: 3, shape: 'spike_rescope', tailWeight: 0.25 },
-      medium: { peakWeek: 4, shape: 'extended_plateau', tailWeight: 0.20 },
-      long: { peakMonth: 3, shape: 'gradual_decay', tailWeight: 0.10 }
+      medium: { peakWeek: 4, shape: 'spike_bi_tail', tailWeight: 0.25 },
+      long: { peakMonth: 3, shape: 'gradual_decay', tailWeight: 0.15 }
     }
   },
   // Explosion patterns
@@ -520,9 +520,9 @@ const CLAIM_PATTERNS = {
     },
     // Explosion property: instant sharp spike (wide blast radius), BI develops over time
     property: {
-      short: { peakWeek: 2, shape: 'sharp_spike', tailWeight: 0.30 },
-      medium: { peakWeek: 3, shape: 'spike_bi_tail', tailWeight: 0.25 },
-      long: { peakMonth: 2, shape: 'gradual_decay', tailWeight: 0.15 }
+      short: { peakWeek: 2, shape: 'sharp_spike', tailWeight: 0.32 },
+      medium: { peakWeek: 3, shape: 'spike_bi_tail', tailWeight: 0.35 },
+      long: { peakMonth: 2, shape: 'gradual_decay', tailWeight: 0.20 }
     }
   },
   // Chemical (toxic release) patterns - Bhopal-style
@@ -1013,12 +1013,12 @@ function getWeeklyDistribution(peakWeek) {
 // ===== PATTERN DESCRIPTIONS =====
 const PATTERN_DESCRIPTIONS = {
   fire: {
-    injury: 'Early spike from burns/inhalation, moderate tail for disability cases',
-    property: 'Immediate spike with re-scope waves as hidden damage discovered'
+    injury: 'Early spike from burns/inhalation, with a longer tail for severe disability and litigation in complex cases',
+    property: 'Immediate spike with re-scope waves (soot, water, corrosion), BI/EE extends as rebuilds and permits stretch'
   },
   explosion: {
-    injury: 'Sharp immediate spike, fast decay - lower count but high severity',
-    property: 'Instant sharp spike across blast radius, BI develops over time'
+    injury: 'Sharp immediate spike, fast decay; lower count but high severity (burns, TBI)',
+    property: 'Instant sharp spike across blast radius; BI/denial-of-access tail develops as downtime becomes clear'
   },
   chemical: {
     injury: 'Very fast spike, then very long tail (decades) from chronic effects and litigation',
@@ -2267,11 +2267,15 @@ function generateReport() {
   ${surgeRows}
 </table>
 
-${s.incident === 'chemical' || s.incident === 'nuclear' ? `
+${s.incident === 'chemical' || s.incident === 'nuclear' || s.incident === 'fire' || s.incident === 'explosion' ? `
 <div class="pattern-note">
   <strong>Claim Pattern Note:</strong> ${s.incident === 'chemical' ?
     'Chemical (toxic release) incidents typically show a sharp early spike in injury claims followed by a very long tail extending potentially for decades (based on Bhopal and similar incidents). Property claims may resurge if contamination is discovered in soil or groundwater.' :
-    'Nuclear (radiological) incidents show distinct patterns: property/evacuation claims dominate early, while injury claims have very long latency periods (5-20+ years for radiation-related cancers). Based on patterns from Fukushima, Chernobyl, and Three Mile Island.'}
+    s.incident === 'nuclear' ?
+    'Nuclear (radiological) incidents show distinct patterns: property/evacuation claims dominate early, while injury claims have very long latency periods (5-20+ years for radiation-related cancers). Based on patterns from Fukushima, Chernobyl, and Three Mile Island.' :
+    s.incident === 'fire' ?
+    'Fire incidents often show a rapid property spike with re-scope waves as hidden damage appears, while BI/EE extends with rebuild delays; severe injury cases can create a longer liability tail.' :
+    'Explosion incidents create an immediate property spike across the blast radius, with BI/denial-of-access losses developing over time; injury claims are typically lower count but high severity.'}
 </div>` : ''}
 
 <h2>Key Metrics</h2>
