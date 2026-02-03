@@ -578,24 +578,29 @@ function saveConfig() {
 }
 
 // ===== CAPACITY CALCULATION =====
-// Calculate weighted average days per claim based on complexity mix
-function getWeightedDaysPerClaim() {
+function getClaimMix() {
   const cc = config.claimComplexity || DEFAULT_CONFIG.claimComplexity;
   const autoPct = cc.autoProcessedPct / 100;
   const twoDayPct = cc.twoDayPct / 100;
   const customPct = cc.customDayPct / 100;
   const standardPct = Math.max(0, 1 - autoPct - twoDayPct - customPct);
-  const customDays = cc.customDays || 3;
-  const standardDays = cc.standardDays || 4;
-  // weighted average: auto=0 days, twoDay=2 days, custom=customDays, standard=standardDays
-  return (autoPct * 0) + (twoDayPct * 2) + (customPct * customDays) + (standardPct * standardDays);
+  const manualPct = Math.max(0, 1 - autoPct);
+  return { autoPct, twoDayPct, customPct, standardPct, manualPct, customDays: cc.customDays || 3, standardDays: cc.standardDays || 4 };
 }
 
-// Calculate weekly capacity from staff, working days, and weighted processing time
+// Calculate weighted average days per manual claim (auto-processed claims consume no capacity)
+function getManualWeightedDaysPerClaim() {
+  const mix = getClaimMix();
+  if (mix.manualPct <= 0) return 0;
+  const manualWeightedDays = (mix.twoDayPct * 2) + (mix.customPct * mix.customDays) + (mix.standardPct * mix.standardDays);
+  return manualWeightedDays / mix.manualPct;
+}
+
+// Calculate weekly manual processing capacity from staff, working days, and weighted processing time
 function getWeeklyCapacity() {
-  const weightedDays = getWeightedDaysPerClaim();
-  if (weightedDays <= 0) return config.organisation.staffCount * config.organisation.workDaysPerWeek;
-  return Math.round(config.organisation.staffCount * config.organisation.workDaysPerWeek / weightedDays);
+  const manualWeightedDays = getManualWeightedDaysPerClaim();
+  if (manualWeightedDays <= 0) return 0;
+  return Math.round(config.organisation.staffCount * config.organisation.workDaysPerWeek / manualWeightedDays);
 }
 
 // ===== VIEW SWITCHING =====
@@ -690,7 +695,7 @@ function updateComplexitySlider() {
 function updateComplexityDisplay() {
   const cc = config.claimComplexity || DEFAULT_CONFIG.claimComplexity;
   const standardPct = Math.max(0, 100 - cc.autoProcessedPct - cc.twoDayPct - cc.customDayPct);
-  const weightedDays = getWeightedDaysPerClaim();
+  const manualWeightedDays = getManualWeightedDaysPerClaim();
   const weeklyCapacity = getWeeklyCapacity();
 
   document.getElementById('autoProcessedValue').textContent = cc.autoProcessedPct + '%';
@@ -699,7 +704,7 @@ function updateComplexityDisplay() {
 
   document.getElementById('calculatedCapacity').textContent = weeklyCapacity;
   document.getElementById('capacityFormula').textContent =
-    config.organisation.staffCount + ' staff × ' + config.organisation.workDaysPerWeek + ' days ÷ ' + weightedDays.toFixed(1) + ' avg days/claim';
+    config.organisation.staffCount + ' staff × ' + config.organisation.workDaysPerWeek + ' days ÷ ' + (manualWeightedDays > 0 ? manualWeightedDays.toFixed(1) : '0') + ' avg days/manual claim';
 
   document.getElementById('complexityBreakdown').innerHTML = `
     <div style="display:flex;gap:4px;height:16px;border-radius:4px;overflow:hidden;margin-bottom:8px">
@@ -714,7 +719,7 @@ function updateComplexityDisplay() {
       <span><span style="color:#eab308">●</span> ${cc.customDays}-day: ${cc.customDayPct}%</span>
       <span><span style="color:#ef4444">●</span> Standard (${cc.standardDays || 4}d): ${standardPct}%</span>
     </div>
-    <div style="margin-top:6px;color:#64748b;font-size:11px">Weighted avg: ${weightedDays.toFixed(1)} days/claim → <strong style="color:#3b82f6">${weeklyCapacity} claims/week</strong></div>
+    <div style="margin-top:6px;color:#64748b;font-size:11px">Manual avg: ${manualWeightedDays > 0 ? manualWeightedDays.toFixed(1) : '0'} days/claim → <strong style="color:#3b82f6">${weeklyCapacity} claims/week</strong></div>
   `;
 }
 
@@ -1272,8 +1277,9 @@ function runScenario() {
   }
 
   const baseWeeklyCapacity = getWeeklyCapacity();
-  const weightedDaysPerClaim = getWeightedDaysPerClaim();
-  const baseClaimsPerStaff = weightedDaysPerClaim > 0 ? config.organisation.workDaysPerWeek / weightedDaysPerClaim : config.organisation.workDaysPerWeek;
+  const manualWeightedDaysPerClaim = getManualWeightedDaysPerClaim();
+  const baseClaimsPerStaff = manualWeightedDaysPerClaim > 0 ? config.organisation.workDaysPerWeek / manualWeightedDaysPerClaim : 0;
+  const claimMix = getClaimMix();
 
   // Adjust capacity for time horizon
   let periodCapacityMultiplier = 1;
@@ -1312,16 +1318,19 @@ function runScenario() {
     const newClaims = periodicClaims[i]?.total || 0;
     const newInjury = periodicClaims[i]?.injury || 0;
     const newProperty = periodicClaims[i]?.property || 0;
+    const autoClaims = Math.round(newClaims * claimMix.autoPct);
+    const manualClaims = Math.max(0, newClaims - autoClaims);
 
     cumulative += newClaims;
     cumulativeInjury += newInjury;
     cumulativeProperty += newProperty;
 
     const startingBacklog = backlog;
-    const available = newClaims + startingBacklog;
-    const processed = Math.min(available, effectiveCapacity);
+    const available = manualClaims + startingBacklog;
+    const processedManual = Math.min(available, effectiveCapacity);
+    const processed = processedManual + autoClaims;
     totalProcessed += processed;
-    backlog = startingBacklog + newClaims - processed;
+    backlog = startingBacklog + manualClaims - processedManual;
 
     if (newClaims > peakClaims) { peakClaims = newClaims; peakPeriod = periodNum; }
 
@@ -1332,6 +1341,8 @@ function runScenario() {
       newClaims,
       newInjury,
       newProperty,
+      manualClaims,
+      autoClaims,
       cumulative,
       cumulativeInjury,
       cumulativeProperty,
@@ -1339,7 +1350,7 @@ function runScenario() {
       backlog,
       effectiveCapacity,
       surgeStaff,
-      utilisation: effectiveCapacity > 0 ? ((newClaims + (i > 0 ? periods[i-1].backlog : 0)) / effectiveCapacity) * 100 : 0
+      utilisation: effectiveCapacity > 0 ? ((manualClaims + (i > 0 ? periods[i-1].backlog : 0)) / effectiveCapacity) * 100 : 0
     });
 
   }
@@ -1383,9 +1394,12 @@ function runScenario() {
 
   // Calculate resource needs
   const maxBacklog = Math.max(...periods.map(w => w.backlog));
-  const overCapacityPeriods = periods.filter(w => w.newClaims > w.effectiveCapacity).length;
+  const overCapacityPeriods = periods.filter(w => w.manualClaims > w.effectiveCapacity).length;
   const claimsPerStaffPerWeek = baseClaimsPerStaff;
-  const staffNeededAtPeak = Math.ceil(peakClaims / (claimsPerStaffPerWeek * periodCapacityMultiplier));
+  const peakManualClaims = Math.max(...periods.map(w => w.manualClaims));
+  const staffNeededAtPeak = claimsPerStaffPerWeek > 0
+    ? Math.ceil(peakManualClaims / (claimsPerStaffPerWeek * periodCapacityMultiplier))
+    : 0;
   const additionalStaff = Math.max(0, staffNeededAtPeak - config.organisation.staffCount);
 
   // Store last scenario for report generation
@@ -1393,7 +1407,8 @@ function runScenario() {
     site, incident, severity, claimType, timeHorizon, totalClaims, injuryClaims, propertyClaims,
     periods, peakPeriod, peakClaims, weeklyCapacity: baseWeeklyCapacity, periodCapacity: basePeriodCapacity,
     maxBacklog, overCapacityPeriods, additionalStaff, staffNeededAtPeak, claimsPerStaffPerWeek,
-    surgeEntries: JSON.parse(JSON.stringify(surgeEntries)), weightedDaysPerClaim,
+    peakManualClaims,
+    surgeEntries: JSON.parse(JSON.stringify(surgeEntries)), weightedDaysPerClaim: manualWeightedDaysPerClaim,
     targetWeeks, targetPeriods, weeksToClear, periodsToClear, canMeetTarget, isLongTerm, splits,
     claimComplexity: JSON.parse(JSON.stringify(config.claimComplexity || DEFAULT_CONFIG.claimComplexity))
   };
@@ -1530,6 +1545,7 @@ function showResults(scenario) {
 
   // Resource requirements
   const capacityLabel = s.isLongTerm ? 'Claims/month' : 'Claims/week';
+  const peakManualCoverage = s.peakManualClaims > 0 ? Math.round((s.periodCapacity / s.peakManualClaims) * 100) : 100;
   const resHTML = `
     <div class="admin-grid" style="gap:16px">
       <div>
@@ -1538,7 +1554,7 @@ function showResults(scenario) {
           Staff: <strong style="color:#e2e8f0">${config.organisation.staffCount}</strong><br>
           ${capacityLabel}: <strong style="color:#e2e8f0">${s.periodCapacity}</strong><br>
           Claims/staff/week: <strong style="color:#e2e8f0">${s.claimsPerStaffPerWeek.toFixed(1)}</strong><br>
-          Avg days per claim: <strong style="color:#e2e8f0">${s.weightedDaysPerClaim.toFixed(1)}</strong> (weighted)
+          Avg days per manual claim: <strong style="color:#e2e8f0">${s.weightedDaysPerClaim.toFixed(1)}</strong>
         </p>
       </div>
       <div>
@@ -1546,7 +1562,7 @@ function showResults(scenario) {
         <p style="font-size:13px;color:#94a3b8">
           Staff needed: <strong style="color:#e2e8f0">${s.staffNeededAtPeak}</strong><br>
           Additional staff: <strong style="color:${s.additionalStaff > 0 ? '#ef4444' : '#22c55e'}">${s.additionalStaff > 0 ? '+' + s.additionalStaff : 'None'}</strong><br>
-          Peak ${periodLabel.toLowerCase()} claims: <strong style="color:#e2e8f0">${s.peakClaims}</strong><br>
+          Peak ${periodLabel.toLowerCase()} manual claims: <strong style="color:#e2e8f0">${s.peakManualClaims}</strong><br>
           ${periodLabel}s over capacity: <strong style="color:${s.overCapacityPeriods > 0 ? '#ef4444' : '#22c55e'}">${s.overCapacityPeriods}</strong>
         </p>
       </div>
@@ -1562,11 +1578,11 @@ function showResults(scenario) {
     <div style="margin-top:16px">
       <h4 style="margin-bottom:8px;font-size:14px">Capacity vs Demand at Peak</h4>
       <div class="progress-bar" style="height:20px;border-radius:6px">
-        <div class="progress-fill" style="width:${Math.min(100, (s.periodCapacity / s.peakClaims) * 100)}%;background:${s.periodCapacity >= s.peakClaims ? '#22c55e' : '#ef4444'};border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">
-          ${Math.round((s.periodCapacity / s.peakClaims) * 100)}%
+        <div class="progress-fill" style="width:${Math.min(100, peakManualCoverage)}%;background:${s.periodCapacity >= s.peakManualClaims ? '#22c55e' : '#ef4444'};border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">
+          ${peakManualCoverage}%
         </div>
       </div>
-      <p style="font-size:11px;color:#64748b;margin-top:4px">Current capacity covers ${Math.round((s.periodCapacity / s.peakClaims) * 100)}% of peak demand</p>
+      <p style="font-size:11px;color:#64748b;margin-top:4px">Current capacity covers ${peakManualCoverage}% of peak manual demand</p>
     </div>
   `;
   document.getElementById('resourceContent').innerHTML = resHTML;
@@ -2293,7 +2309,7 @@ function generateReport() {
   <tr><td style="font-weight:600">Severity</td><td>${severityLabels[s.severity]}</td></tr>
   <tr><td style="font-weight:600">Affected Population</td><td>${(s.site.population + s.site.staffOnSite).toLocaleString()} (${s.site.population.toLocaleString()} local + ${s.site.staffOnSite.toLocaleString()} staff)</td></tr>
   <tr><td style="font-weight:600">Base Capacity</td><td>${s.periodCapacity} ${capacityLabel} (${config.organisation.staffCount} staff)</td></tr>
-  <tr><td style="font-weight:600">Weighted Avg Days/Claim</td><td>${s.weightedDaysPerClaim.toFixed(1)} days</td></tr>
+  <tr><td style="font-weight:600">Manual Avg Days/Claim</td><td>${s.weightedDaysPerClaim.toFixed(1)} days</td></tr>
   <tr><td style="font-weight:600">Claim Complexity Mix</td><td>Auto: ${s.claimComplexity.autoProcessedPct}% | 2-day: ${s.claimComplexity.twoDayPct}% | ${s.claimComplexity.customDays}-day: ${s.claimComplexity.customDayPct}% | Standard (${s.claimComplexity.standardDays || 4}d): ${Math.max(0, 100 - s.claimComplexity.autoProcessedPct - s.claimComplexity.twoDayPct - s.claimComplexity.customDayPct)}%</td></tr>
   <tr><td style="font-weight:600">Target Processing Time</td><td>${targetLabel}</td></tr>
   ${surgeRows}
@@ -2333,7 +2349,7 @@ ${s.incident === 'chemical' || s.incident === 'nuclear' || s.incident === 'fire'
   <tr><td style="font-weight:600">Staff Needed at Peak</td><td>${s.staffNeededAtPeak}</td></tr>
   <tr><td style="font-weight:600">Additional Staff Required</td><td style="color:${s.additionalStaff > 0 ? '#ef4444' : '#22c55e'};font-weight:700">${s.additionalStaff > 0 ? '+' + s.additionalStaff : 'None'}</td></tr>
   <tr><td style="font-weight:600">Claims/Staff/Week</td><td>${s.claimsPerStaffPerWeek.toFixed(1)}</td></tr>
-  <tr><td style="font-weight:600">Capacity Coverage at Peak</td><td>${Math.round((s.periodCapacity / s.peakClaims) * 100)}%</td></tr>
+  <tr><td style="font-weight:600">Capacity Coverage at Peak (Manual)</td><td>${s.peakManualClaims > 0 ? Math.round((s.periodCapacity / s.peakManualClaims) * 100) : 100}%</td></tr>
 </table>
 
 <h2>Recommendations</h2>
