@@ -1224,7 +1224,8 @@ function runScenario() {
     cumulativeInjury += newInjury;
     cumulativeProperty += newProperty;
 
-    const available = newClaims + backlog;
+    const prevBacklog = backlog;
+    const available = prevBacklog + newClaims;
     const processed = Math.min(available, effectiveCapacity);
     totalProcessed += processed;
     backlog = available - processed;
@@ -1245,7 +1246,7 @@ function runScenario() {
       backlog,
       effectiveCapacity,
       surgeStaff,
-      utilisation: effectiveCapacity > 0 ? ((newClaims + (i > 0 ? periods[i-1].backlog : 0)) / effectiveCapacity) * 100 : 0
+      utilisation: effectiveCapacity > 0 ? (available / effectiveCapacity) * 100 : 0
     });
 
   }
@@ -1291,6 +1292,7 @@ function runScenario() {
     periods, peakPeriod, peakClaims, weeklyCapacity: baseWeeklyCapacity, periodCapacity: basePeriodCapacity,
     maxBacklog, overCapacityPeriods, additionalStaff, staffNeededAtPeak, claimsPerStaffPerWeek,
     surgeEntries: JSON.parse(JSON.stringify(surgeEntries)), weightedDaysPerClaim,
+    targetWeeks, targetPeriods, weeksToClear, periodsToClear, canMeetTarget, isLongTerm, splits: normalizedSplits,
     targetWeeks, targetPeriods, weeksToClear, periodsToClear, canMeetTarget, isLongTerm, splits,
     maxSimPeriods,
     claimComplexity: JSON.parse(JSON.stringify(config.claimComplexity || DEFAULT_CONFIG.claimComplexity))
@@ -1324,6 +1326,7 @@ function showResults(scenario) {
     ? `${Math.round(s.maxSimPeriods / 12)}+ years`
     : `${s.maxSimPeriods}+ weeks`;
   const timeToClearLabel = s.weeksToClear === -1
+    ? maxClearLabel
     ? (s.isLongTerm ? '10+ years' : `${s.maxSimPeriods}+ weeks`)
     : (s.isLongTerm ? s.periodsToClear + ' months' : s.weeksToClear + ' weeks');
   const targetLabel = s.isLongTerm ? s.targetPeriods + ' Months' : s.targetWeeks + ' Weeks';
@@ -1375,23 +1378,8 @@ function showResults(scenario) {
   `;
   document.getElementById('metricsGrid').innerHTML = metricsHTML;
 
-  // Determine display periods - sample for long term to keep table manageable
-  let displayPeriods = s.periods;
-  let samplingRate = 1;
-  if (s.isLongTerm && s.periods.length > 24) {
-    // For long term, show monthly data but sample every 3 months after first year
-    samplingRate = 3;
-    displayPeriods = s.periods.filter((p, i) => i < 12 || i % samplingRate === 0);
-  } else if (s.timeHorizon === 'medium' && s.periods.length > 26) {
-    // For medium term, show every 2 weeks after week 12
-    displayPeriods = s.periods.filter((p, i) => i < 12 || i % 2 === 0);
-  }
-
-  // Limit display to reasonable size
-  const maxDisplayPeriods = s.isLongTerm ? 40 : 52;
-  if (displayPeriods.length > maxDisplayPeriods) {
-    displayPeriods = displayPeriods.slice(0, maxDisplayPeriods);
-  }
+  // Determine display periods - show full horizon for accuracy
+  const displayPeriods = s.periods;
 
   // Period table
   const tbody = document.getElementById('weeklyBody');
@@ -1506,6 +1494,7 @@ function buildRecommendations(s) {
 
   // General capacity recommendations
   if (!s.canMeetTarget) {
+    const clearLabel = s.weeksToClear === -1 ? maxClearLabel : (s.isLongTerm ? s.periodsToClear + ' months' : s.weeksToClear + ' weeks');
     const clearLabel = s.weeksToClear === -1 ? (s.isLongTerm ? '10+ years' : `${s.maxSimPeriods}+ weeks`) : (s.isLongTerm ? s.periodsToClear + ' months' : s.weeksToClear + ' weeks');
     const targetLabel = s.isLongTerm ? s.targetPeriods + '-month' : s.targetWeeks + '-week';
     recs.push({ level: 'critical', text: `Claims will not be cleared within the ${targetLabel} target (estimated ${clearLabel}). Increase staff or add surge resources.` });
@@ -2174,6 +2163,7 @@ function generateReport() {
     ? `${Math.round(s.maxSimPeriods / 12)}+ years`
     : `${s.maxSimPeriods}+ weeks`;
   const timeToClearLabel = s.weeksToClear === -1
+    ? maxClearLabel
     ? (s.isLongTerm ? '10+ years' : `${s.maxSimPeriods}+ weeks`)
     : (s.isLongTerm ? s.periodsToClear + ' months' : s.weeksToClear + ' weeks');
   const targetLabel = s.isLongTerm ? s.targetPeriods + ' Months' : s.targetWeeks + ' Weeks';
