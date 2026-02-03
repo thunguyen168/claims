@@ -246,9 +246,12 @@ input[type="range"]::-moz-range-thumb {
           <option value="catastrophic">Catastrophic - Regional impact</option>
         </select>
       </div>
-      <!-- Peak week slider removed - using incident-specific claim patterns -->
-      <div id="claimPatternNote" style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px;margin-bottom:16px;font-size:11px;color:#94a3b8">
+      <!-- Claim pattern information panel -->
+      <div id="claimPatternNote" style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px;margin-bottom:12px;font-size:11px;color:#94a3b8">
         <strong style="color:#e2e8f0">Claim Pattern:</strong> <span id="patternDescription">Based on historical incident data</span>
+      </div>
+      <div id="historicalRefContainer" style="background:#1a1a2e;border:1px solid #3b82f6;border-radius:8px;padding:10px;margin-bottom:16px;font-size:10px;color:#60a5fa">
+        <strong style="color:#93c5fd">Historical Reference:</strong> <span id="historicalReference"></span>
       </div>
 
       <div class="form-group">
@@ -420,6 +423,24 @@ input[type="range"]::-moz-range-thumb {
         <div id="resourceContent"></div>
       </div>
 
+      <!-- Claim Distribution Template -->
+      <div class="card" id="distributionTemplateCard">
+        <div class="card-title">Claim Distribution Pattern (Research-Based)</div>
+        <div id="distributionTemplateContent"></div>
+      </div>
+
+      <!-- UK Legal Framework -->
+      <div class="card" id="legalFrameworkCard" style="display:none">
+        <div class="card-title">UK Legal Framework</div>
+        <div id="legalFrameworkContent"></div>
+      </div>
+
+      <!-- Claim Categories Timeline -->
+      <div class="card">
+        <div class="card-title">Claim Categories & Timelines</div>
+        <div id="claimCategoriesContent"></div>
+      </div>
+
       <!-- Recommendations -->
       <div class="card">
         <div class="card-title">Recommendations</div>
@@ -483,6 +504,296 @@ const DEFAULT_CONFIG = {
     { id: 'heysham', name: 'Heysham', location: 'Lancashire, England', population: 30000, staffOnSite: 3000, active: true }
   ]
 };
+
+// ===== CLAIM CATEGORIES & TIMING (Research-Based) =====
+// Based on historical incident analysis: BP Texas City, Buncefield, Fukushima, Bhopal, West Texas
+const CLAIM_CATEGORIES = {
+  acutePhysicalInjury: {
+    name: 'Acute Physical Injury',
+    description: 'Burns, trauma, immediate effects',
+    loggingTimeline: { min: 0, max: 7, unit: 'days' },
+    settlementTimeline: { min: 6, max: 24, unit: 'months' },
+    applicableIncidents: ['fire', 'explosion', 'chemical', 'nuclear']
+  },
+  propertyDamage: {
+    name: 'Property Damage',
+    description: 'Structural, contents, vehicles',
+    loggingTimeline: { min: 0, max: 30, unit: 'days' },
+    settlementTimeline: { min: 3, max: 18, unit: 'months' },
+    applicableIncidents: ['fire', 'explosion', 'chemical', 'nuclear']
+  },
+  businessInterruption: {
+    name: 'Business Interruption',
+    description: 'Ongoing assessment required',
+    loggingTimeline: { min: 1, max: 3, unit: 'months' },
+    settlementTimeline: { min: 12, max: 36, unit: 'months' },
+    applicableIncidents: ['fire', 'explosion', 'chemical', 'nuclear']
+  },
+  evacuationDisplacement: {
+    name: 'Evacuation/Displacement',
+    description: 'Temporary accommodation costs',
+    loggingTimeline: { min: 0, max: 14, unit: 'days' },
+    settlementTimeline: { min: 6, max: 18, unit: 'months' },
+    applicableIncidents: ['chemical', 'nuclear', 'explosion']
+  },
+  environmentalRemediation: {
+    name: 'Environmental Remediation',
+    description: 'Long-term monitoring needed',
+    loggingTimeline: { min: 3, max: 24, unit: 'months' },
+    settlementTimeline: { min: 5, max: 40, unit: 'years' },
+    applicableIncidents: ['chemical', 'nuclear']
+  },
+  latentHealthClaims: {
+    name: 'Latent Health Claims',
+    description: 'Cancer, respiratory disease (5-60 years post-incident)',
+    loggingTimeline: { min: 5, max: 60, unit: 'years' },
+    settlementTimeline: { min: 1, max: 3, unit: 'yearsAfterDiagnosis' },
+    applicableIncidents: ['chemical', 'nuclear']
+  },
+  psychologicalInjury: {
+    name: 'Psychological Injury',
+    description: 'PTSD, anxiety',
+    loggingTimeline: { min: 1, max: 36, unit: 'months' },
+    settlementTimeline: { min: 12, max: 36, unit: 'months' },
+    applicableIncidents: ['fire', 'explosion', 'chemical', 'nuclear']
+  },
+  secondaryConsequential: {
+    name: 'Secondary/Consequential',
+    description: 'Supply chain, third parties',
+    loggingTimeline: { min: 3, max: 24, unit: 'months' },
+    settlementTimeline: { min: 12, max: 48, unit: 'months' },
+    applicableIncidents: ['fire', 'explosion', 'chemical', 'nuclear']
+  }
+};
+
+// ===== UK LEGAL FRAMEWORK & LIMITATION PERIODS =====
+const UK_LEGAL_FRAMEWORK = {
+  standardLimitations: {
+    personalInjury: { years: 3, note: 'From injury/knowledge, court discretion to extend' },
+    propertyDamage: { years: 6, note: 'From date of damage' },
+    employersLiability: { years: 3, note: 'Discovery rule applies' }
+  },
+  nuclearLimitations: {
+    // UK Nuclear Installations Act 1965 (as amended 2022)
+    pre2022: {
+      operatorLiabilityCap: '£140 million',
+      personalInjury: { years: 10 },
+      propertyDamage: { years: 10 },
+      environmentalReinstatement: false
+    },
+    post2022: {
+      operatorLiabilityCap: '€700 million → €1.2 billion',
+      personalInjury: { years: 30, note: 'Extended from 10 years' },
+      propertyDamage: { years: 10 },
+      environmentalReinstatement: true
+    }
+  },
+  discoveryRule: {
+    description: 'For latent injuries, clock starts when claimant has knowledge of: (1) The injury, (2) That it was significant, (3) That it was attributable to defendant, (4) Identity of defendant'
+  }
+};
+
+// ===== RESERVE DEVELOPMENT FACTORS =====
+// Based on historical claim development patterns
+const RESERVE_DEVELOPMENT_FACTORS = {
+  '0-12months': { min: 1.0, max: 1.2, note: 'Initial estimates often low' },
+  '1-3years': { min: 1.2, max: 1.5, note: 'Litigation costs emerge' },
+  '3-7years': { min: 1.3, max: 2.0, note: 'Regulatory actions peak' },
+  '7-15years': { min: 1.5, max: 3.0, note: 'Cancer diagnoses begin' },
+  '15-30years': { min: 2.0, max: 5.0, note: 'Mesothelioma-type claims' },
+  '30plus': { min: null, max: null, note: 'Highly uncertain - nuclear/severe toxic only' }
+};
+
+// ===== HISTORICAL CLAIM VOLUME DATA =====
+// Based on actual incident data from research
+const HISTORICAL_CLAIM_VOLUMES = {
+  // Chemical Plant Explosions
+  chemicalExplosion: {
+    reference: 'BP Texas City (2005), Buncefield UK (2005)',
+    byVariety: {
+      minor: { fatalities: 0, directInjuries: '1-10', propertyClaims: '10-50', latentHealth: '0-10' },
+      moderate: { fatalities: '0-5', directInjuries: '10-100', propertyClaims: '50-500', latentHealth: '10-100' },
+      major: { fatalities: '5-20', directInjuries: '100-500', propertyClaims: '500-5,000', latentHealth: '100-1,000' },
+      catastrophic: { fatalities: '20+', directInjuries: '500+', propertyClaims: '5,000+', latentHealth: '1,000+' }
+    },
+    historicalExamples: {
+      bpTexasCity2005: {
+        fatalities: 15,
+        injured: 180,
+        totalClaims: 4000,
+        openClaimsAt3_5Years: 1000,
+        totalSettlements: '$2.1 billion',
+        propertyDamage: '$200 million',
+        firstTrial: '2.5 years post-incident',
+        finalOSHASettlement: '7 years post-incident'
+      },
+      buncefield2005: {
+        fatalities: 0,
+        injured: 43,
+        totalClaims: 2700,
+        totalEstimate: '£300 million - £1 billion',
+        classActionHearing: '10 months post-incident',
+        biSettlementTime: '9+ months to finalise'
+      }
+    }
+  },
+  // Nuclear Incidents
+  nuclear: {
+    reference: 'Fukushima (2011), Three Mile Island (1979), Windscale (1957)',
+    claimDevelopment: {
+      immediate: { timeline: '0-6 months', claimTypes: 'Evacuation, acute injury', percentOfUltimate: '5-10%' },
+      shortTerm: { timeline: '6 months - 3 years', claimTypes: 'Property, business interruption', percentOfUltimate: '20-30%' },
+      mediumTerm: { timeline: '3-10 years', claimTypes: 'Ongoing health monitoring, environment', percentOfUltimate: '30-40%' },
+      longTerm: { timeline: '10-30 years', claimTypes: 'Latent cancers, genetic effects', percentOfUltimate: '20-40%' }
+    },
+    historicalExamples: {
+      fukushima2011: {
+        evacuees: 164000,
+        compensationPaidBy2021: '¥9.7 trillion (~$70 billion)',
+        avgFamilyCompensation: '~$900,000',
+        monthlyPsychologicalPayments: '~$1,000/month for 6+ years',
+        decommissioningEstimate: '30-40 years'
+      },
+      threeMileIsland1979: {
+        lawsuitsFiled: 2000,
+        documentedCompensation: '$82 million',
+        classActionSettlement: '$25 million (1981, 2 years post)',
+        cleanupCompleted: '1993 (14 years)',
+        totalCleanupCost: '$1 billion'
+      }
+    }
+  },
+  // Fertiliser/Ammonium Nitrate Explosions
+  fertiliserExplosion: {
+    reference: 'West, Texas (2013), Texas City Disaster (1947)',
+    claimConcentrationByRadius: {
+      '0-500m': { density: 'Very High (90%+)', primaryTypes: 'Total loss, fatality, severe injury' },
+      '500m-1km': { density: 'High (60-80%)', primaryTypes: 'Significant structural, injury' },
+      '1-3km': { density: 'Moderate (20-40%)', primaryTypes: 'Windows, minor structural' },
+      '3-5km': { density: 'Low (5-10%)', primaryTypes: 'Glass breakage, hearing' }
+    },
+    historicalExamples: {
+      westTexas2013: {
+        fatalities: 15,
+        injured: 260,
+        buildingsDamaged: 150,
+        totalInsuredLosses: '~$230 million',
+        companyInsurance: '$1 million (severe underinsurance)',
+        citySettlement: '$10.44 million (5 years post)',
+        femaAwards: '$63.4 million to school district'
+      }
+    }
+  },
+  // Toxic Chemical Releases
+  toxicRelease: {
+    reference: 'Bhopal (1984), Seveso (1976)',
+    longTailCharacteristics: [
+      'Latency periods: 5-40+ years for cancers',
+      'Causation disputes: Proving link between exposure and illness',
+      'Generational effects: Children born after incident showing effects',
+      'Environmental persistence: Ongoing groundwater/soil contamination'
+    ],
+    historicalExamples: {
+      bhopal1984: {
+        immediateDeaths: 3000,
+        totalInjuryClaimsAwarded: 574304,
+        totalClaimsRejected: 455213,
+        totalCasesRegistered: 1029517,
+        settlementAmount: '$470 million',
+        settlementYear: 1989,
+        avgDeathCompensation: '$2,200',
+        avgInjuryCompensation: '$300-$500',
+        ongoingEffects: '40+ years later, health effects still documented'
+      }
+    }
+  },
+  // Industrial Fires
+  industrialFire: {
+    reference: 'NFPA data, Allianz Global Claims Review',
+    context: {
+      percentOfDirectPropertyDamage: '69% of industrial sector losses',
+      avgAnnualInsuredLosses: '$700+ million (manufacturing/industrial)',
+      globalRank: '#1 cause of corporate insurance losses (21% by value)'
+    },
+    bySeverity: {
+      contained: { propertyClaims: '1-10', injuryClaims: '0-5', biClaims: '0-5', typicalDuration: '3-12 months' },
+      significant: { propertyClaims: '10-100', injuryClaims: '5-50', biClaims: '10-50', typicalDuration: '6-24 months' },
+      majorMultiBuilding: { propertyClaims: '100-1,000', injuryClaims: '50-200', biClaims: '50-200', typicalDuration: '12-48 months' },
+      catastrophic: { propertyClaims: '1,000+', injuryClaims: '200+', biClaims: '200+', typicalDuration: '24-60+ months' }
+    }
+  }
+};
+
+// ===== PROCESSING TIMELINE BY CLAIM TYPE =====
+const PROCESSING_TIMELINES = {
+  propertySimple: {
+    name: 'Property (Simple)',
+    initialAssessment: { min: 1, max: 4, unit: 'weeks' },
+    settlementOffer: { min: 1, max: 3, unit: 'months' },
+    finalResolution: { min: 3, max: 6, unit: 'months' }
+  },
+  propertyComplex: {
+    name: 'Property (Complex)',
+    initialAssessment: { min: 1, max: 3, unit: 'months' },
+    settlementOffer: { min: 3, max: 9, unit: 'months' },
+    finalResolution: { min: 6, max: 18, unit: 'months' }
+  },
+  businessInterruption: {
+    name: 'Business Interruption',
+    initialAssessment: { min: 3, max: 12, unit: 'months' },
+    settlementOffer: { min: 6, max: 18, unit: 'months' },
+    finalResolution: { min: 12, max: 36, unit: 'months' }
+  },
+  personalInjury: {
+    name: 'Personal Injury',
+    initialAssessment: { min: 1, max: 6, unit: 'months' },
+    settlementOffer: { min: 6, max: 18, unit: 'months' },
+    finalResolution: { min: 12, max: 36, unit: 'months' }
+  }
+};
+
+// ===== CLAIM DISTRIBUTION TEMPLATES (Research-Based Percentages) =====
+// Bimodal distribution: immediate spike + long tail for latent claims
+const CLAIM_DISTRIBUTION_TEMPLATES = {
+  explosionFire: {
+    name: 'Explosion/Fire Incident',
+    distribution: [
+      { period: 'Week 1-4', percent: 70, types: 'Property damage, acute injury, evacuation' },
+      { period: 'Month 2-12', percent: 20, types: 'Business interruption, delayed property, PTSD' },
+      { period: 'Year 1-5', percent: 8, types: 'Complex injury, litigation, environmental' },
+      { period: 'Year 5-30', percent: 2, types: 'Latent illness (if chemical exposure)' }
+    ]
+  },
+  toxicRelease: {
+    name: 'Toxic Release Incident',
+    distribution: [
+      { period: 'Week 1-4', percent: 25, types: 'Evacuation, acute poisoning, immediate property' },
+      { period: 'Month 2-24', percent: 30, types: 'Respiratory illness, property decontamination' },
+      { period: 'Year 2-10', percent: 25, types: 'Chronic illness develops, environmental cleanup' },
+      { period: 'Year 10-40', percent: 20, types: 'Cancers, generational effects, ongoing environmental' }
+    ]
+  },
+  nuclear: {
+    name: 'Nuclear Incident',
+    distribution: [
+      { period: 'Week 1-4', percent: 10, types: 'Evacuation, acute radiation (if any)' },
+      { period: 'Month 2-36', percent: 35, types: 'Property exclusion zones, business disruption' },
+      { period: 'Year 3-15', percent: 30, types: 'Health monitoring, thyroid cancers, environment' },
+      { period: 'Year 15-30', percent: 25, types: 'Late cancers, continued decommissioning' }
+    ]
+  }
+};
+
+// ===== KEY INSIGHTS FOR UK INSURERS =====
+const UK_INSURER_INSIGHTS = [
+  { insight: 'Immediate claims (0-12 months) represent 60-90% of property but only 40-60% of ultimate value for incidents with toxic exposure', category: 'timing' },
+  { insight: 'Business interruption typically has longest processing time (12-36 months) and highest dispute rate', category: 'processing' },
+  { insight: 'Latent health claims under UK law can be filed up to 30 years post-incident for nuclear; 3 years from discovery for other toxic exposure', category: 'legal' },
+  { insight: 'Severity multipliers: Each order-of-magnitude increase in fatalities typically correlates with 5-10x increase in total claim count', category: 'volume' },
+  { insight: 'Underinsurance is common: West, Texas had $1M coverage vs. $230M losses; Bhopal settlement vastly underestimated long-term health costs', category: 'risk' },
+  { insight: 'Environmental claims post-2022 Nuclear Installations Act now explicitly covered - expect higher nuclear liability reserves', category: 'legal' },
+  { insight: 'Processing bottlenecks occur at 3-6 months (adjuster capacity) and 18-36 months (litigation)', category: 'processing' }
+];
 
 // ===== TIME HORIZON CONFIGURATIONS =====
 const TIME_HORIZONS = {
@@ -1013,22 +1324,72 @@ function getWeeklyDistribution(peakWeek) {
 // ===== PATTERN DESCRIPTIONS =====
 const PATTERN_DESCRIPTIONS = {
   fire: {
-    injury: 'Early spike from burns/inhalation, moderate tail for disability cases',
-    property: 'Immediate spike with re-scope waves as hidden damage discovered'
+    injury: 'Early spike (0-7 days) from burns/smoke inhalation; 6-24 month settlement. Moderate tail for disability/PTSD cases (12-36 months)',
+    property: 'Immediate spike (0-30 days), re-scope waves as hidden damage discovered. Simple: 3-6mo resolution; Complex: 6-18mo. BI exceeds PD by ~2.7x',
+    template: 'explosionFire',
+    historicalRef: 'NFPA/Allianz data: Fire/explosion = #1 cause of corporate losses (21% by value)'
   },
   explosion: {
-    injury: 'Sharp immediate spike, fast decay - lower count but high severity',
-    property: 'Instant sharp spike across blast radius, BI develops over time'
+    injury: 'Sharp immediate spike (0-7 days), lower count but high severity. Burns, TBI, amputations require specialist assessors',
+    property: 'Instant sharp spike across blast radius (90%+ claims within 500m). BI develops over 12-36 months. Claim density drops rapidly with distance',
+    template: 'explosionFire',
+    historicalRef: 'BP Texas City: 15 fatalities, 4,000 claims, $2.1B settlements. Buncefield: 2,700 claims, £300M-1B'
   },
   chemical: {
-    injury: 'Very fast spike, then very long tail (decades) from chronic effects and litigation',
-    property: 'Mid-fast spike, potential resurgence from contamination discovery'
+    injury: 'Bimodal distribution: acute poisoning spike (25% in weeks 1-4), then very long tail extending decades. Bhopal: 1M+ claims over 40 years',
+    property: 'Mid-fast spike for immediate damage, then resurgence (months 3-24) as soil/groundwater contamination discovered. Environmental: 5-40 years',
+    template: 'toxicRelease',
+    historicalRef: 'Bhopal (1984): 574,304 injury claims awarded, $470M settlement, avg compensation $300-500. Effects documented 40+ years later'
   },
   nuclear: {
-    injury: 'Small early spike, very long latency tail (cancers may appear 5-20 years later)',
-    property: 'Large early spike (evacuation/decontamination), extended plateau, stigma effects'
+    injury: 'Only 10% of ultimate claims in first month. Peak at 3-15 years (thyroid cancers). UK law allows claims up to 30 years post-incident (2022 Act)',
+    property: 'Large early spike (evacuation 164,000+ at Fukushima), extended plateau from exclusion zones, stigma-driven resurgences decades later',
+    template: 'nuclear',
+    historicalRef: 'Fukushima: $70B+ compensation by 2021, avg family $900K. Three Mile Island: $82M documented, 14-year cleanup ($1B)'
   }
 };
+
+// Get applicable claim categories for an incident type
+function getApplicableClaimCategories(incident) {
+  return Object.entries(CLAIM_CATEGORIES)
+    .filter(([key, cat]) => cat.applicableIncidents.includes(incident))
+    .map(([key, cat]) => ({ key, ...cat }));
+}
+
+// Get historical examples for incident type
+function getHistoricalExamples(incident) {
+  switch(incident) {
+    case 'fire':
+      return HISTORICAL_CLAIM_VOLUMES.industrialFire;
+    case 'explosion':
+      return HISTORICAL_CLAIM_VOLUMES.chemicalExplosion;
+    case 'chemical':
+      return HISTORICAL_CLAIM_VOLUMES.toxicRelease;
+    case 'nuclear':
+      return HISTORICAL_CLAIM_VOLUMES.nuclear;
+    default:
+      return null;
+  }
+}
+
+// Get reserve development factor for time horizon
+function getReserveDevelopmentFactor(timeHorizon) {
+  switch(timeHorizon) {
+    case 'short': return RESERVE_DEVELOPMENT_FACTORS['0-12months'];
+    case 'medium': return RESERVE_DEVELOPMENT_FACTORS['1-3years'];
+    case 'long': return RESERVE_DEVELOPMENT_FACTORS['7-15years'];
+    default: return RESERVE_DEVELOPMENT_FACTORS['0-12months'];
+  }
+}
+
+// Get claim distribution template
+function getClaimDistributionTemplate(incident) {
+  const pattern = PATTERN_DESCRIPTIONS[incident];
+  if (pattern && pattern.template) {
+    return CLAIM_DISTRIBUTION_TEMPLATES[pattern.template];
+  }
+  return CLAIM_DISTRIBUTION_TEMPLATES.explosionFire;
+}
 
 function updatePatternDescription() {
   const incident = document.getElementById('incidentSelect').value;
@@ -1055,6 +1416,15 @@ function updatePatternDescription() {
 
   const descEl = document.getElementById('patternDescription');
   if (descEl) descEl.textContent = description;
+
+  // Update historical reference
+  const histRefEl = document.getElementById('historicalReference');
+  if (histRefEl && patterns.historicalRef) {
+    histRefEl.textContent = patterns.historicalRef;
+    histRefEl.parentElement.style.display = '';
+  } else if (histRefEl) {
+    histRefEl.parentElement.style.display = 'none';
+  }
 }
 
 // ===== SURGE RESOURCE MANAGEMENT =====
@@ -1462,6 +1832,105 @@ function showResults(scenario) {
   `;
   document.getElementById('resourceContent').innerHTML = resHTML;
 
+  // Populate claim distribution template
+  const distTemplate = getClaimDistributionTemplate(s.incident);
+  if (distTemplate) {
+    let distHTML = `<p style="font-size:13px;color:#94a3b8;margin-bottom:12px"><strong style="color:#e2e8f0">${distTemplate.name}</strong> - Bimodal distribution pattern based on historical incident data</p>`;
+    distHTML += `<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));gap:12px">`;
+    distTemplate.distribution.forEach((phase, idx) => {
+      const colors = ['#22c55e', '#3b82f6', '#eab308', '#ef4444'];
+      const percentWidth = phase.percent;
+      distHTML += `
+        <div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:12px">
+          <div style="font-size:12px;font-weight:700;color:${colors[idx]};margin-bottom:4px">${phase.period}</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <div style="flex:1;height:8px;background:#334155;border-radius:4px;overflow:hidden">
+              <div style="width:${percentWidth}%;height:100%;background:${colors[idx]};border-radius:4px"></div>
+            </div>
+            <span style="font-size:14px;font-weight:700;color:${colors[idx]}">${phase.percent}%</span>
+          </div>
+          <div style="font-size:11px;color:#94a3b8">${phase.types}</div>
+        </div>`;
+    });
+    distHTML += `</div>`;
+    distHTML += `<p style="font-size:11px;color:#64748b;margin-top:12px;font-style:italic">Note: Claim development follows bimodal distribution - immediate spike of property/acute injury claims, followed by long tail of latent illness claims (30+ years for chemical/nuclear).</p>`;
+    document.getElementById('distributionTemplateContent').innerHTML = distHTML;
+  }
+
+  // Populate UK Legal Framework (show for nuclear incidents)
+  const legalCard = document.getElementById('legalFrameworkCard');
+  if (s.incident === 'nuclear') {
+    legalCard.style.display = '';
+    const nuc = UK_LEGAL_FRAMEWORK.nuclearLimitations;
+    let legalHTML = `
+      <div style="margin-bottom:16px">
+        <h4 style="font-size:13px;font-weight:700;color:#ef4444;margin-bottom:8px">UK Nuclear Installations Act 1965 (as amended 2022)</h4>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:12px">
+            <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;margin-bottom:6px">Pre-2022</div>
+            <div style="font-size:12px;color:#e2e8f0">
+              <div>Operator Liability: <strong>${nuc.pre2022.operatorLiabilityCap}</strong></div>
+              <div>Personal Injury Limit: <strong>${nuc.pre2022.personalInjury.years} years</strong></div>
+              <div>Property Damage Limit: <strong>${nuc.pre2022.propertyDamage.years} years</strong></div>
+              <div>Environmental: <strong style="color:#ef4444">Not covered</strong></div>
+            </div>
+          </div>
+          <div style="background:#0f172a;border:1px solid #22c55e;border-radius:8px;padding:12px">
+            <div style="font-size:11px;color:#22c55e;text-transform:uppercase;margin-bottom:6px">Post-2022 (Current)</div>
+            <div style="font-size:12px;color:#e2e8f0">
+              <div>Operator Liability: <strong>${nuc.post2022.operatorLiabilityCap}</strong></div>
+              <div>Personal Injury Limit: <strong style="color:#22c55e">${nuc.post2022.personalInjury.years} years</strong> <span style="font-size:10px;color:#94a3b8">(extended)</span></div>
+              <div>Property Damage Limit: <strong>${nuc.post2022.propertyDamage.years} years</strong></div>
+              <div>Environmental: <strong style="color:#22c55e">Now covered</strong></div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    legalHTML += `
+      <div style="background:#1a1a2e;border:1px solid #3b82f6;border-radius:8px;padding:12px;font-size:12px">
+        <strong style="color:#60a5fa">Discovery Rule for Latent Injuries:</strong>
+        <span style="color:#94a3b8">${UK_LEGAL_FRAMEWORK.discoveryRule.description}</span>
+      </div>`;
+    document.getElementById('legalFrameworkContent').innerHTML = legalHTML;
+  } else {
+    legalCard.style.display = 'none';
+  }
+
+  // Populate claim categories
+  const categories = getApplicableClaimCategories(s.incident);
+  let catHTML = `<div style="overflow-x:auto"><table class="capacity-table" style="font-size:12px">
+    <thead><tr>
+      <th>Claim Category</th>
+      <th>Description</th>
+      <th>Logging Timeline</th>
+      <th>Settlement Timeline</th>
+    </tr></thead><tbody>`;
+  categories.forEach(cat => {
+    const logUnit = cat.loggingTimeline.unit === 'yearsAfterDiagnosis' ? 'years (after diagnosis)' : cat.loggingTimeline.unit;
+    const settleUnit = cat.settlementTimeline.unit === 'yearsAfterDiagnosis' ? 'years (after diagnosis)' : cat.settlementTimeline.unit;
+    catHTML += `<tr>
+      <td style="font-weight:600;color:#e2e8f0">${cat.name}</td>
+      <td style="color:#94a3b8">${cat.description}</td>
+      <td>${cat.loggingTimeline.min}-${cat.loggingTimeline.max} ${logUnit}</td>
+      <td>${cat.settlementTimeline.min}-${cat.settlementTimeline.max} ${settleUnit}</td>
+    </tr>`;
+  });
+  catHTML += `</tbody></table></div>`;
+
+  // Add reserve development factors
+  const reserveFactor = getReserveDevelopmentFactor(s.timeHorizon);
+  if (reserveFactor) {
+    catHTML += `
+      <div style="margin-top:16px;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:12px">
+        <h4 style="font-size:12px;font-weight:700;color:#eab308;margin-bottom:8px">Reserve Development Factors (${s.timeHorizon} term)</h4>
+        <div style="font-size:13px;color:#e2e8f0">
+          Factor range: <strong>${reserveFactor.min}x - ${reserveFactor.max}x</strong> of initial estimates
+          <span style="color:#94a3b8;font-size:11px;margin-left:8px">(${reserveFactor.note})</span>
+        </div>
+      </div>`;
+  }
+  document.getElementById('claimCategoriesContent').innerHTML = catHTML;
+
   // Recommendations - incident-specific
   const recs = buildRecommendations(s);
   const recList = document.getElementById('recList');
@@ -1499,61 +1968,88 @@ function buildRecommendations(s) {
     recs.push({ level: 'critical', text: `Peak backlog of ${s.maxBacklog.toLocaleString()} claims exceeds 2 ${periodLabel}s of capacity. Consider emergency outsourcing.` });
   }
 
+  // Processing bottleneck warnings (research-based)
+  if (s.timeHorizon === 'medium' || s.timeHorizon === 'long') {
+    recs.push({ level: 'warning', text: 'Processing bottlenecks typically occur at 3-6 months (adjuster capacity) and 18-36 months (litigation phase). Plan surge resources accordingly.' });
+  }
+
+  // Reserve development factor warning
+  const reserveFactor = getReserveDevelopmentFactor(s.timeHorizon);
+  if (reserveFactor && (s.incident === 'chemical' || s.incident === 'nuclear')) {
+    recs.push({ level: 'warning', text: `Reserve development factor for ${s.timeHorizon} term: ${reserveFactor.min}-${reserveFactor.max}x initial estimates. ${reserveFactor.note}.` });
+  }
+
   // Incident-specific recommendations
   if (s.incident === 'chemical') {
-    recs.push({ level: 'warning', text: 'Chemical release incidents typically show a sharp early spike in injury claims followed by a very long tail (potentially decades) from chronic health effects, disability reassessments, and litigation.' });
-    recs.push({ level: 'warning', text: 'Establish robust medical documentation protocols early - causation disputes are common in chemical exposure cases.' });
+    recs.push({ level: 'warning', text: 'BIMODAL DISTRIBUTION: Chemical releases show 25% of claims in weeks 1-4 (acute), then 45% emerge over years 2-40 (chronic effects, cancers). Bhopal example: 1M+ cases over 40 years.' });
+    recs.push({ level: 'warning', text: 'Establish robust medical documentation protocols early - causation disputes are common. Discovery rule applies: 3-year limitation from when claimant gains knowledge of injury.' });
     if (s.claimType === 'both' || s.claimType === 'injury') {
-      recs.push({ level: 'info', text: 'Consider setting up medical monitoring programs for affected populations - late-onset conditions may generate claims years later.' });
+      recs.push({ level: 'info', text: 'Set up medical monitoring programs for affected populations. Latent health claims (cancers, respiratory disease) may emerge 5-60 years post-incident.' });
+      recs.push({ level: 'info', text: 'Historical reference: Bhopal awarded 574,304 injury claims with average compensation of $300-500. Generational effects documented.' });
     }
     if (s.claimType === 'both' || s.claimType === 'property') {
-      recs.push({ level: 'info', text: 'Property claims may resurge if contamination is discovered in soil or groundwater - plan for potential secondary waves.' });
+      recs.push({ level: 'info', text: 'Environmental remediation claims: 3-24 months to log, 5-40+ years to settle. Property claims may resurge from soil/groundwater contamination discovery.' });
     }
   }
 
   if (s.incident === 'nuclear') {
-    recs.push({ level: 'warning', text: 'Nuclear incidents show distinct claim patterns: property/evacuation claims dominate early, while injury claims have very long latency (thyroid cancers may appear 5-20 years later).' });
-    recs.push({ level: 'warning', text: 'Ensure specialist assessors are available for radiological claims. Standard claims staff may need additional training.' });
+    recs.push({ level: 'critical', text: 'UK Nuclear Installations Act 2022: Personal injury limitation now 30 YEARS (extended from 10). Environmental reinstatement now explicitly covered. Operator liability €700M-1.2B.' });
+    recs.push({ level: 'warning', text: 'Nuclear claim development: Only 5-10% of ultimate claims in first 6 months. 20-40% emerge at 10-30 years (latent cancers, genetic effects). Peak thyroid cancers at years 5-20.' });
+    recs.push({ level: 'warning', text: 'Ensure specialist radiological assessors are available. Standard claims staff require additional training for radiation exposure claims.' });
     if (s.claimType === 'both' || s.claimType === 'property') {
-      recs.push({ level: 'info', text: 'Property claims will include evacuation costs, loss of use, decontamination, and stigma-related value impacts. Plan for extended displacement periods.' });
+      recs.push({ level: 'info', text: 'Property claims include evacuation (Fukushima: 164,000+ evacuees), exclusion zone losses, decontamination, and stigma-driven value impacts. Avg family compensation at Fukushima: ~$900,000.' });
     }
     if (s.claimType === 'both' || s.claimType === 'injury') {
-      recs.push({ level: 'info', text: 'Medical monitoring claims and psychological distress claims are common in nuclear incidents - establish clear eligibility criteria early.' });
+      recs.push({ level: 'info', text: 'Psychological distress claims are significant: Fukushima paid ~$1,000/month for 6+ years. Establish clear eligibility criteria early for medical monitoring claims.' });
     }
     if (s.isLongTerm) {
-      recs.push({ level: 'info', text: 'Nuclear stigma effects can persist for decades and may cause claim resurgences following policy decisions or new disclosures.' });
+      recs.push({ level: 'info', text: 'Stigma effects persist decades and cause claim resurgences following policy decisions or new disclosures. Three Mile Island cleanup took 14 years ($1B).' });
     }
   }
 
   if (s.incident === 'explosion') {
-    recs.push({ level: 'warning', text: 'Explosion incidents create immediate high-volume property claims across a wide blast radius. Expect thousands of third-party property damage claims.' });
-    recs.push({ level: 'info', text: 'Business interruption claims often become the pacing item - they require forensic accounting and develop over time as downtime impacts become clear.' });
+    recs.push({ level: 'warning', text: 'BLAST RADIUS CLAIM CONCENTRATION: 90%+ claims within 500m (total loss/severe), 60-80% at 500m-1km (significant structural), 20-40% at 1-3km (windows), 5-10% at 3-5km (glass/hearing).' });
+    recs.push({ level: 'warning', text: 'Historical reference: BP Texas City - 15 fatalities, 4,000 claims, $2.1B settlements over 7 years. Buncefield - 2,700 claims, £300M-1B, BI settlements 9+ months.' });
+    recs.push({ level: 'info', text: 'Business interruption claims become the pacing item (12-36 months processing). Require forensic accounting as downtime impacts develop.' });
     if (s.claimType === 'both' || s.claimType === 'injury') {
-      recs.push({ level: 'info', text: 'Injury claims are typically lower count but high severity (burns, amputations, TBI). Ensure specialist medical assessors are available.' });
+      recs.push({ level: 'info', text: 'Injury claims: lower count but high severity (burns, TBI, amputations). Acute physical injury: 0-7 days logging, 6-24 months settlement. Ensure specialist medical assessors.' });
     }
   }
 
   if (s.incident === 'fire') {
-    recs.push({ level: 'info', text: 'Fire incidents often show property claim re-scope waves as hidden damage (soot, corrosion, smoke damage) is discovered weeks after the incident.' });
+    recs.push({ level: 'warning', text: 'Fire/explosion = #1 cause of corporate insurance losses globally (21% by value). UK industrial sector: avg $700M+ annual insured losses, 69% of direct property damage.' });
+    recs.push({ level: 'info', text: 'Expect property claim re-scope waves as hidden damage (soot, corrosion, smoke) discovered. Simple property: 3-6mo resolution. Complex: 6-18 months.' });
     if (s.claimType === 'both' || s.claimType === 'property') {
-      recs.push({ level: 'info', text: 'Business interruption losses often exceed property damage for industrial fires (historically ~2.7x PD for petrochemical events).' });
+      recs.push({ level: 'info', text: 'Business interruption typically exceeds property damage by ~2.7x for industrial/petrochemical fires. BI assessment: 3-12 months, settlement: 12-36 months.' });
     }
+  }
+
+  // Underinsurance warning (research-based)
+  if (s.severity === 'major' || s.severity === 'catastrophic') {
+    recs.push({ level: 'warning', text: 'UNDERINSURANCE RISK: Historical examples - West, Texas: $1M coverage vs $230M losses. Review coverage limits against modelled exposure.' });
   }
 
   // Time horizon specific recommendations
   if (s.isLongTerm) {
-    recs.push({ level: 'info', text: 'Long-term projections are subject to significant uncertainty. Plan for periodic reviews and model updates as actual claim patterns emerge.' });
+    recs.push({ level: 'info', text: 'Long-term projections subject to significant uncertainty. Reserve development factors: 7-15 years = 1.5-3.0x; 15-30 years = 2.0-5.0x initial estimates.' });
     if (s.incident === 'chemical' || s.incident === 'nuclear') {
-      recs.push({ level: 'info', text: 'Maintain claim tracking systems and reserves for potential late-emerging claims. Historical incidents show claims continuing for decades.' });
+      recs.push({ level: 'info', text: 'Maintain claim tracking systems and IBNR reserves for late-emerging claims. Asbestos precedent: 20-60 year latency, $65B+ US insured losses.' });
     }
+  }
+
+  // Claim category-specific timelines
+  const categories = getApplicableClaimCategories(s.incident);
+  const psych = categories.find(c => c.key === 'psychologicalInjury');
+  if (psych && (s.claimType === 'both' || s.claimType === 'injury')) {
+    recs.push({ level: 'info', text: 'Psychological injury claims (PTSD, anxiety): 1-36 months to log, 12-36 months to settle. Common in all major incident types.' });
   }
 
   // General recommendations
   if (s.totalClaims > 1000) {
-    recs.push({ level: 'warning', text: 'High claim volume expected. Implement digital/online claim submission to reduce processing bottlenecks.' });
+    recs.push({ level: 'warning', text: 'High claim volume expected. Implement digital/online claim submission. Processing bottleneck at 3-6 months due to adjuster capacity.' });
   }
-  recs.push({ level: 'info', text: 'Establish a dedicated claims hotline and information centre for affected parties.' });
-  recs.push({ level: 'info', text: 'Coordinate with local authorities and emergency services for efficient claim validation.' });
+  recs.push({ level: 'info', text: 'Establish dedicated claims hotline and information centre. Coordinate with local authorities and emergency services for efficient claim validation.' });
+  recs.push({ level: 'info', text: 'Secondary/consequential claims (supply chain, third parties): 3-24 months to log, 12-48 months to settle. Plan for delayed reporting.' });
 
   return recs;
 }
@@ -2194,12 +2690,87 @@ function generateReport() {
   ${surgeRows}
 </table>
 
-${s.incident === 'chemical' || s.incident === 'nuclear' ? `
+${(() => {
+    const distTemplate = getClaimDistributionTemplate(s.incident);
+    const reserveFactor = getReserveDevelopmentFactor(s.timeHorizon);
+    const categories = getApplicableClaimCategories(s.incident);
+    const patternDesc = PATTERN_DESCRIPTIONS[s.incident];
+
+    let researchSection = '';
+
+    // Pattern note with bimodal insight
+    if (s.incident === 'chemical' || s.incident === 'nuclear') {
+      researchSection += `
 <div class="pattern-note">
-  <strong>Claim Pattern Note:</strong> ${s.incident === 'chemical' ?
-    'Chemical (toxic release) incidents typically show a sharp early spike in injury claims followed by a very long tail extending potentially for decades (based on Bhopal and similar incidents). Property claims may resurge if contamination is discovered in soil or groundwater.' :
-    'Nuclear (radiological) incidents show distinct patterns: property/evacuation claims dominate early, while injury claims have very long latency periods (5-20+ years for radiation-related cancers). Based on patterns from Fukushima, Chernobyl, and Three Mile Island.'}
-</div>` : ''}
+  <strong>Claim Pattern Note (Bimodal Distribution):</strong> ${s.incident === 'chemical' ?
+    'Chemical (toxic release) incidents show bimodal distribution: 25% of claims in weeks 1-4 (acute poisoning, immediate property), then 45% emerge over years 2-40 (chronic illness, cancers, environmental). Based on Bhopal (1M+ claims over 40 years), Seveso (1976). Discovery rule applies: 3-year limitation from when claimant gains knowledge.' :
+    'Nuclear incidents show distinct claim development: Only 5-10% in first 6 months (evacuation, acute), 20-30% at 6mo-3yrs (property, BI), 30-40% at 3-10yrs (health monitoring), 20-40% at 10-30yrs (latent cancers). UK Nuclear Installations Act 2022: 30-year personal injury limitation, environmental reinstatement now covered.'}
+</div>`;
+    }
+
+    // Claim distribution template
+    if (distTemplate) {
+      researchSection += `
+<h2>Claim Distribution Pattern (Research-Based)</h2>
+<p style="font-size:13px;color:#64748b;margin-bottom:12px"><strong>${distTemplate.name}</strong> - Bimodal distribution based on historical incident data</p>
+<table>
+  <thead><tr><th>Period</th><th>% of Claims</th><th>Claim Types</th></tr></thead>
+  <tbody>
+    ${distTemplate.distribution.map(d => `<tr><td style="font-weight:600">${d.period}</td><td style="font-weight:700">${d.percent}%</td><td>${d.types}</td></tr>`).join('')}
+  </tbody>
+</table>`;
+    }
+
+    // Claim categories and timelines
+    researchSection += `
+<h2>Claim Categories &amp; Timelines</h2>
+<table>
+  <thead><tr><th>Category</th><th>Description</th><th>Logging</th><th>Settlement</th></tr></thead>
+  <tbody>
+    ${categories.map(cat => {
+      const logUnit = cat.loggingTimeline.unit === 'yearsAfterDiagnosis' ? 'years (after diagnosis)' : cat.loggingTimeline.unit;
+      const settleUnit = cat.settlementTimeline.unit === 'yearsAfterDiagnosis' ? 'years (after diagnosis)' : cat.settlementTimeline.unit;
+      return `<tr><td style="font-weight:600">${cat.name}</td><td style="color:#64748b">${cat.description}</td><td>${cat.loggingTimeline.min}-${cat.loggingTimeline.max} ${logUnit}</td><td>${cat.settlementTimeline.min}-${cat.settlementTimeline.max} ${settleUnit}</td></tr>`;
+    }).join('')}
+  </tbody>
+</table>`;
+
+    // Reserve development factors
+    if (reserveFactor && reserveFactor.min) {
+      researchSection += `
+<div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:12px;margin:16px 0">
+  <strong>Reserve Development Factor (${s.timeHorizon} term):</strong> ${reserveFactor.min}x - ${reserveFactor.max}x of initial estimates. <em>${reserveFactor.note}</em>
+</div>`;
+    }
+
+    // UK Nuclear Legal Framework
+    if (s.incident === 'nuclear') {
+      const nuc = UK_LEGAL_FRAMEWORK.nuclearLimitations;
+      researchSection += `
+<h2>UK Nuclear Legal Framework</h2>
+<p style="font-size:13px;font-weight:700;color:#ef4444">UK Nuclear Installations Act 1965 (as amended 2022)</p>
+<table>
+  <thead><tr><th>Parameter</th><th>Pre-2022</th><th>Post-2022 (Current)</th></tr></thead>
+  <tbody>
+    <tr><td>Operator Liability Cap</td><td>${nuc.pre2022.operatorLiabilityCap}</td><td style="font-weight:700">${nuc.post2022.operatorLiabilityCap}</td></tr>
+    <tr><td>Personal Injury Limitation</td><td>${nuc.pre2022.personalInjury.years} years</td><td style="font-weight:700;color:#22c55e">${nuc.post2022.personalInjury.years} years (extended)</td></tr>
+    <tr><td>Property Damage Limitation</td><td>${nuc.pre2022.propertyDamage.years} years</td><td>${nuc.post2022.propertyDamage.years} years</td></tr>
+    <tr><td>Environmental Reinstatement</td><td style="color:#ef4444">Not covered</td><td style="font-weight:700;color:#22c55e">Now covered</td></tr>
+  </tbody>
+</table>
+<p style="font-size:12px;color:#64748b;margin-top:8px"><strong>Discovery Rule:</strong> ${UK_LEGAL_FRAMEWORK.discoveryRule.description}</p>`;
+    }
+
+    // Historical reference
+    if (patternDesc && patternDesc.historicalRef) {
+      researchSection += `
+<div style="background:#e0f2fe;border:1px solid #0284c7;border-radius:8px;padding:12px;margin:16px 0;font-size:12px">
+  <strong style="color:#0369a1">Historical Reference:</strong> ${patternDesc.historicalRef}
+</div>`;
+    }
+
+    return researchSection;
+  })()}
 
 <h2>Key Metrics</h2>
 <div class="metrics">
@@ -2231,7 +2802,19 @@ ${s.incident === 'chemical' || s.incident === 'nuclear' ? `
 <ul>${recsHtml}</ul>
 
 <div class="footer">
-  <p>Claims Resilience Testing Tool — Report generated automatically. This analysis is for planning purposes and based on modelled estimates derived from historical incident patterns including Bhopal (1984), Seveso (1976), Three Mile Island (1979), Chernobyl (1986), Fukushima (2011), Buncefield (2005), Grenfell (2017), and others.</p>
+  <p><strong>Claims Resilience Testing Tool</strong> — Report generated automatically for planning purposes.</p>
+  <p style="margin-top:8px">Analysis based on historical incident patterns and research data including:</p>
+  <ul style="margin-top:4px;padding-left:20px;font-size:10px">
+    <li>BP Texas City (2005): 4,000 claims, $2.1B settlements</li>
+    <li>Buncefield UK (2005): 2,700 claims, £300M-1B</li>
+    <li>Bhopal (1984): 1M+ claims over 40 years, $470M settlement</li>
+    <li>Fukushima (2011): 164,000 evacuees, $70B+ compensation</li>
+    <li>Three Mile Island (1979): $82M documented, 14-year cleanup</li>
+    <li>West, Texas (2013): $230M losses vs $1M coverage</li>
+    <li>NFPA Fire Statistics, Allianz Global Claims Review</li>
+    <li>UK Nuclear Installations Act 1965 (as amended 2022)</li>
+  </ul>
+  <p style="margin-top:8px;font-size:10px;color:#94a3b8">Key insight: Claim development follows bimodal distribution — immediate spike of property/acute injury, followed by long tail of latent illness claims (30+ years for chemical/nuclear).</p>
 </div>
 </body></html>`;
 
