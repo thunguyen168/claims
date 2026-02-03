@@ -599,10 +599,14 @@ function switchView(view) {
   if (view === 'scenario') {
     document.getElementById('scenarioPanel').style.display = '';
     document.getElementById('adminPanel').style.display = 'none';
+    if (lastScenario) {
+      document.getElementById('resultsArea').style.display = '';
+    }
     document.querySelectorAll('.nav-tab')[0].classList.add('active');
   } else {
     document.getElementById('scenarioPanel').style.display = 'none';
     document.getElementById('adminPanel').style.display = '';
+    document.getElementById('resultsArea').style.display = 'none';
     document.querySelectorAll('.nav-tab')[1].classList.add('active');
     loadAdmin();
   }
@@ -996,6 +1000,22 @@ function getClaimDistribution(incident, claimType, timeHorizon) {
   );
 }
 
+function allocateClaimsByDistribution(totalClaims, distribution) {
+  if (totalClaims <= 0 || distribution.length === 0) return [];
+  const raw = distribution.map(d => totalClaims * d);
+  const allocation = raw.map(val => Math.floor(val));
+  let remainder = totalClaims - allocation.reduce((sum, val) => sum + val, 0);
+  if (remainder > 0) {
+    const ranked = raw
+      .map((val, idx) => ({ idx, frac: val - Math.floor(val) }))
+      .sort((a, b) => b.frac - a.frac);
+    for (let i = 0; i < remainder; i++) {
+      allocation[ranked[i % ranked.length].idx] += 1;
+    }
+  }
+  return allocation;
+}
+
 // Legacy function for backward compatibility
 function getWeeklyDistribution(peakWeek) {
   peakWeek = peakWeek || 4;
@@ -1120,13 +1140,16 @@ function runScenario() {
 
   // Get claim type splits
   const splits = config.claimTypeSplits?.[incident] || DEFAULT_CONFIG.claimTypeSplits[incident] || { injury: 0.5, property: 0.5 };
+  const splitSum = (splits.injury || 0) + (splits.property || 0);
+  const injuryRatio = splitSum > 0 ? splits.injury / splitSum : 0.5;
+  const normalizedSplits = { injury: injuryRatio, property: 1 - injuryRatio };
 
   // Calculate claims by type
   let injuryClaims = 0, propertyClaims = 0, totalClaims = 0;
   if (claimType === 'both') {
-    injuryClaims = Math.round(baseTotalClaims * splits.injury);
-    propertyClaims = Math.round(baseTotalClaims * splits.property);
-    totalClaims = injuryClaims + propertyClaims;
+    injuryClaims = Math.round(baseTotalClaims * injuryRatio);
+    propertyClaims = Math.max(0, baseTotalClaims - injuryClaims);
+    totalClaims = baseTotalClaims;
   } else if (claimType === 'injury') {
     injuryClaims = baseTotalClaims;
     totalClaims = injuryClaims;
@@ -1145,8 +1168,8 @@ function runScenario() {
   const propertyDist = propertyClaims > 0 ? getClaimDistribution(incident, 'property', timeHorizon) : [];
 
   // Calculate claims per period
-  const injuryPerPeriod = injuryDist.map(d => Math.round(injuryClaims * d));
-  const propertyPerPeriod = propertyDist.map(d => Math.round(propertyClaims * d));
+  const injuryPerPeriod = allocateClaimsByDistribution(injuryClaims, injuryDist);
+  const propertyPerPeriod = allocateClaimsByDistribution(propertyClaims, propertyDist);
 
   // Combined claims per period
   const periodicClaims = [];
@@ -1181,9 +1204,10 @@ function runScenario() {
   let peakClaims = 0;
   let periodsToClear = 0;
 
-  const maxSimPeriods = isLongTerm ? 120 : Math.max(numPeriods, 52);
+  const extraSimPeriods = isLongTerm ? 60 : 52;
+  const maxSimPeriods = Math.max(numPeriods + extraSimPeriods, 52);
 
-  for (let i = 0; i < Math.min(numPeriods, maxSimPeriods); i++) {
+  for (let i = 0; i < maxSimPeriods; i++) {
     const periodNum = i + 1;
 
     // Calculate surge staff active this period (only for short/medium term)
@@ -1196,15 +1220,16 @@ function runScenario() {
     const surgeCapacity = Math.round(surgeStaff * baseClaimsPerStaff * periodCapacityMultiplier);
     const effectiveCapacity = basePeriodCapacity + surgeCapacity;
 
-    const newClaims = periodicClaims[i]?.total || 0;
-    const newInjury = periodicClaims[i]?.injury || 0;
-    const newProperty = periodicClaims[i]?.property || 0;
+    const newClaims = i < numPeriods ? (periodicClaims[i]?.total || 0) : 0;
+    const newInjury = i < numPeriods ? (periodicClaims[i]?.injury || 0) : 0;
+    const newProperty = i < numPeriods ? (periodicClaims[i]?.property || 0) : 0;
 
     cumulative += newClaims;
     cumulativeInjury += newInjury;
     cumulativeProperty += newProperty;
 
-    const available = newClaims + backlog;
+    const prevBacklog = backlog;
+    const available = prevBacklog + newClaims;
     const processed = Math.min(available, effectiveCapacity);
     totalProcessed += processed;
     backlog = available - processed;
@@ -1225,39 +1250,30 @@ function runScenario() {
       backlog,
       effectiveCapacity,
       surgeStaff,
-      utilisation: effectiveCapacity > 0 ? ((newClaims + (i > 0 ? periods[i-1].backlog : 0)) / effectiveCapacity) * 100 : 0
+      utilisation: effectiveCapacity > 0 ? (available / effectiveCapacity) * 100 : 0
     });
 
   }
 
-  // Find when all claims are actually cleared (backlog reaches 0 and stays 0)
-  // Look backwards to find the last period with backlog > 0
-  let lastBacklogPeriod = 0;
+  // Find when all claims are actually cleared (backlog reaches 0 after last incoming period)
+  let lastIncomingPeriod = 0;
   for (let i = 0; i < periods.length; i++) {
-    if (periods[i].backlog > 0) {
-      lastBacklogPeriod = periods[i].period;
+    if (periods[i].newClaims > 0) {
+      lastIncomingPeriod = periods[i].period;
     }
   }
 
-  if (lastBacklogPeriod > 0) {
-    // Backlog existed at some point - clearance is when it finally went to 0
-    // Check if it actually cleared within our simulation
-    const nextPeriodIndex = lastBacklogPeriod; // periods array is 0-indexed
-    if (nextPeriodIndex < periods.length && periods[nextPeriodIndex].backlog === 0) {
-      periodsToClear = lastBacklogPeriod + 1;
-    } else {
-      // Backlog never fully cleared within simulation
-      periodsToClear = -1;
-    }
-  } else if (cumulative > 0) {
-    // No backlog ever built up - claims processed as they arrived
-    // Time to clear = last period where claims arrived
-    for (let i = periods.length - 1; i >= 0; i--) {
-      if (periods[i].newClaims > 0) {
-        periodsToClear = periods[i].period;
+  if (lastIncomingPeriod === 0) {
+    periodsToClear = 0;
+  } else {
+    let clearPeriod = null;
+    for (let i = lastIncomingPeriod - 1; i < periods.length; i++) {
+      if (periods[i].backlog === 0) {
+        clearPeriod = periods[i].period;
         break;
       }
     }
+    periodsToClear = clearPeriod === null ? -1 : clearPeriod;
   }
 
   // Convert periods to weeks for display (short/medium term)
@@ -1280,7 +1296,8 @@ function runScenario() {
     periods, peakPeriod, peakClaims, weeklyCapacity: baseWeeklyCapacity, periodCapacity: basePeriodCapacity,
     maxBacklog, overCapacityPeriods, additionalStaff, staffNeededAtPeak, claimsPerStaffPerWeek,
     surgeEntries: JSON.parse(JSON.stringify(surgeEntries)), weightedDaysPerClaim,
-    targetWeeks, targetPeriods, weeksToClear, periodsToClear, canMeetTarget, isLongTerm, splits,
+    targetWeeks, targetPeriods, weeksToClear, periodsToClear, canMeetTarget, isLongTerm, splits: normalizedSplits,
+    maxSimPeriods,
     claimComplexity: JSON.parse(JSON.stringify(config.claimComplexity || DEFAULT_CONFIG.claimComplexity))
   };
 
@@ -1308,8 +1325,11 @@ function showResults(scenario) {
   const peakPeriodLabel = s.isLongTerm ? `Month ${s.peakPeriod}` : `Week ${s.peakPeriod}`;
 
   // Metrics
+  const maxClearLabel = s.isLongTerm
+    ? `${Math.round(s.maxSimPeriods / 12)}+ years`
+    : `${s.maxSimPeriods}+ weeks`;
   const timeToClearLabel = s.weeksToClear === -1
-    ? (s.isLongTerm ? '10+ years' : '52+ weeks')
+    ? maxClearLabel
     : (s.isLongTerm ? s.periodsToClear + ' months' : s.weeksToClear + ' weeks');
   const targetLabel = s.isLongTerm ? s.targetPeriods + ' Months' : s.targetWeeks + ' Weeks';
   const showClaimBreakdown = s.claimType === 'both' && (s.injuryClaims > 0 || s.propertyClaims > 0);
@@ -1360,23 +1380,8 @@ function showResults(scenario) {
   `;
   document.getElementById('metricsGrid').innerHTML = metricsHTML;
 
-  // Determine display periods - sample for long term to keep table manageable
-  let displayPeriods = s.periods;
-  let samplingRate = 1;
-  if (s.isLongTerm && s.periods.length > 24) {
-    // For long term, show monthly data but sample every 3 months after first year
-    samplingRate = 3;
-    displayPeriods = s.periods.filter((p, i) => i < 12 || i % samplingRate === 0);
-  } else if (s.timeHorizon === 'medium' && s.periods.length > 26) {
-    // For medium term, show every 2 weeks after week 12
-    displayPeriods = s.periods.filter((p, i) => i < 12 || i % 2 === 0);
-  }
-
-  // Limit display to reasonable size
-  const maxDisplayPeriods = s.isLongTerm ? 40 : 52;
-  if (displayPeriods.length > maxDisplayPeriods) {
-    displayPeriods = displayPeriods.slice(0, maxDisplayPeriods);
-  }
+  // Determine display periods - show full horizon for accuracy
+  const displayPeriods = s.periods;
 
   // Period table
   const tbody = document.getElementById('weeklyBody');
@@ -1485,10 +1490,13 @@ function showResults(scenario) {
 function buildRecommendations(s) {
   const recs = [];
   const periodLabel = s.isLongTerm ? 'month' : 'week';
+  const maxClearLabel = s.isLongTerm
+    ? `${Math.round(s.maxSimPeriods / 12)}+ years`
+    : `${s.maxSimPeriods}+ weeks`;
 
   // General capacity recommendations
   if (!s.canMeetTarget) {
-    const clearLabel = s.weeksToClear === -1 ? (s.isLongTerm ? '10+ years' : '52+ weeks') : (s.isLongTerm ? s.periodsToClear + ' months' : s.weeksToClear + ' weeks');
+    const clearLabel = s.weeksToClear === -1 ? maxClearLabel : (s.isLongTerm ? s.periodsToClear + ' months' : s.weeksToClear + ' weeks');
     const targetLabel = s.isLongTerm ? s.targetPeriods + '-month' : s.targetWeeks + '-week';
     recs.push({ level: 'critical', text: `Claims will not be cleared within the ${targetLabel} target (estimated ${clearLabel}). Increase staff or add surge resources.` });
   }
@@ -2152,8 +2160,11 @@ function generateReport() {
   <div class="metric"><div class="metric-val" style="color:#7c3aed">${s.propertyClaims.toLocaleString()}</div><div class="metric-lbl">Property Claims (${Math.round(s.splits.property * 100)}%)</div></div>`;
   }
 
+  const maxClearLabel = s.isLongTerm
+    ? `${Math.round(s.maxSimPeriods / 12)}+ years`
+    : `${s.maxSimPeriods}+ weeks`;
   const timeToClearLabel = s.weeksToClear === -1
-    ? (s.isLongTerm ? '10+ years' : '52+ weeks')
+    ? maxClearLabel
     : (s.isLongTerm ? s.periodsToClear + ' months' : s.weeksToClear + ' weeks');
   const targetLabel = s.isLongTerm ? s.targetPeriods + ' Months' : s.targetWeeks + ' Weeks';
 
