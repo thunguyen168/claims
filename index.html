@@ -217,7 +217,24 @@ input[type="range"]::-moz-range-thumb {
         <select id="incidentSelect" onchange="runScenario()">
           <option value="fire">Fire</option>
           <option value="explosion">Explosion</option>
-          <option value="radioactive">Radioactive Contamination</option>
+          <option value="chemical">Chemical (Toxic Release)</option>
+          <option value="nuclear">Nuclear (Radiological)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Claim Type</label>
+        <select id="claimTypeSelect" onchange="runScenario()">
+          <option value="both">Both (Injury + Property)</option>
+          <option value="injury">Injury Claims (Bodily Injury)</option>
+          <option value="property">Property Claims (PD/BI/Economic)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Time Horizon</label>
+        <select id="timeHorizonSelect" onchange="runScenario()">
+          <option value="short">Short Term (0-12 weeks)</option>
+          <option value="medium">Medium Term (0-2 years)</option>
+          <option value="long">Long Term (0-10+ years)</option>
         </select>
       </div>
       <div class="form-group">
@@ -229,12 +246,9 @@ input[type="range"]::-moz-range-thumb {
           <option value="catastrophic">Catastrophic - Regional impact</option>
         </select>
       </div>
-      <div class="range-group">
-        <label>Peak Week <span class="range-value" id="peakWeekValue">Week 4</span></label>
-        <input type="range" id="peakWeekSlider" min="2" max="10" value="4" oninput="document.getElementById('peakWeekValue').textContent='Week '+this.value;runScenario()">
-        <div style="display:flex;justify-content:space-between;font-size:10px;color:#64748b;margin-top:2px">
-          <span>Early (W2)</span><span>Late (W10)</span>
-        </div>
+      <!-- Peak week slider removed - using incident-specific claim patterns -->
+      <div id="claimPatternNote" style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px;margin-bottom:16px;font-size:11px;color:#94a3b8">
+        <strong style="color:#e2e8f0">Claim Pattern:</strong> <span id="patternDescription">Based on historical incident data</span>
       </div>
 
       <div class="form-group">
@@ -312,8 +326,12 @@ input[type="range"]::-moz-range-thumb {
           <input type="number" id="multExplosion" value="1.3" step="0.1" onchange="saveAdmin()">
         </div>
         <div class="form-group">
-          <label>Radioactive Multiplier</label>
-          <input type="number" id="multRadioactive" value="1.8" step="0.1" onchange="saveAdmin()">
+          <label>Chemical Multiplier</label>
+          <input type="number" id="multChemical" value="1.5" step="0.1" onchange="saveAdmin()">
+        </div>
+        <div class="form-group">
+          <label>Nuclear Multiplier</label>
+          <input type="number" id="multNuclear" value="2.0" step="0.1" onchange="saveAdmin()">
         </div>
       </div>
 
@@ -443,7 +461,15 @@ const DEFAULT_CONFIG = {
   incidentMultipliers: {
     fire: 1.0,
     explosion: 1.3,
-    radioactive: 1.8
+    chemical: 1.5,
+    nuclear: 2.0
+  },
+  // Claim type split ratios (injury vs property) by incident type
+  claimTypeSplits: {
+    fire: { injury: 0.25, property: 0.75 },        // Fire: mostly property claims
+    explosion: { injury: 0.30, property: 0.70 },   // Explosion: more injury than fire
+    chemical: { injury: 0.60, property: 0.40 },    // Chemical: injury-dominant (Bhopal pattern)
+    nuclear: { injury: 0.35, property: 0.65 }      // Nuclear: property-heavy (evacuation/decontamination)
   },
   severityRates: {
     minor: 0.02,
@@ -456,6 +482,79 @@ const DEFAULT_CONFIG = {
     { id: 'sizewell', name: 'Sizewell', location: 'Suffolk, England', population: 25000, staffOnSite: 2500, active: true },
     { id: 'heysham', name: 'Heysham', location: 'Lancashire, England', population: 30000, staffOnSite: 3000, active: true }
   ]
+};
+
+// ===== TIME HORIZON CONFIGURATIONS =====
+const TIME_HORIZONS = {
+  short: { weeks: 12, label: '12 Weeks', unitLabel: 'Week' },
+  medium: { weeks: 104, label: '2 Years', unitLabel: 'Week' },  // 2 years = 104 weeks
+  long: { weeks: 520, label: '10 Years', unitLabel: 'Month' }   // 10 years = 520 weeks, display as months
+};
+
+// ===== INCIDENT CLAIM PATTERNS =====
+// Based on research: different claim patterns by incident type and claim type
+// Returns an array of relative weights for each time period
+const CLAIM_PATTERNS = {
+  // Fire patterns
+  fire: {
+    // Fire injury: early spike (burns/inhalation), moderate tail for disability/long-term care
+    injury: {
+      short: { peakWeek: 2, shape: 'spike', tailWeight: 0.15 },
+      medium: { peakWeek: 3, shape: 'fast_decay', tailWeight: 0.10 },
+      long: { peakMonth: 2, shape: 'fast_decay', tailWeight: 0.05 }
+    },
+    // Fire property: immediate spike + re-scope waves, rebuild delays
+    property: {
+      short: { peakWeek: 3, shape: 'spike_rescope', tailWeight: 0.25 },
+      medium: { peakWeek: 4, shape: 'extended_plateau', tailWeight: 0.20 },
+      long: { peakMonth: 3, shape: 'gradual_decay', tailWeight: 0.10 }
+    }
+  },
+  // Explosion patterns
+  explosion: {
+    // Explosion injury: lower count but high severity, early reporting
+    injury: {
+      short: { peakWeek: 1, shape: 'sharp_spike', tailWeight: 0.10 },
+      medium: { peakWeek: 2, shape: 'fast_decay', tailWeight: 0.08 },
+      long: { peakMonth: 1, shape: 'fast_decay', tailWeight: 0.05 }
+    },
+    // Explosion property: instant sharp spike (wide blast radius), BI develops over time
+    property: {
+      short: { peakWeek: 2, shape: 'sharp_spike', tailWeight: 0.30 },
+      medium: { peakWeek: 3, shape: 'spike_bi_tail', tailWeight: 0.25 },
+      long: { peakMonth: 2, shape: 'gradual_decay', tailWeight: 0.15 }
+    }
+  },
+  // Chemical (toxic release) patterns - Bhopal-style
+  chemical: {
+    // Chemical injury: very fast spike (hours-weeks), then LONG tail (complications, disability, litigation)
+    injury: {
+      short: { peakWeek: 2, shape: 'sharp_spike', tailWeight: 0.35 },
+      medium: { peakWeek: 3, shape: 'spike_long_tail', tailWeight: 0.40 },
+      long: { peakMonth: 2, shape: 'very_long_tail', tailWeight: 0.50 }  // Decades of claims (Bhopal)
+    },
+    // Chemical property: mid-fast spike, depends on contamination persistence
+    property: {
+      short: { peakWeek: 4, shape: 'moderate_spike', tailWeight: 0.25 },
+      medium: { peakWeek: 6, shape: 'extended_plateau', tailWeight: 0.30 },
+      long: { peakMonth: 4, shape: 'contamination_tail', tailWeight: 0.35 }
+    }
+  },
+  // Nuclear (radiological) patterns - Fukushima/Chernobyl-style
+  nuclear: {
+    // Nuclear injury: small immediate spike, VERY long tail (latency, thyroid cancers, monitoring)
+    injury: {
+      short: { peakWeek: 3, shape: 'low_early', tailWeight: 0.40 },
+      medium: { peakWeek: 8, shape: 'delayed_rise', tailWeight: 0.55 },
+      long: { peakMonth: 36, shape: 'latency_driven', tailWeight: 0.70 }  // Peak years later
+    },
+    // Nuclear property: very large early-to-mid spike (evacuation, decontamination), extended plateau
+    property: {
+      short: { peakWeek: 3, shape: 'rapid_rise', tailWeight: 0.50 },
+      medium: { peakWeek: 6, shape: 'evacuation_plateau', tailWeight: 0.60 },
+      long: { peakMonth: 12, shape: 'stigma_tail', tailWeight: 0.45 }
+    }
+  }
 };
 
 // Load config from localStorage or use defaults
@@ -534,7 +633,8 @@ function loadAdmin() {
   updateComplexityDisplay();
   document.getElementById('multFire').value = config.incidentMultipliers.fire;
   document.getElementById('multExplosion').value = config.incidentMultipliers.explosion;
-  document.getElementById('multRadioactive').value = config.incidentMultipliers.radioactive;
+  document.getElementById('multChemical').value = config.incidentMultipliers.chemical || 1.5;
+  document.getElementById('multNuclear').value = config.incidentMultipliers.nuclear || 2.0;
   document.getElementById('rateMinor').value = (config.severityRates.minor * 100);
   document.getElementById('rateModerate').value = (config.severityRates.moderate * 100);
   document.getElementById('rateMajor').value = (config.severityRates.major * 100);
@@ -547,7 +647,8 @@ function saveAdmin() {
   config.organisation.workDaysPerWeek = parseInt(document.getElementById('adminWorkDays').value) || 5;
   config.incidentMultipliers.fire = parseFloat(document.getElementById('multFire').value) || 1.0;
   config.incidentMultipliers.explosion = parseFloat(document.getElementById('multExplosion').value) || 1.3;
-  config.incidentMultipliers.radioactive = parseFloat(document.getElementById('multRadioactive').value) || 1.8;
+  config.incidentMultipliers.chemical = parseFloat(document.getElementById('multChemical').value) || 1.5;
+  config.incidentMultipliers.nuclear = parseFloat(document.getElementById('multNuclear').value) || 2.0;
   config.severityRates.minor = (parseFloat(document.getElementById('rateMinor').value) || 2) / 100;
   config.severityRates.moderate = (parseFloat(document.getElementById('rateModerate').value) || 8) / 100;
   config.severityRates.major = (parseFloat(document.getElementById('rateMajor').value) || 20) / 100;
@@ -722,23 +823,238 @@ function importConfig(event) {
 }
 
 // ===== CLAIMS DISTRIBUTION MODEL =====
-// Bell-curve with adjustable peak week using a Gaussian-like shape
-function getWeeklyDistribution(peakWeek) {
-  peakWeek = peakWeek || 4;
+// Advanced distribution model based on incident type, claim type, and time horizon
+
+// Generate distribution based on shape type
+function generateShapedDistribution(numPeriods, peakPeriod, shape, tailWeight) {
   const raw = [];
-  // Generate a bell curve centred on peakWeek (1-indexed) with a spread (sigma)
-  // Sigma widens slightly for later peaks to model a more drawn-out filing pattern
-  const sigma = 1.5 + (peakWeek - 2) * 0.15;
-  const mu = peakWeek; // 1-indexed peak
-  for (let w = 1; w <= 12; w++) {
-    // Gaussian: exp(-0.5 * ((w - mu) / sigma)^2)
-    // Add a small floor so every week has some claims
-    const val = Math.exp(-0.5 * Math.pow((w - mu) / sigma, 2)) + 0.015;
-    raw.push(val);
+
+  for (let i = 1; i <= numPeriods; i++) {
+    let val = 0;
+
+    switch (shape) {
+      case 'sharp_spike':
+        // Very sharp spike, fast decay
+        val = Math.exp(-0.8 * Math.pow((i - peakPeriod) / 1.2, 2)) + 0.01;
+        break;
+
+      case 'spike':
+        // Standard spike with moderate decay
+        val = Math.exp(-0.5 * Math.pow((i - peakPeriod) / 1.8, 2)) + 0.015;
+        break;
+
+      case 'moderate_spike':
+        // Moderate spike, wider spread
+        val = Math.exp(-0.4 * Math.pow((i - peakPeriod) / 2.5, 2)) + 0.02;
+        break;
+
+      case 'spike_rescope':
+        // Initial spike with secondary bump (re-scoping for fire property)
+        val = Math.exp(-0.5 * Math.pow((i - peakPeriod) / 1.5, 2)) +
+              0.3 * Math.exp(-0.5 * Math.pow((i - peakPeriod - 4) / 2, 2)) + 0.02;
+        break;
+
+      case 'spike_bi_tail':
+        // Spike with business interruption tail
+        val = Math.exp(-0.6 * Math.pow((i - peakPeriod) / 1.5, 2));
+        if (i > peakPeriod) {
+          val += tailWeight * Math.exp(-0.1 * (i - peakPeriod));
+        }
+        val += 0.015;
+        break;
+
+      case 'fast_decay':
+        // Fast initial spike, quick decay
+        val = Math.exp(-0.7 * Math.pow((i - peakPeriod) / 1.3, 2)) + 0.01;
+        break;
+
+      case 'spike_long_tail':
+        // Chemical injury: sharp spike with very long tail
+        val = Math.exp(-0.6 * Math.pow((i - peakPeriod) / 1.5, 2));
+        if (i > peakPeriod) {
+          val += tailWeight * Math.pow(0.92, i - peakPeriod);  // Slow exponential decay
+        }
+        val += 0.02;
+        break;
+
+      case 'very_long_tail':
+        // Chemical long-term: decades of claims
+        val = Math.exp(-0.4 * Math.pow((i - peakPeriod) / 3, 2));
+        if (i > peakPeriod) {
+          val += tailWeight * Math.pow(0.97, i - peakPeriod);  // Very slow decay
+        }
+        val += 0.025;
+        break;
+
+      case 'low_early':
+        // Nuclear injury short-term: low early, building concern
+        val = 0.02 + 0.08 * Math.exp(-0.3 * Math.pow((i - peakPeriod) / 2, 2));
+        if (i > peakPeriod) {
+          val += tailWeight * Math.pow(0.85, i - peakPeriod);
+        }
+        break;
+
+      case 'delayed_rise':
+        // Nuclear injury medium-term: gradual rise to delayed peak
+        val = 0.03 * (1 - Math.exp(-0.15 * i)) +
+              0.15 * Math.exp(-0.3 * Math.pow((i - peakPeriod) / 4, 2));
+        if (i > peakPeriod) {
+          val += tailWeight * Math.pow(0.95, i - peakPeriod);
+        }
+        break;
+
+      case 'latency_driven':
+        // Nuclear injury long-term: very delayed peak (latency effects)
+        val = 0.02 + 0.02 * Math.log1p(i / 10);  // Slow initial rise
+        val += 0.12 * Math.exp(-0.2 * Math.pow((i - peakPeriod) / 15, 2));  // Broad peak
+        if (i > peakPeriod) {
+          val += tailWeight * Math.pow(0.98, i - peakPeriod);
+        }
+        break;
+
+      case 'rapid_rise':
+        // Nuclear property short-term: rapid rise for evacuation
+        val = 0.05 + 0.25 * (1 - Math.exp(-0.5 * i));
+        val *= Math.exp(-0.15 * Math.pow((i - peakPeriod) / 3, 2));
+        val += tailWeight * 0.1;
+        break;
+
+      case 'evacuation_plateau':
+        // Nuclear property medium-term: plateau from ongoing evacuation/displacement
+        if (i < peakPeriod) {
+          val = 0.1 * (1 - Math.exp(-0.3 * i));
+        } else {
+          val = 0.1 * Math.exp(-0.02 * (i - peakPeriod));  // Very slow decay (plateau)
+        }
+        val += 0.03;
+        break;
+
+      case 'extended_plateau':
+        // Extended plateau shape
+        val = Math.exp(-0.3 * Math.pow((i - peakPeriod) / 4, 2)) + 0.04;
+        break;
+
+      case 'gradual_decay':
+        // Gradual decay from early peak
+        val = Math.exp(-0.4 * Math.pow((i - peakPeriod) / 2.5, 2)) + 0.02;
+        break;
+
+      case 'contamination_tail':
+        // Chemical property long-term: contamination discovery tail
+        val = Math.exp(-0.35 * Math.pow((i - peakPeriod) / 5, 2));
+        if (i > peakPeriod + 12) {
+          val += 0.15 * Math.exp(-0.5 * Math.pow((i - peakPeriod - 36) / 10, 2));  // Secondary discovery
+        }
+        val += 0.02;
+        break;
+
+      case 'stigma_tail':
+        // Nuclear property long-term: stigma and policy-driven resurgence
+        val = Math.exp(-0.25 * Math.pow((i - peakPeriod) / 8, 2));
+        // Add periodic resurgences (policy decisions, new disclosures)
+        if (i > 24) val += 0.08 * Math.exp(-0.5 * Math.pow((i - 48) / 6, 2));
+        if (i > 72) val += 0.06 * Math.exp(-0.5 * Math.pow((i - 84) / 6, 2));
+        val += 0.025;
+        break;
+
+      default:
+        // Fallback to standard bell curve
+        val = Math.exp(-0.5 * Math.pow((i - peakPeriod) / 2, 2)) + 0.015;
+    }
+
+    raw.push(Math.max(0.005, val));
   }
+
   // Normalise to sum to 1
   const sum = raw.reduce((a, b) => a + b, 0);
   return raw.map(v => v / sum);
+}
+
+// Get distribution for a specific incident type, claim type, and time horizon
+function getClaimDistribution(incident, claimType, timeHorizon) {
+  const horizonConfig = TIME_HORIZONS[timeHorizon];
+  const numPeriods = timeHorizon === 'long' ? 120 : horizonConfig.weeks;  // 120 months for long term
+
+  // Get the pattern configuration
+  const patterns = CLAIM_PATTERNS[incident] || CLAIM_PATTERNS.fire;
+  const pattern = patterns[claimType] || patterns.injury;
+  const horizonPattern = pattern[timeHorizon] || pattern.short;
+
+  // Determine peak period
+  let peakPeriod;
+  if (timeHorizon === 'long') {
+    peakPeriod = horizonPattern.peakMonth || 6;
+  } else {
+    peakPeriod = horizonPattern.peakWeek || 4;
+  }
+
+  return generateShapedDistribution(
+    numPeriods,
+    peakPeriod,
+    horizonPattern.shape,
+    horizonPattern.tailWeight
+  );
+}
+
+// Legacy function for backward compatibility
+function getWeeklyDistribution(peakWeek) {
+  peakWeek = peakWeek || 4;
+  const raw = [];
+  const sigma = 1.5 + (peakWeek - 2) * 0.15;
+  const mu = peakWeek;
+  for (let w = 1; w <= 12; w++) {
+    const val = Math.exp(-0.5 * Math.pow((w - mu) / sigma, 2)) + 0.015;
+    raw.push(val);
+  }
+  const sum = raw.reduce((a, b) => a + b, 0);
+  return raw.map(v => v / sum);
+}
+
+// ===== PATTERN DESCRIPTIONS =====
+const PATTERN_DESCRIPTIONS = {
+  fire: {
+    injury: 'Early spike from burns/inhalation, moderate tail for disability cases',
+    property: 'Immediate spike with re-scope waves as hidden damage discovered'
+  },
+  explosion: {
+    injury: 'Sharp immediate spike, fast decay - lower count but high severity',
+    property: 'Instant sharp spike across blast radius, BI develops over time'
+  },
+  chemical: {
+    injury: 'Very fast spike, then very long tail (decades) from chronic effects and litigation',
+    property: 'Mid-fast spike, potential resurgence from contamination discovery'
+  },
+  nuclear: {
+    injury: 'Small early spike, very long latency tail (cancers may appear 5-20 years later)',
+    property: 'Large early spike (evacuation/decontamination), extended plateau, stigma effects'
+  }
+};
+
+function updatePatternDescription() {
+  const incident = document.getElementById('incidentSelect').value;
+  const claimType = document.getElementById('claimTypeSelect').value;
+  const timeHorizon = document.getElementById('timeHorizonSelect').value;
+
+  let description = '';
+  const patterns = PATTERN_DESCRIPTIONS[incident] || PATTERN_DESCRIPTIONS.fire;
+
+  if (claimType === 'both') {
+    description = `Injury: ${patterns.injury}. Property: ${patterns.property}`;
+  } else if (claimType === 'injury') {
+    description = patterns.injury;
+  } else {
+    description = patterns.property;
+  }
+
+  // Add time horizon context
+  if (timeHorizon === 'long') {
+    description += ' (10+ year projection with latency effects)';
+  } else if (timeHorizon === 'medium') {
+    description += ' (2-year projection)';
+  }
+
+  const descEl = document.getElementById('patternDescription');
+  if (descEl) descEl.textContent = description;
 }
 
 // ===== SURGE RESOURCE MANAGEMENT =====
@@ -788,250 +1104,336 @@ function runScenario() {
   const siteId = document.getElementById('siteSelect').value;
   const incident = document.getElementById('incidentSelect').value;
   const severity = document.getElementById('severitySelect').value;
+  const claimType = document.getElementById('claimTypeSelect').value;
+  const timeHorizon = document.getElementById('timeHorizonSelect').value;
+
+  // Update pattern description
+  updatePatternDescription();
 
   const site = config.sites.find(s => s.id === siteId);
   if (!site) return;
 
   const totalAffected = site.population + site.staffOnSite;
   const claimRate = config.severityRates[severity];
-  const multiplier = config.incidentMultipliers[incident];
-  const totalClaims = Math.round(totalAffected * claimRate * multiplier);
+  const multiplier = config.incidentMultipliers[incident] || 1.0;
+  const baseTotalClaims = Math.round(totalAffected * claimRate * multiplier);
 
-  const peakWeekSetting = parseInt(document.getElementById('peakWeekSlider').value) || 4;
-  const distribution = getWeeklyDistribution(peakWeekSetting);
-  const weeklyClaims = distribution.map(d => Math.round(totalClaims * d));
+  // Get claim type splits
+  const splits = config.claimTypeSplits?.[incident] || DEFAULT_CONFIG.claimTypeSplits[incident] || { injury: 0.5, property: 0.5 };
 
-  // Adjust rounding so total matches
-  const calcTotal = weeklyClaims.reduce((a, b) => a + b, 0);
-  if (calcTotal !== totalClaims) {
-    weeklyClaims[peakWeekSetting - 1] += (totalClaims - calcTotal);
+  // Calculate claims by type
+  let injuryClaims = 0, propertyClaims = 0, totalClaims = 0;
+  if (claimType === 'both') {
+    injuryClaims = Math.round(baseTotalClaims * splits.injury);
+    propertyClaims = Math.round(baseTotalClaims * splits.property);
+    totalClaims = injuryClaims + propertyClaims;
+  } else if (claimType === 'injury') {
+    injuryClaims = baseTotalClaims;
+    totalClaims = injuryClaims;
+  } else {
+    propertyClaims = baseTotalClaims;
+    totalClaims = propertyClaims;
+  }
+
+  // Get time horizon configuration
+  const horizonConfig = TIME_HORIZONS[timeHorizon];
+  const isLongTerm = timeHorizon === 'long';
+  const numPeriods = isLongTerm ? 120 : horizonConfig.weeks;  // 120 months for long, weeks otherwise
+
+  // Get distributions for each claim type
+  const injuryDist = injuryClaims > 0 ? getClaimDistribution(incident, 'injury', timeHorizon) : [];
+  const propertyDist = propertyClaims > 0 ? getClaimDistribution(incident, 'property', timeHorizon) : [];
+
+  // Calculate claims per period
+  const injuryPerPeriod = injuryDist.map(d => Math.round(injuryClaims * d));
+  const propertyPerPeriod = propertyDist.map(d => Math.round(propertyClaims * d));
+
+  // Combined claims per period
+  const periodicClaims = [];
+  for (let i = 0; i < numPeriods; i++) {
+    periodicClaims.push({
+      injury: injuryPerPeriod[i] || 0,
+      property: propertyPerPeriod[i] || 0,
+      total: (injuryPerPeriod[i] || 0) + (propertyPerPeriod[i] || 0)
+    });
   }
 
   const baseWeeklyCapacity = getWeeklyCapacity();
   const weightedDaysPerClaim = getWeightedDaysPerClaim();
   const baseClaimsPerStaff = weightedDaysPerClaim > 0 ? config.organisation.workDaysPerWeek / weightedDaysPerClaim : config.organisation.workDaysPerWeek;
 
-  const targetWeeks = parseInt(document.getElementById('targetWeeksInput').value) || 12;
+  // Adjust capacity for time horizon
+  let periodCapacityMultiplier = 1;
+  if (timeHorizon === 'long') {
+    periodCapacityMultiplier = 4.33;  // Monthly capacity (weeks per month)
+  }
+  const basePeriodCapacity = Math.round(baseWeeklyCapacity * periodCapacityMultiplier);
 
-  // Build weekly breakdown with backlog, accounting for surge resources
-  // Simulate up to max(targetWeeks, 12) weeks, or longer if backlog remains (up to 52)
-  const simWeeks = Math.max(targetWeeks, 12);
-  const maxSimWeeks = 52;
-  const weeks = [];
-  let cumulative = 0;
+  const targetWeeks = parseInt(document.getElementById('targetWeeksInput').value) || 12;
+  const targetPeriods = isLongTerm ? Math.ceil(targetWeeks / 4.33) : targetWeeks;
+
+  // Build period breakdown with backlog
+  const periods = [];
+  let cumulative = 0, cumulativeInjury = 0, cumulativeProperty = 0;
   let totalProcessed = 0;
   let backlog = 0;
-  let peakWeek = 0;
+  let peakPeriod = 0;
   let peakClaims = 0;
-  let weeksToClear = 0;
+  let periodsToClear = 0;
 
-  for (let i = 0; i < maxSimWeeks; i++) {
-    const weekNum = i + 1;
-    // Calculate surge staff active this week
+  const maxSimPeriods = isLongTerm ? 120 : Math.max(targetWeeks, 52);
+
+  for (let i = 0; i < Math.min(numPeriods, maxSimPeriods); i++) {
+    const periodNum = i + 1;
+
+    // Calculate surge staff active this period (only for short/medium term)
     let surgeStaff = 0;
-    surgeEntries.forEach(entry => {
-      if (weekNum >= entry.startWeek) surgeStaff += entry.extraStaff;
-    });
-    const surgeCapacity = Math.round(surgeStaff * baseClaimsPerStaff);
-    const effectiveCapacity = baseWeeklyCapacity + surgeCapacity;
+    if (!isLongTerm) {
+      surgeEntries.forEach(entry => {
+        if (periodNum >= entry.startWeek) surgeStaff += entry.extraStaff;
+      });
+    }
+    const surgeCapacity = Math.round(surgeStaff * baseClaimsPerStaff * periodCapacityMultiplier);
+    const effectiveCapacity = basePeriodCapacity + surgeCapacity;
 
-    const newClaims = i < 12 ? weeklyClaims[i] : 0;
+    const newClaims = periodicClaims[i]?.total || 0;
+    const newInjury = periodicClaims[i]?.injury || 0;
+    const newProperty = periodicClaims[i]?.property || 0;
+
     cumulative += newClaims;
+    cumulativeInjury += newInjury;
+    cumulativeProperty += newProperty;
+
     const available = newClaims + backlog;
     const processed = Math.min(available, effectiveCapacity);
     totalProcessed += processed;
     backlog = available - processed;
-    if (newClaims > peakClaims) { peakClaims = newClaims; peakWeek = weekNum; }
-    weeks.push({
-      week: weekNum,
+
+    if (newClaims > peakClaims) { peakClaims = newClaims; peakPeriod = periodNum; }
+
+    periods.push({
+      period: periodNum,
+      week: isLongTerm ? null : periodNum,
+      month: isLongTerm ? periodNum : null,
       newClaims,
+      newInjury,
+      newProperty,
       cumulative,
+      cumulativeInjury,
+      cumulativeProperty,
       processed,
       backlog,
       effectiveCapacity,
       surgeStaff,
-      utilisation: effectiveCapacity > 0 ? ((newClaims + (i > 0 ? weeks[i-1].backlog : 0)) / effectiveCapacity) * 100 : 0
+      utilisation: effectiveCapacity > 0 ? ((newClaims + (i > 0 ? periods[i-1].backlog : 0)) / effectiveCapacity) * 100 : 0
     });
 
-    if (backlog === 0 && cumulative > 0) {
-      weeksToClear = weekNum;
-      // Continue simulating up to simWeeks for display but we have our answer
-      if (weekNum >= simWeeks) break;
+    if (backlog === 0 && cumulative > 0 && periodsToClear === 0) {
+      periodsToClear = periodNum;
     }
   }
-  // If backlog never cleared
-  if (backlog > 0) weeksToClear = -1; // -1 means exceeds 52 weeks
 
+  // If backlog never cleared
+  if (backlog > 0 && periodsToClear === 0) periodsToClear = -1;
+
+  // Convert periods to weeks for target comparison
+  const weeksToClear = isLongTerm ? (periodsToClear > 0 ? Math.round(periodsToClear * 4.33) : -1) : periodsToClear;
   const canMeetTarget = weeksToClear > 0 && weeksToClear <= targetWeeks;
 
   // Calculate resource needs
-  const peakWeekData = weeks[peakWeek - 1];
-  const maxBacklog = Math.max(...weeks.map(w => w.backlog));
-  const overCapacityWeeks = weeks.filter(w => w.newClaims > w.effectiveCapacity).length;
+  const maxBacklog = Math.max(...periods.map(w => w.backlog));
+  const overCapacityPeriods = periods.filter(w => w.newClaims > w.effectiveCapacity).length;
   const claimsPerStaffPerWeek = baseClaimsPerStaff;
-  const staffNeededAtPeak = Math.ceil(peakClaims / claimsPerStaffPerWeek);
+  const staffNeededAtPeak = Math.ceil(peakClaims / (claimsPerStaffPerWeek * periodCapacityMultiplier));
   const additionalStaff = Math.max(0, staffNeededAtPeak - config.organisation.staffCount);
 
   // Store last scenario for report generation
-  lastScenario = { site, incident, severity, totalClaims, weeks, peakWeek, peakClaims,
-    weeklyCapacity: baseWeeklyCapacity, maxBacklog, overCapacityWeeks, additionalStaff,
-    staffNeededAtPeak, claimsPerStaffPerWeek, surgeEntries: JSON.parse(JSON.stringify(surgeEntries)),
-    peakWeekSetting, weightedDaysPerClaim, targetWeeks, weeksToClear, canMeetTarget,
-    claimComplexity: JSON.parse(JSON.stringify(config.claimComplexity || DEFAULT_CONFIG.claimComplexity)) };
+  lastScenario = {
+    site, incident, severity, claimType, timeHorizon, totalClaims, injuryClaims, propertyClaims,
+    periods, peakPeriod, peakClaims, weeklyCapacity: baseWeeklyCapacity, periodCapacity: basePeriodCapacity,
+    maxBacklog, overCapacityPeriods, additionalStaff, staffNeededAtPeak, claimsPerStaffPerWeek,
+    surgeEntries: JSON.parse(JSON.stringify(surgeEntries)), weightedDaysPerClaim,
+    targetWeeks, weeksToClear, canMeetTarget, isLongTerm, splits,
+    claimComplexity: JSON.parse(JSON.stringify(config.claimComplexity || DEFAULT_CONFIG.claimComplexity))
+  };
 
   // Display results
-  showResults(site, incident, severity, totalClaims, weeks, peakWeek, peakClaims,
-    baseWeeklyCapacity, maxBacklog, overCapacityWeeks, additionalStaff, staffNeededAtPeak, claimsPerStaffPerWeek,
-    targetWeeks, weeksToClear, canMeetTarget);
+  showResults(lastScenario);
 }
 
-function showResults(site, incident, severity, totalClaims, weeks, peakWeek, peakClaims,
-  weeklyCapacity, maxBacklog, overCapacityWeeks, additionalStaff, staffNeededAtPeak, claimsPerStaffPerWeek,
-  targetWeeks, weeksToClear, canMeetTarget) {
+function showResults(scenario) {
+  const s = scenario;
 
   document.getElementById('welcomeArea').style.display = 'none';
   document.getElementById('resultsArea').style.display = '';
 
-  const incidentLabels = { fire: 'Fire', explosion: 'Explosion', radioactive: 'Radioactive Contamination' };
+  const incidentLabels = { fire: 'Fire', explosion: 'Explosion', chemical: 'Chemical (Toxic Release)', nuclear: 'Nuclear (Radiological)' };
   const severityLabels = { minor: 'Minor', moderate: 'Moderate', major: 'Major', catastrophic: 'Catastrophic' };
+  const claimTypeLabels = { both: 'All Claims', injury: 'Injury Claims', property: 'Property Claims' };
+  const horizonLabels = { short: 'Short Term (12 Weeks)', medium: 'Medium Term (2 Years)', long: 'Long Term (10+ Years)' };
 
-  document.getElementById('mainTitle').textContent = site.name + ' - Scenario Analysis';
+  document.getElementById('mainTitle').textContent = s.site.name + ' - Scenario Analysis';
   document.getElementById('mainSub').textContent =
-    incidentLabels[incident] + ' | ' + severityLabels[severity] + ' Severity | ' + site.location;
+    incidentLabels[s.incident] + ' | ' + severityLabels[s.severity] + ' | ' + claimTypeLabels[s.claimType] + ' | ' + horizonLabels[s.timeHorizon];
+
+  // Period label based on time horizon
+  const periodLabel = s.isLongTerm ? 'Month' : 'Week';
+  const peakPeriodLabel = s.isLongTerm ? `Month ${s.peakPeriod}` : `Week ${s.peakPeriod}`;
 
   // Metrics
-  const weeksToClearLabel = weeksToClear === -1 ? '52+' : weeksToClear;
-  const metricsHTML = `
+  const weeksToClearLabel = s.weeksToClear === -1 ? (s.isLongTerm ? '10+ years' : '52+ weeks') : s.weeksToClear + ' weeks';
+  const showClaimBreakdown = s.claimType === 'both' && (s.injuryClaims > 0 || s.propertyClaims > 0);
+
+  let metricsHTML = `
     <div class="metric-card">
-      <div class="metric-value metric-blue">${totalClaims.toLocaleString()}</div>
+      <div class="metric-value metric-blue">${s.totalClaims.toLocaleString()}</div>
       <div class="metric-label">Total Estimated Claims</div>
+    </div>`;
+
+  if (showClaimBreakdown) {
+    metricsHTML += `
+    <div class="metric-card">
+      <div class="metric-value" style="color:#f97316">${s.injuryClaims.toLocaleString()}</div>
+      <div class="metric-label">Injury Claims (${Math.round(s.splits.injury * 100)}%)</div>
     </div>
     <div class="metric-card">
-      <div class="metric-value metric-yellow">Week ${peakWeek}</div>
-      <div class="metric-label">Peak Week (${peakClaims} claims)</div>
+      <div class="metric-value" style="color:#8b5cf6">${s.propertyClaims.toLocaleString()}</div>
+      <div class="metric-label">Property Claims (${Math.round(s.splits.property * 100)}%)</div>
+    </div>`;
+  }
+
+  metricsHTML += `
+    <div class="metric-card">
+      <div class="metric-value metric-yellow">${peakPeriodLabel}</div>
+      <div class="metric-label">Peak ${periodLabel} (${s.peakClaims} claims)</div>
     </div>
     <div class="metric-card">
-      <div class="metric-value ${canMeetTarget ? 'metric-green' : 'metric-red'}">${canMeetTarget ? 'Yes' : 'No'}</div>
-      <div class="metric-label">Cleared Within ${targetWeeks} Weeks?</div>
+      <div class="metric-value ${s.canMeetTarget ? 'metric-green' : 'metric-red'}">${s.canMeetTarget ? 'Yes' : 'No'}</div>
+      <div class="metric-label">Cleared Within ${s.targetWeeks} Weeks?</div>
     </div>
     <div class="metric-card">
-      <div class="metric-value ${canMeetTarget ? 'metric-green' : 'metric-red'}">${weeksToClearLabel}</div>
-      <div class="metric-label">Weeks to Clear All Claims</div>
+      <div class="metric-value ${s.canMeetTarget ? 'metric-green' : 'metric-red'}">${weeksToClearLabel}</div>
+      <div class="metric-label">Time to Clear All Claims</div>
     </div>
     <div class="metric-card">
-      <div class="metric-value ${additionalStaff === 0 ? 'metric-green' : 'metric-red'}">+${additionalStaff}</div>
+      <div class="metric-value ${s.additionalStaff === 0 ? 'metric-green' : 'metric-red'}">+${s.additionalStaff}</div>
       <div class="metric-label">Additional Staff Required</div>
     </div>
     <div class="metric-card">
-      <div class="metric-value metric-yellow">${maxBacklog.toLocaleString()}</div>
+      <div class="metric-value metric-yellow">${s.maxBacklog.toLocaleString()}</div>
       <div class="metric-label">Peak Backlog</div>
     </div>
     <div class="metric-card">
-      <div class="metric-value ${overCapacityWeeks === 0 ? 'metric-green' : 'metric-red'}">${overCapacityWeeks}</div>
-      <div class="metric-label">Weeks Over Capacity</div>
+      <div class="metric-value ${s.overCapacityPeriods === 0 ? 'metric-green' : 'metric-red'}">${s.overCapacityPeriods}</div>
+      <div class="metric-label">${periodLabel}s Over Capacity</div>
     </div>
   `;
   document.getElementById('metricsGrid').innerHTML = metricsHTML;
 
-  // Show weeks up to when backlog clears (or all if never clears), minimum 12
-  const displayWeekCount = weeksToClear > 0 ? Math.max(12, weeksToClear) : weeks.length;
-  const displayWeeks = weeks.slice(0, displayWeekCount);
+  // Determine display periods - sample for long term to keep table manageable
+  let displayPeriods = s.periods;
+  let samplingRate = 1;
+  if (s.isLongTerm && s.periods.length > 24) {
+    // For long term, show monthly data but sample every 3 months after first year
+    samplingRate = 3;
+    displayPeriods = s.periods.filter((p, i) => i < 12 || i % samplingRate === 0);
+  } else if (s.timeHorizon === 'medium' && s.periods.length > 26) {
+    // For medium term, show every 2 weeks after week 12
+    displayPeriods = s.periods.filter((p, i) => i < 12 || i % 2 === 0);
+  }
 
-  // Weekly table
+  // Limit display to reasonable size
+  const maxDisplayPeriods = s.isLongTerm ? 40 : 52;
+  if (displayPeriods.length > maxDisplayPeriods) {
+    displayPeriods = displayPeriods.slice(0, maxDisplayPeriods);
+  }
+
+  // Period table
   const tbody = document.getElementById('weeklyBody');
   tbody.innerHTML = '';
-  const hasSurge = displayWeeks.some(w => w.surgeStaff > 0);
-  // Update table header if surge is active
-  const thead = document.querySelector('#weeklyTable thead tr');
-  thead.innerHTML = `<th>Week</th><th>New Claims</th><th>Cumulative</th><th>Capacity</th><th>Processed</th><th>Backlog</th>${hasSurge ? '<th>Surge Staff</th>' : ''}<th>Status</th>`;
+  const hasSurge = displayPeriods.some(w => w.surgeStaff > 0);
+  const hasClaimBreakdown = s.claimType === 'both';
 
-  displayWeeks.forEach(w => {
+  // Update table header
+  const thead = document.querySelector('#weeklyTable thead tr');
+  let headerHTML = `<th>${periodLabel}</th>`;
+  if (hasClaimBreakdown) {
+    headerHTML += `<th>Injury</th><th>Property</th>`;
+  }
+  headerHTML += `<th>New Claims</th><th>Cumulative</th><th>Capacity</th><th>Processed</th><th>Backlog</th>`;
+  if (hasSurge) headerHTML += `<th>Surge Staff</th>`;
+  headerHTML += `<th>Status</th>`;
+  thead.innerHTML = headerHTML;
+
+  displayPeriods.forEach(w => {
     const statusClass = w.backlog === 0 ? 'status-ok' : (w.backlog < w.effectiveCapacity ? 'status-warn' : 'status-over');
     const statusText = w.backlog === 0 ? 'On Track' : (w.backlog < w.effectiveCapacity ? 'Building Backlog' : 'Critical Backlog');
+    const periodDisplay = s.isLongTerm ? `Month ${w.month}` : `Week ${w.week || w.period}`;
+
     const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>Week ${w.week}</td>
+    let rowHTML = `<td>${periodDisplay}</td>`;
+    if (hasClaimBreakdown) {
+      rowHTML += `<td style="color:#f97316">${w.newInjury.toLocaleString()}</td>`;
+      rowHTML += `<td style="color:#8b5cf6">${w.newProperty.toLocaleString()}</td>`;
+    }
+    rowHTML += `
       <td>${w.newClaims.toLocaleString()}</td>
       <td>${w.cumulative.toLocaleString()}</td>
-      <td>${w.effectiveCapacity.toLocaleString()}${w.surgeStaff > 0 ? ' <span style="color:#8b5cf6;font-size:11px">(+' + (w.effectiveCapacity - weeklyCapacity) + ')</span>' : ''}</td>
+      <td>${w.effectiveCapacity.toLocaleString()}${w.surgeStaff > 0 ? ' <span style="color:#8b5cf6;font-size:11px">(+' + (w.effectiveCapacity - s.periodCapacity) + ')</span>' : ''}</td>
       <td>${w.processed.toLocaleString()}</td>
       <td>${w.backlog.toLocaleString()}</td>
       ${hasSurge ? '<td>' + (w.surgeStaff > 0 ? '+' + w.surgeStaff : '-') + '</td>' : ''}
       <td class="${statusClass}">${statusText}</td>
     `;
+    tr.innerHTML = rowHTML;
     tbody.appendChild(tr);
   });
 
   // Resource requirements
+  const capacityLabel = s.isLongTerm ? 'Claims/month' : 'Claims/week';
   const resHTML = `
     <div class="admin-grid" style="gap:16px">
       <div>
         <h4 style="margin-bottom:8px;font-size:14px">Current Capacity</h4>
         <p style="font-size:13px;color:#94a3b8">
           Staff: <strong style="color:#e2e8f0">${config.organisation.staffCount}</strong><br>
-          Claims/week: <strong style="color:#e2e8f0">${weeklyCapacity}</strong><br>
-          Claims/staff/week: <strong style="color:#e2e8f0">${claimsPerStaffPerWeek.toFixed(1)}</strong><br>
-          Avg days per claim: <strong style="color:#e2e8f0">${getWeightedDaysPerClaim().toFixed(1)}</strong> (weighted)
+          ${capacityLabel}: <strong style="color:#e2e8f0">${s.periodCapacity}</strong><br>
+          Claims/staff/week: <strong style="color:#e2e8f0">${s.claimsPerStaffPerWeek.toFixed(1)}</strong><br>
+          Avg days per claim: <strong style="color:#e2e8f0">${s.weightedDaysPerClaim.toFixed(1)}</strong> (weighted)
         </p>
       </div>
       <div>
         <h4 style="margin-bottom:8px;font-size:14px">Required at Peak</h4>
         <p style="font-size:13px;color:#94a3b8">
-          Staff needed: <strong style="color:#e2e8f0">${staffNeededAtPeak}</strong><br>
-          Additional staff: <strong style="color:${additionalStaff > 0 ? '#ef4444' : '#22c55e'}">${additionalStaff > 0 ? '+' + additionalStaff : 'None'}</strong><br>
-          Peak week claims: <strong style="color:#e2e8f0">${peakClaims}</strong><br>
-          Weeks over capacity: <strong style="color:${overCapacityWeeks > 0 ? '#ef4444' : '#22c55e'}">${overCapacityWeeks}</strong>
+          Staff needed: <strong style="color:#e2e8f0">${s.staffNeededAtPeak}</strong><br>
+          Additional staff: <strong style="color:${s.additionalStaff > 0 ? '#ef4444' : '#22c55e'}">${s.additionalStaff > 0 ? '+' + s.additionalStaff : 'None'}</strong><br>
+          Peak ${periodLabel.toLowerCase()} claims: <strong style="color:#e2e8f0">${s.peakClaims}</strong><br>
+          ${periodLabel}s over capacity: <strong style="color:${s.overCapacityPeriods > 0 ? '#ef4444' : '#22c55e'}">${s.overCapacityPeriods}</strong>
         </p>
       </div>
       <div>
         <h4 style="margin-bottom:8px;font-size:14px">Target Assessment</h4>
         <p style="font-size:13px;color:#94a3b8">
-          Target: <strong style="color:#e2e8f0">${targetWeeks} weeks</strong><br>
-          Estimated clearance: <strong style="color:${canMeetTarget ? '#22c55e' : '#ef4444'}">${weeksToClear === -1 ? '52+ weeks' : weeksToClear + ' weeks'}</strong><br>
-          Status: <strong style="color:${canMeetTarget ? '#22c55e' : '#ef4444'}">${canMeetTarget ? 'On Target' : 'Exceeds Target'}</strong>
+          Target: <strong style="color:#e2e8f0">${s.targetWeeks} weeks</strong><br>
+          Estimated clearance: <strong style="color:${s.canMeetTarget ? '#22c55e' : '#ef4444'}">${weeksToClearLabel}</strong><br>
+          Status: <strong style="color:${s.canMeetTarget ? '#22c55e' : '#ef4444'}">${s.canMeetTarget ? 'On Target' : 'Exceeds Target'}</strong>
         </p>
       </div>
     </div>
     <div style="margin-top:16px">
       <h4 style="margin-bottom:8px;font-size:14px">Capacity vs Demand at Peak</h4>
       <div class="progress-bar" style="height:20px;border-radius:6px">
-        <div class="progress-fill" style="width:${Math.min(100, (weeklyCapacity / peakClaims) * 100)}%;background:${weeklyCapacity >= peakClaims ? '#22c55e' : '#ef4444'};border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">
-          ${Math.round((weeklyCapacity / peakClaims) * 100)}%
+        <div class="progress-fill" style="width:${Math.min(100, (s.periodCapacity / s.peakClaims) * 100)}%;background:${s.periodCapacity >= s.peakClaims ? '#22c55e' : '#ef4444'};border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700">
+          ${Math.round((s.periodCapacity / s.peakClaims) * 100)}%
         </div>
       </div>
-      <p style="font-size:11px;color:#64748b;margin-top:4px">Current capacity covers ${Math.round((weeklyCapacity / peakClaims) * 100)}% of peak demand</p>
+      <p style="font-size:11px;color:#64748b;margin-top:4px">Current capacity covers ${Math.round((s.periodCapacity / s.peakClaims) * 100)}% of peak demand</p>
     </div>
   `;
   document.getElementById('resourceContent').innerHTML = resHTML;
 
-  // Recommendations
-  const recs = [];
-  if (!canMeetTarget) {
-    const clearLabel = weeksToClear === -1 ? '52+' : weeksToClear;
-    recs.push({ level: 'critical', text: `Claims will not be cleared within the ${targetWeeks}-week target (estimated ${clearLabel} weeks). Increase staff or add surge resources to meet the target.` });
-  }
-  if (additionalStaff > 0) {
-    recs.push({ level: 'critical', text: `Recruit or reassign ${additionalStaff} additional claims staff before peak week (Week ${peakWeek}) to avoid critical backlog.` });
-  }
-  if (maxBacklog > weeklyCapacity * 2) {
-    recs.push({ level: 'critical', text: `Peak backlog of ${maxBacklog.toLocaleString()} claims exceeds 2 weeks of capacity. Consider emergency outsourcing or mutual aid agreements.` });
-  }
-  if (overCapacityWeeks >= 4) {
-    recs.push({ level: 'warning', text: `${overCapacityWeeks} weeks exceed current capacity. Develop a surge staffing plan with pre-identified temporary resources.` });
-  }
-  if (incident === 'radioactive') {
-    recs.push({ level: 'warning', text: 'Radioactive contamination claims may require specialist assessors. Ensure qualified personnel are available or contracted.' });
-    recs.push({ level: 'info', text: 'Consider pre-positioning claim forms and guidance materials for nuclear incident scenarios.' });
-  }
-  if (totalClaims > 1000) {
-    recs.push({ level: 'warning', text: 'High claim volume expected. Implement digital/online claim submission to reduce processing bottlenecks.' });
-  }
-  if (peakWeek <= 4) {
-    recs.push({ level: 'info', text: `Claims peak in Week ${peakWeek}. Ensure incident response and claims teams are mobilised within the first 48 hours.` });
-  }
-  recs.push({ level: 'info', text: 'Establish a dedicated claims hotline and information centre for affected parties.' });
-  recs.push({ level: 'info', text: 'Coordinate with local authorities and emergency services for efficient claim validation.' });
-
+  // Recommendations - incident-specific
+  const recs = buildRecommendations(s);
   const recList = document.getElementById('recList');
   recList.innerHTML = '';
   recs.forEach(r => {
@@ -1042,13 +1444,393 @@ function showResults(site, incident, severity, totalClaims, weeks, peakWeek, pea
   });
 
   // Draw charts
-  document.getElementById('forecastChartTitle').textContent = 'Claims Forecast Over ' + displayWeeks.length + ' Weeks';
-  drawForecastChart(displayWeeks, weeklyCapacity, surgeEntries.length > 0);
-  drawCapacityChart(displayWeeks, weeklyCapacity);
+  const chartTitle = s.isLongTerm ? `Claims Forecast Over ${displayPeriods.length} Months` :
+                     `Claims Forecast Over ${displayPeriods.length} Weeks`;
+  document.getElementById('forecastChartTitle').textContent = chartTitle;
+  drawForecastChartNew(displayPeriods, s);
+  drawCapacityChartNew(displayPeriods, s);
+}
+
+// Build recommendations based on incident type and claim patterns
+function buildRecommendations(s) {
+  const recs = [];
+  const periodLabel = s.isLongTerm ? 'month' : 'week';
+
+  // General capacity recommendations
+  if (!s.canMeetTarget) {
+    const clearLabel = s.weeksToClear === -1 ? (s.isLongTerm ? '10+ years' : '52+ weeks') : s.weeksToClear + ' weeks';
+    recs.push({ level: 'critical', text: `Claims will not be cleared within the ${s.targetWeeks}-week target (estimated ${clearLabel}). Increase staff or add surge resources.` });
+  }
+  if (s.additionalStaff > 0) {
+    recs.push({ level: 'critical', text: `Recruit or reassign ${s.additionalStaff} additional claims staff before peak ${periodLabel} (${s.isLongTerm ? 'Month' : 'Week'} ${s.peakPeriod}).` });
+  }
+  if (s.maxBacklog > s.periodCapacity * 2) {
+    recs.push({ level: 'critical', text: `Peak backlog of ${s.maxBacklog.toLocaleString()} claims exceeds 2 ${periodLabel}s of capacity. Consider emergency outsourcing.` });
+  }
+
+  // Incident-specific recommendations
+  if (s.incident === 'chemical') {
+    recs.push({ level: 'warning', text: 'Chemical release incidents typically show a sharp early spike in injury claims followed by a very long tail (potentially decades) from chronic health effects, disability reassessments, and litigation.' });
+    recs.push({ level: 'warning', text: 'Establish robust medical documentation protocols early - causation disputes are common in chemical exposure cases.' });
+    if (s.claimType === 'both' || s.claimType === 'injury') {
+      recs.push({ level: 'info', text: 'Consider setting up medical monitoring programs for affected populations - late-onset conditions may generate claims years later.' });
+    }
+    if (s.claimType === 'both' || s.claimType === 'property') {
+      recs.push({ level: 'info', text: 'Property claims may resurge if contamination is discovered in soil or groundwater - plan for potential secondary waves.' });
+    }
+  }
+
+  if (s.incident === 'nuclear') {
+    recs.push({ level: 'warning', text: 'Nuclear incidents show distinct claim patterns: property/evacuation claims dominate early, while injury claims have very long latency (thyroid cancers may appear 5-20 years later).' });
+    recs.push({ level: 'warning', text: 'Ensure specialist assessors are available for radiological claims. Standard claims staff may need additional training.' });
+    if (s.claimType === 'both' || s.claimType === 'property') {
+      recs.push({ level: 'info', text: 'Property claims will include evacuation costs, loss of use, decontamination, and stigma-related value impacts. Plan for extended displacement periods.' });
+    }
+    if (s.claimType === 'both' || s.claimType === 'injury') {
+      recs.push({ level: 'info', text: 'Medical monitoring claims and psychological distress claims are common in nuclear incidents - establish clear eligibility criteria early.' });
+    }
+    if (s.isLongTerm) {
+      recs.push({ level: 'info', text: 'Nuclear stigma effects can persist for decades and may cause claim resurgences following policy decisions or new disclosures.' });
+    }
+  }
+
+  if (s.incident === 'explosion') {
+    recs.push({ level: 'warning', text: 'Explosion incidents create immediate high-volume property claims across a wide blast radius. Expect thousands of third-party property damage claims.' });
+    recs.push({ level: 'info', text: 'Business interruption claims often become the pacing item - they require forensic accounting and develop over time as downtime impacts become clear.' });
+    if (s.claimType === 'both' || s.claimType === 'injury') {
+      recs.push({ level: 'info', text: 'Injury claims are typically lower count but high severity (burns, amputations, TBI). Ensure specialist medical assessors are available.' });
+    }
+  }
+
+  if (s.incident === 'fire') {
+    recs.push({ level: 'info', text: 'Fire incidents often show property claim re-scope waves as hidden damage (soot, corrosion, smoke damage) is discovered weeks after the incident.' });
+    if (s.claimType === 'both' || s.claimType === 'property') {
+      recs.push({ level: 'info', text: 'Business interruption losses often exceed property damage for industrial fires (historically ~2.7x PD for petrochemical events).' });
+    }
+  }
+
+  // Time horizon specific recommendations
+  if (s.isLongTerm) {
+    recs.push({ level: 'info', text: 'Long-term projections are subject to significant uncertainty. Plan for periodic reviews and model updates as actual claim patterns emerge.' });
+    if (s.incident === 'chemical' || s.incident === 'nuclear') {
+      recs.push({ level: 'info', text: 'Maintain claim tracking systems and reserves for potential late-emerging claims. Historical incidents show claims continuing for decades.' });
+    }
+  }
+
+  // General recommendations
+  if (s.totalClaims > 1000) {
+    recs.push({ level: 'warning', text: 'High claim volume expected. Implement digital/online claim submission to reduce processing bottlenecks.' });
+  }
+  recs.push({ level: 'info', text: 'Establish a dedicated claims hotline and information centre for affected parties.' });
+  recs.push({ level: 'info', text: 'Coordinate with local authorities and emergency services for efficient claim validation.' });
+
+  return recs;
 }
 
 // ===== CHART DRAWING (Pure Canvas, no dependencies) =====
 
+function drawForecastChartNew(periods, scenario) {
+  const canvas = document.getElementById('forecastChart');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = 300 * dpr;
+  canvas.style.height = '300px';
+  ctx.scale(dpr, dpr);
+  const W = rect.width;
+  const H = 300;
+
+  ctx.clearRect(0, 0, W, H);
+
+  const pad = { top: 20, right: 20, bottom: 40, left: 60 };
+  const chartW = W - pad.left - pad.right;
+  const chartH = H - pad.top - pad.bottom;
+
+  const s = scenario;
+  const hasSurge = s.surgeEntries.length > 0 && !s.isLongTerm;
+  const hasClaimBreakdown = s.claimType === 'both';
+  const periodLabel = s.isLongTerm ? 'M' : 'W';
+
+  const maxVal = Math.max(s.periodCapacity, ...periods.map(w => w.newClaims), ...periods.map(w => w.effectiveCapacity)) * 1.15;
+  const xStep = chartW / Math.max(1, periods.length - 1);
+
+  // Grid lines
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (chartH / 4) * i;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + chartW, y); ctx.stroke();
+    ctx.fillStyle = '#64748b';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(Math.round(maxVal - (maxVal / 4) * i).toLocaleString(), pad.left - 8, y + 4);
+  }
+
+  // X labels (sample if too many)
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#64748b';
+  const labelStep = periods.length > 24 ? Math.ceil(periods.length / 12) : 1;
+  periods.forEach((w, i) => {
+    if (i % labelStep === 0 || i === periods.length - 1) {
+      const periodNum = s.isLongTerm ? w.month : (w.week || w.period);
+      ctx.fillText(periodLabel + periodNum, pad.left + i * xStep, H - pad.bottom + 20);
+    }
+  });
+
+  // Capacity line
+  const capY = pad.top + chartH - (s.periodCapacity / maxVal) * chartH;
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([6, 4]);
+  ctx.beginPath(); ctx.moveTo(pad.left, capY); ctx.lineTo(pad.left + chartW, capY); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // If showing both claim types, draw stacked area
+  if (hasClaimBreakdown) {
+    // Property claims area (bottom)
+    ctx.beginPath();
+    ctx.moveTo(pad.left, pad.top + chartH);
+    periods.forEach((w, i) => {
+      const x = pad.left + i * xStep;
+      const y = pad.top + chartH - (w.newProperty / maxVal) * chartH;
+      ctx.lineTo(x, y);
+    });
+    ctx.lineTo(pad.left + (periods.length - 1) * xStep, pad.top + chartH);
+    ctx.closePath();
+    const gradProp = ctx.createLinearGradient(0, pad.top, 0, pad.top + chartH);
+    gradProp.addColorStop(0, 'rgba(139,92,246,0.4)');
+    gradProp.addColorStop(1, 'rgba(139,92,246,0.05)');
+    ctx.fillStyle = gradProp;
+    ctx.fill();
+
+    // Injury claims area (on top of property)
+    ctx.beginPath();
+    ctx.moveTo(pad.left, pad.top + chartH - (periods[0].newProperty / maxVal) * chartH);
+    periods.forEach((w, i) => {
+      const x = pad.left + i * xStep;
+      const yBase = pad.top + chartH - (w.newProperty / maxVal) * chartH;
+      const yTop = yBase - (w.newInjury / maxVal) * chartH;
+      ctx.lineTo(x, yTop);
+    });
+    for (let i = periods.length - 1; i >= 0; i--) {
+      const x = pad.left + i * xStep;
+      const y = pad.top + chartH - (periods[i].newProperty / maxVal) * chartH;
+      ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    const gradInj = ctx.createLinearGradient(0, pad.top, 0, pad.top + chartH);
+    gradInj.addColorStop(0, 'rgba(249,115,22,0.4)');
+    gradInj.addColorStop(1, 'rgba(249,115,22,0.05)');
+    ctx.fillStyle = gradInj;
+    ctx.fill();
+
+    // Draw injury line
+    ctx.strokeStyle = '#f97316';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    periods.forEach((w, i) => {
+      const x = pad.left + i * xStep;
+      const y = pad.top + chartH - ((w.newProperty + w.newInjury) / maxVal) * chartH;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // Draw property line
+    ctx.strokeStyle = '#8b5cf6';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    periods.forEach((w, i) => {
+      const x = pad.left + i * xStep;
+      const y = pad.top + chartH - (w.newProperty / maxVal) * chartH;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+  } else {
+    // Single claim type - draw area fill
+    ctx.beginPath();
+    ctx.moveTo(pad.left, pad.top + chartH);
+    periods.forEach((w, i) => {
+      const x = pad.left + i * xStep;
+      const y = pad.top + chartH - (w.newClaims / maxVal) * chartH;
+      ctx.lineTo(x, y);
+    });
+    ctx.lineTo(pad.left + (periods.length - 1) * xStep, pad.top + chartH);
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + chartH);
+    grad.addColorStop(0, 'rgba(59,130,246,0.3)');
+    grad.addColorStop(1, 'rgba(59,130,246,0.02)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Claims line
+    ctx.strokeStyle = '#3b82f6';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    periods.forEach((w, i) => {
+      const x = pad.left + i * xStep;
+      const y = pad.top + chartH - (w.newClaims / maxVal) * chartH;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // Data points (only if not too many)
+    if (periods.length <= 24) {
+      periods.forEach((w, i) => {
+        const x = pad.left + i * xStep;
+        const y = pad.top + chartH - (w.newClaims / maxVal) * chartH;
+        ctx.beginPath();
+        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = '#3b82f6';
+        ctx.fill();
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      });
+    }
+  }
+
+  // Cumulative line (secondary Y-axis scale)
+  const maxCum = periods[periods.length - 1].cumulative * 1.1;
+  ctx.strokeStyle = '#22c55e';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  periods.forEach((w, i) => {
+    const x = pad.left + i * xStep;
+    const y = pad.top + chartH - (w.cumulative / maxCum) * chartH;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Effective capacity line (if surge active)
+  if (hasSurge) {
+    ctx.strokeStyle = '#8b5cf6';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    periods.forEach((w, i) => {
+      const x = pad.left + i * xStep;
+      const y = pad.top + chartH - (w.effectiveCapacity / maxVal) * chartH;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Legend
+  let legendHTML = '';
+  if (hasClaimBreakdown) {
+    legendHTML = `
+      <div class="legend-item"><div class="legend-swatch" style="background:#f97316"></div> Injury Claims</div>
+      <div class="legend-item"><div class="legend-swatch" style="background:#8b5cf6"></div> Property Claims</div>
+    `;
+  } else {
+    legendHTML = `<div class="legend-item"><div class="legend-swatch" style="background:#3b82f6"></div> New Claims/${s.isLongTerm ? 'Month' : 'Week'}</div>`;
+  }
+  legendHTML += `
+    <div class="legend-item"><div class="legend-swatch" style="background:#22c55e"></div> Cumulative Claims</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#ef4444"></div> Base Capacity (${s.periodCapacity})</div>
+  `;
+  if (hasSurge) {
+    legendHTML += `<div class="legend-item"><div class="legend-swatch" style="background:#a855f7"></div> Effective Capacity (with surge)</div>`;
+  }
+  document.getElementById('forecastLegend').innerHTML = legendHTML;
+}
+
+function drawCapacityChartNew(periods, scenario) {
+  const canvas = document.getElementById('capacityChart');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = 250 * dpr;
+  canvas.style.height = '250px';
+  ctx.scale(dpr, dpr);
+  const W = rect.width;
+  const H = 250;
+
+  ctx.clearRect(0, 0, W, H);
+
+  const pad = { top: 20, right: 20, bottom: 40, left: 60 };
+  const chartW = W - pad.left - pad.right;
+  const chartH = H - pad.top - pad.bottom;
+
+  const s = scenario;
+  const periodLabel = s.isLongTerm ? 'M' : 'W';
+
+  // Sample if too many periods
+  let displayPeriods = periods;
+  if (periods.length > 24) {
+    const step = Math.ceil(periods.length / 24);
+    displayPeriods = periods.filter((_, i) => i % step === 0);
+  }
+
+  const barW = (chartW / displayPeriods.length) * 0.7;
+  const gap = (chartW / displayPeriods.length) * 0.3;
+
+  const maxUtil = Math.max(100, ...displayPeriods.map(w => w.utilisation)) * 1.15;
+
+  // Grid
+  ctx.strokeStyle = '#334155'; ctx.lineWidth = 1;
+  [0, 25, 50, 75, 100].forEach(pct => {
+    const y = pad.top + chartH - (pct / maxUtil) * chartH;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + chartW, y); ctx.stroke();
+    ctx.fillStyle = '#64748b'; ctx.font = '11px sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText(pct + '%', pad.left - 8, y + 4);
+  });
+
+  // 100% line
+  const y100 = pad.top + chartH - (100 / maxUtil) * chartH;
+  ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
+  ctx.beginPath(); ctx.moveTo(pad.left, y100); ctx.lineTo(pad.left + chartW, y100); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Bars
+  displayPeriods.forEach((w, i) => {
+    const x = pad.left + i * (chartW / displayPeriods.length) + gap / 2;
+    const barH = (w.utilisation / maxUtil) * chartH;
+    const y = pad.top + chartH - barH;
+
+    let color;
+    if (w.utilisation <= 70) color = '#22c55e';
+    else if (w.utilisation <= 100) color = '#eab308';
+    else color = '#ef4444';
+
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    const r = 3;
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + barW - r, y);
+    ctx.quadraticCurveTo(x + barW, y, x + barW, y + r);
+    ctx.lineTo(x + barW, pad.top + chartH);
+    ctx.lineTo(x, pad.top + chartH);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.fill();
+
+    // Label (only if not too many bars)
+    if (displayPeriods.length <= 16) {
+      ctx.fillStyle = '#e2e8f0'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(Math.round(w.utilisation) + '%', x + barW / 2, y - 6);
+    }
+
+    // X label
+    const periodNum = s.isLongTerm ? w.month : (w.week || w.period);
+    ctx.fillStyle = '#64748b'; ctx.font = '11px sans-serif';
+    ctx.fillText(periodLabel + periodNum, x + barW / 2, H - pad.bottom + 20);
+  });
+
+  document.getElementById('capacityLegend').innerHTML = `
+    <div class="legend-item"><div class="legend-swatch" style="background:#22c55e"></div> Under 70%</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#eab308"></div> 70-100%</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#ef4444"></div> Over Capacity</div>
+  `;
+}
+
+// Legacy chart functions for backward compatibility
 function drawForecastChart(weeks, capacity, hasSurge) {
   const canvas = document.getElementById('forecastChart');
   const ctx = canvas.getContext('2d');
@@ -1263,45 +2045,60 @@ function drawCapacityChart(weeks, capacity) {
 function generateReport() {
   if (!lastScenario) { alert('Run a scenario first.'); return; }
   const s = lastScenario;
-  const incidentLabels = { fire: 'Fire', explosion: 'Explosion', radioactive: 'Radioactive Contamination' };
+  const incidentLabels = { fire: 'Fire', explosion: 'Explosion', chemical: 'Chemical (Toxic Release)', nuclear: 'Nuclear (Radiological)' };
   const severityLabels = { minor: 'Minor', moderate: 'Moderate', major: 'Major', catastrophic: 'Catastrophic' };
+  const claimTypeLabels = { both: 'All Claims (Injury + Property)', injury: 'Injury Claims Only', property: 'Property Claims Only' };
+  const horizonLabels = { short: 'Short Term (12 Weeks)', medium: 'Medium Term (2 Years)', long: 'Long Term (10+ Years)' };
+
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
   const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
-  const surgeRows = s.surgeEntries.length > 0
+  const periodLabel = s.isLongTerm ? 'Month' : 'Week';
+  const capacityLabel = s.isLongTerm ? 'claims/month' : 'claims/week';
+
+  const surgeRows = (s.surgeEntries.length > 0 && !s.isLongTerm)
     ? `<tr><td colspan="2" style="font-weight:700;padding-top:12px">Surge Resources Planned</td></tr>` +
       s.surgeEntries.map(e => `<tr><td>+${e.extraStaff} staff</td><td>From Week ${e.startWeek} onwards</td></tr>`).join('')
     : '';
 
-  const weeklyRows = s.weeks.map(w => {
+  // Sample periods for display
+  let displayPeriods = s.periods;
+  if (s.isLongTerm && s.periods.length > 24) {
+    displayPeriods = s.periods.filter((p, i) => i < 12 || i % 3 === 0);
+  } else if (s.timeHorizon === 'medium' && s.periods.length > 26) {
+    displayPeriods = s.periods.filter((p, i) => i < 12 || i % 2 === 0);
+  }
+  if (displayPeriods.length > 40) {
+    displayPeriods = displayPeriods.slice(0, 40);
+  }
+
+  const hasClaimBreakdown = s.claimType === 'both';
+  const periodRows = displayPeriods.map(w => {
     const statusClass = w.backlog === 0 ? '#22c55e' : (w.backlog < w.effectiveCapacity ? '#eab308' : '#ef4444');
     const statusText = w.backlog === 0 ? 'On Track' : (w.backlog < w.effectiveCapacity ? 'Building Backlog' : 'Critical Backlog');
-    return `<tr>
-      <td>Week ${w.week}</td>
-      <td>${w.newClaims.toLocaleString()}</td>
+    const periodNum = s.isLongTerm ? w.month : (w.week || w.period);
+    let row = `<tr>
+      <td>${periodLabel} ${periodNum}</td>`;
+    if (hasClaimBreakdown) {
+      row += `<td style="color:#d97706">${w.newInjury.toLocaleString()}</td>
+              <td style="color:#7c3aed">${w.newProperty.toLocaleString()}</td>`;
+    }
+    row += `<td>${w.newClaims.toLocaleString()}</td>
       <td>${w.cumulative.toLocaleString()}</td>
-      <td>${w.effectiveCapacity.toLocaleString()}${w.surgeStaff > 0 ? ' (+' + (w.effectiveCapacity - s.weeklyCapacity) + ')' : ''}</td>
+      <td>${w.effectiveCapacity.toLocaleString()}${w.surgeStaff > 0 ? ' (+' + (w.effectiveCapacity - s.periodCapacity) + ')' : ''}</td>
       <td>${w.processed.toLocaleString()}</td>
       <td>${w.backlog.toLocaleString()}</td>
       <td style="color:${statusClass};font-weight:600">${statusText}</td>
     </tr>`;
+    return row;
   }).join('');
 
   // Build recommendations
-  const recs = [];
-  if (s.additionalStaff > 0)
-    recs.push({ level: 'CRITICAL', text: `Recruit or reassign ${s.additionalStaff} additional claims staff before peak week (Week ${s.peakWeek}).` });
-  if (s.maxBacklog > s.weeklyCapacity * 2)
-    recs.push({ level: 'CRITICAL', text: `Peak backlog of ${s.maxBacklog.toLocaleString()} claims exceeds 2 weeks of capacity. Consider emergency outsourcing.` });
-  if (s.overCapacityWeeks >= 4)
-    recs.push({ level: 'WARNING', text: `${s.overCapacityWeeks} weeks exceed current capacity. Develop a surge staffing plan.` });
-  if (s.incident === 'radioactive')
-    recs.push({ level: 'WARNING', text: 'Radioactive claims may require specialist assessors.' });
-  if (s.totalClaims > 1000)
-    recs.push({ level: 'WARNING', text: 'High volume expected. Implement digital/online claim submission.' });
-  recs.push({ level: 'INFO', text: 'Establish a dedicated claims hotline and information centre.' });
-  recs.push({ level: 'INFO', text: 'Coordinate with local authorities for efficient claim validation.' });
+  const recs = buildRecommendations(s).map(r => {
+    const level = r.level === 'critical' ? 'CRITICAL' : (r.level === 'warning' ? 'WARNING' : 'INFO');
+    return { level, text: r.text };
+  });
 
   const recsHtml = recs.map(r => {
     const color = r.level === 'CRITICAL' ? '#ef4444' : (r.level === 'WARNING' ? '#eab308' : '#3b82f6');
@@ -1309,22 +2106,40 @@ function generateReport() {
       <strong style="color:${color}">[${r.level}]</strong> ${r.text}</li>`;
   }).join('');
 
+  // Table headers
+  let tableHeaders = `<th>${periodLabel}</th>`;
+  if (hasClaimBreakdown) {
+    tableHeaders += `<th>Injury</th><th>Property</th>`;
+  }
+  tableHeaders += `<th>New Claims</th><th>Cumulative</th><th>Capacity</th><th>Processed</th><th>Backlog</th><th>Status</th>`;
+
+  // Claim breakdown metrics
+  let claimBreakdownMetrics = '';
+  if (hasClaimBreakdown) {
+    claimBreakdownMetrics = `
+  <div class="metric"><div class="metric-val" style="color:#d97706">${s.injuryClaims.toLocaleString()}</div><div class="metric-lbl">Injury Claims (${Math.round(s.splits.injury * 100)}%)</div></div>
+  <div class="metric"><div class="metric-val" style="color:#7c3aed">${s.propertyClaims.toLocaleString()}</div><div class="metric-lbl">Property Claims (${Math.round(s.splits.property * 100)}%)</div></div>`;
+  }
+
+  const weeksToClearLabel = s.weeksToClear === -1 ? (s.isLongTerm ? '10+ years' : '52+ weeks') : s.weeksToClear + ' weeks';
+
   const html = `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><title>Claims Resilience Report - ${s.site.name}</title>
 <style>
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 900px; margin: 0 auto; padding: 40px 20px; color: #1e293b; line-height: 1.6; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 1000px; margin: 0 auto; padding: 40px 20px; color: #1e293b; line-height: 1.6; }
   h1 { font-size: 24px; border-bottom: 2px solid #3b82f6; padding-bottom: 8px; }
   h2 { font-size: 18px; color: #3b82f6; margin-top: 32px; margin-bottom: 12px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 20px; }
-  th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #e2e8f0; }
-  th { background: #f1f5f9; font-weight: 600; color: #64748b; text-transform: uppercase; font-size: 11px; }
-  .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 20px 0; }
-  .metric { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; text-align: center; }
-  .metric-val { font-size: 24px; font-weight: 800; }
-  .metric-lbl { font-size: 11px; color: #64748b; text-transform: uppercase; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 20px; }
+  th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+  th { background: #f1f5f9; font-weight: 600; color: #64748b; text-transform: uppercase; font-size: 10px; }
+  .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 20px 0; }
+  .metric { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; text-align: center; }
+  .metric-val { font-size: 22px; font-weight: 800; }
+  .metric-lbl { font-size: 10px; color: #64748b; text-transform: uppercase; }
   .green { color: #22c55e; } .red { color: #ef4444; } .blue { color: #3b82f6; } .yellow { color: #eab308; }
   ul { list-style: none; padding: 0; }
   .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; }
+  .pattern-note { background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 12px; margin: 16px 0; font-size: 13px; }
   @media print { body { padding: 20px; } }
 </style></head><body>
 <h1>Claims Resilience Report</h1>
@@ -1334,30 +2149,39 @@ function generateReport() {
 <table>
   <tr><td style="font-weight:600;width:200px">Site</td><td>${s.site.name} - ${s.site.location}</td></tr>
   <tr><td style="font-weight:600">Incident Type</td><td>${incidentLabels[s.incident]}</td></tr>
+  <tr><td style="font-weight:600">Claim Type</td><td>${claimTypeLabels[s.claimType]}</td></tr>
+  <tr><td style="font-weight:600">Time Horizon</td><td>${horizonLabels[s.timeHorizon]}</td></tr>
   <tr><td style="font-weight:600">Severity</td><td>${severityLabels[s.severity]}</td></tr>
   <tr><td style="font-weight:600">Affected Population</td><td>${(s.site.population + s.site.staffOnSite).toLocaleString()} (${s.site.population.toLocaleString()} local + ${s.site.staffOnSite.toLocaleString()} staff)</td></tr>
-  <tr><td style="font-weight:600">Bell Curve Peak</td><td>Week ${s.peakWeekSetting}</td></tr>
-  <tr><td style="font-weight:600">Base Weekly Capacity</td><td>${s.weeklyCapacity} claims/week (${config.organisation.staffCount} staff)</td></tr>
+  <tr><td style="font-weight:600">Base Capacity</td><td>${s.periodCapacity} ${capacityLabel} (${config.organisation.staffCount} staff)</td></tr>
   <tr><td style="font-weight:600">Weighted Avg Days/Claim</td><td>${s.weightedDaysPerClaim.toFixed(1)} days</td></tr>
   <tr><td style="font-weight:600">Claim Complexity Mix</td><td>Auto: ${s.claimComplexity.autoProcessedPct}% | 2-day: ${s.claimComplexity.twoDayPct}% | ${s.claimComplexity.customDays}-day: ${s.claimComplexity.customDayPct}% | Standard (${s.claimComplexity.standardDays || 4}d): ${Math.max(0, 100 - s.claimComplexity.autoProcessedPct - s.claimComplexity.twoDayPct - s.claimComplexity.customDayPct)}%</td></tr>
   <tr><td style="font-weight:600">Target Processing Time</td><td>${s.targetWeeks} weeks</td></tr>
   ${surgeRows}
 </table>
 
+${s.incident === 'chemical' || s.incident === 'nuclear' ? `
+<div class="pattern-note">
+  <strong>Claim Pattern Note:</strong> ${s.incident === 'chemical' ?
+    'Chemical (toxic release) incidents typically show a sharp early spike in injury claims followed by a very long tail extending potentially for decades (based on Bhopal and similar incidents). Property claims may resurge if contamination is discovered in soil or groundwater.' :
+    'Nuclear (radiological) incidents show distinct patterns: property/evacuation claims dominate early, while injury claims have very long latency periods (5-20+ years for radiation-related cancers). Based on patterns from Fukushima, Chernobyl, and Three Mile Island.'}
+</div>` : ''}
+
 <h2>Key Metrics</h2>
 <div class="metrics">
   <div class="metric"><div class="metric-val blue">${s.totalClaims.toLocaleString()}</div><div class="metric-lbl">Total Estimated Claims</div></div>
-  <div class="metric"><div class="metric-val yellow">Week ${s.peakWeek}</div><div class="metric-lbl">Peak Week (${s.peakClaims} claims)</div></div>
+  ${claimBreakdownMetrics}
+  <div class="metric"><div class="metric-val yellow">${periodLabel} ${s.peakPeriod}</div><div class="metric-lbl">Peak ${periodLabel} (${s.peakClaims} claims)</div></div>
   <div class="metric"><div class="metric-val ${s.canMeetTarget ? 'green' : 'red'}">${s.canMeetTarget ? 'Yes' : 'No'}</div><div class="metric-lbl">Cleared Within ${s.targetWeeks} Weeks?</div></div>
-  <div class="metric"><div class="metric-val ${s.canMeetTarget ? 'green' : 'red'}">${s.weeksToClear === -1 ? '52+' : s.weeksToClear}</div><div class="metric-lbl">Weeks to Clear All Claims</div></div>
+  <div class="metric"><div class="metric-val ${s.canMeetTarget ? 'green' : 'red'}">${weeksToClearLabel}</div><div class="metric-lbl">Time to Clear</div></div>
   <div class="metric"><div class="metric-val ${s.additionalStaff === 0 ? 'green' : 'red'}">+${s.additionalStaff}</div><div class="metric-lbl">Additional Staff Required</div></div>
   <div class="metric"><div class="metric-val yellow">${s.maxBacklog.toLocaleString()}</div><div class="metric-lbl">Peak Backlog</div></div>
 </div>
 
-<h2>Weekly Breakdown</h2>
+<h2>${periodLabel}ly Breakdown</h2>
 <table>
-  <thead><tr><th>Week</th><th>New Claims</th><th>Cumulative</th><th>Capacity</th><th>Processed</th><th>Backlog</th><th>Status</th></tr></thead>
-  <tbody>${weeklyRows}</tbody>
+  <thead><tr>${tableHeaders}</tr></thead>
+  <tbody>${periodRows}</tbody>
 </table>
 
 <h2>Resource Requirements</h2>
@@ -1366,14 +2190,14 @@ function generateReport() {
   <tr><td style="font-weight:600">Staff Needed at Peak</td><td>${s.staffNeededAtPeak}</td></tr>
   <tr><td style="font-weight:600">Additional Staff Required</td><td style="color:${s.additionalStaff > 0 ? '#ef4444' : '#22c55e'};font-weight:700">${s.additionalStaff > 0 ? '+' + s.additionalStaff : 'None'}</td></tr>
   <tr><td style="font-weight:600">Claims/Staff/Week</td><td>${s.claimsPerStaffPerWeek.toFixed(1)}</td></tr>
-  <tr><td style="font-weight:600">Capacity Coverage at Peak</td><td>${Math.round((s.weeklyCapacity / s.peakClaims) * 100)}%</td></tr>
+  <tr><td style="font-weight:600">Capacity Coverage at Peak</td><td>${Math.round((s.periodCapacity / s.peakClaims) * 100)}%</td></tr>
 </table>
 
 <h2>Recommendations</h2>
 <ul>${recsHtml}</ul>
 
 <div class="footer">
-  <p>Claims Resilience Testing Tool — Report generated automatically. This analysis is for planning purposes and based on modelled estimates.</p>
+  <p>Claims Resilience Testing Tool — Report generated automatically. This analysis is for planning purposes and based on modelled estimates derived from historical incident patterns including Bhopal (1984), Seveso (1976), Three Mile Island (1979), Chernobyl (1986), Fukushima (2011), Buncefield (2005), Grenfell (2017), and others.</p>
 </div>
 </body></html>`;
 
