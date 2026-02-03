@@ -248,7 +248,12 @@ input[type="range"]::-moz-range-thumb {
       </div>
       <!-- Peak week slider removed - using incident-specific claim patterns -->
       <div id="claimPatternNote" style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px;margin-bottom:16px;font-size:11px;color:#94a3b8">
-        <strong style="color:#e2e8f0">Claim Pattern:</strong> <span id="patternDescription">Based on historical incident data</span>
+        <div>
+          <strong style="color:#e2e8f0">Claim Pattern:</strong> <span id="patternDescription">Based on historical incident data</span>
+        </div>
+        <div style="margin-top:6px">
+          <strong style="color:#e2e8f0">Dashboard Signal:</strong> <span id="signalDescription">BI/PD development signals by incident type</span>
+        </div>
       </div>
 
       <div class="form-group">
@@ -497,62 +502,62 @@ const TIME_HORIZONS = {
 const CLAIM_PATTERNS = {
   // Fire patterns
   fire: {
-    // Fire injury: early spike (burns/inhalation), moderate tail for disability/long-term care
+    // Fire injury: low counts, early reporting, tail driven by severe burns/inhalation
     injury: {
-      short: { peakWeek: 2, shape: 'spike', tailWeight: 0.18 },
-      medium: { peakWeek: 3, shape: 'fast_decay', tailWeight: 0.14 },
-      long: { peakMonth: 2, shape: 'gradual_decay', tailWeight: 0.08 }
+      short: { peakWeek: 1, shape: 'spike', tailWeight: 0.14 },
+      medium: { peakWeek: 2, shape: 'fast_decay', tailWeight: 0.12 },
+      long: { peakMonth: 2, shape: 'gradual_decay', tailWeight: 0.10 }
     },
-    // Fire property: immediate spike + re-scope waves, rebuild delays
+    // Fire property: immediate spike + re-scope waves, long rebuild/BI tail
     property: {
-      short: { peakWeek: 3, shape: 'spike_rescope', tailWeight: 0.25 },
-      medium: { peakWeek: 4, shape: 'spike_bi_tail', tailWeight: 0.25 },
-      long: { peakMonth: 3, shape: 'gradual_decay', tailWeight: 0.15 }
+      short: { peakWeek: 2, shape: 'spike_rescope', tailWeight: 0.30 },
+      medium: { peakWeek: 4, shape: 'spike_bi_tail', tailWeight: 0.35 },
+      long: { peakMonth: 3, shape: 'gradual_decay', tailWeight: 0.25 }
     }
   },
   // Explosion patterns
   explosion: {
-    // Explosion injury: lower count but high severity, early reporting
+    // Explosion injury: lower count than PD unless dense population, high severity, early reporting
     injury: {
-      short: { peakWeek: 1, shape: 'sharp_spike', tailWeight: 0.10 },
-      medium: { peakWeek: 2, shape: 'fast_decay', tailWeight: 0.08 },
-      long: { peakMonth: 1, shape: 'fast_decay', tailWeight: 0.05 }
+      short: { peakWeek: 1, shape: 'sharp_spike', tailWeight: 0.12 },
+      medium: { peakWeek: 2, shape: 'fast_decay', tailWeight: 0.10 },
+      long: { peakMonth: 2, shape: 'fast_decay', tailWeight: 0.08 }
     },
-    // Explosion property: instant sharp spike (wide blast radius), BI develops over time
+    // Explosion property: instant spike (wide blast radius), BI/EE develops with downtime
     property: {
-      short: { peakWeek: 2, shape: 'sharp_spike', tailWeight: 0.32 },
-      medium: { peakWeek: 3, shape: 'spike_bi_tail', tailWeight: 0.35 },
-      long: { peakMonth: 2, shape: 'gradual_decay', tailWeight: 0.20 }
+      short: { peakWeek: 1, shape: 'sharp_spike', tailWeight: 0.35 },
+      medium: { peakWeek: 3, shape: 'spike_bi_tail', tailWeight: 0.40 },
+      long: { peakMonth: 2, shape: 'gradual_decay', tailWeight: 0.30 }
     }
   },
   // Chemical (toxic release) patterns - Bhopal-style
   chemical: {
-    // Chemical injury: very fast spike (hours-weeks), then LONG tail (complications, disability, litigation)
+    // Chemical injury: very fast spike (hours-weeks), then long tail (complications, disability, litigation)
     injury: {
-      short: { peakWeek: 2, shape: 'sharp_spike', tailWeight: 0.35 },
-      medium: { peakWeek: 3, shape: 'spike_long_tail', tailWeight: 0.40 },
-      long: { peakMonth: 2, shape: 'very_long_tail', tailWeight: 0.50 }  // Decades of claims (Bhopal)
+      short: { peakWeek: 1, shape: 'sharp_spike', tailWeight: 0.40 },
+      medium: { peakWeek: 2, shape: 'spike_long_tail', tailWeight: 0.45 },
+      long: { peakMonth: 2, shape: 'very_long_tail', tailWeight: 0.55 }  // Decades of claims (Bhopal)
     },
-    // Chemical property: mid-fast spike, depends on contamination persistence
+    // Chemical property: mid-fast spike, tail depends on contamination persistence and stigma
     property: {
-      short: { peakWeek: 4, shape: 'moderate_spike', tailWeight: 0.25 },
-      medium: { peakWeek: 6, shape: 'extended_plateau', tailWeight: 0.30 },
-      long: { peakMonth: 4, shape: 'contamination_tail', tailWeight: 0.35 }
+      short: { peakWeek: 3, shape: 'moderate_spike', tailWeight: 0.28 },
+      medium: { peakWeek: 6, shape: 'extended_plateau', tailWeight: 0.32 },
+      long: { peakMonth: 4, shape: 'contamination_tail', tailWeight: 0.38 }
     }
   },
   // Nuclear (radiological) patterns - Fukushima/Chernobyl-style
   nuclear: {
-    // Nuclear injury: small immediate spike, VERY long tail (latency, thyroid cancers, monitoring)
+    // Nuclear injury: small immediate spike unless high doses, very long latency tail
     injury: {
-      short: { peakWeek: 3, shape: 'low_early', tailWeight: 0.40 },
-      medium: { peakWeek: 8, shape: 'delayed_rise', tailWeight: 0.55 },
-      long: { peakMonth: 36, shape: 'latency_driven', tailWeight: 0.70 }  // Peak years later
+      short: { peakWeek: 4, shape: 'low_early', tailWeight: 0.45 },
+      medium: { peakWeek: 12, shape: 'delayed_rise', tailWeight: 0.60 },
+      long: { peakMonth: 48, shape: 'latency_driven', tailWeight: 0.75 }  // Peak years later
     },
     // Nuclear property: very large early-to-mid spike (evacuation, decontamination), extended plateau
     property: {
-      short: { peakWeek: 3, shape: 'rapid_rise', tailWeight: 0.50 },
-      medium: { peakWeek: 6, shape: 'evacuation_plateau', tailWeight: 0.60 },
-      long: { peakMonth: 12, shape: 'stigma_tail', tailWeight: 0.45 }
+      short: { peakWeek: 2, shape: 'rapid_rise', tailWeight: 0.55 },
+      medium: { peakWeek: 6, shape: 'evacuation_plateau', tailWeight: 0.65 },
+      long: { peakMonth: 12, shape: 'stigma_tail', tailWeight: 0.50 }
     }
   }
 };
@@ -1013,20 +1018,39 @@ function getWeeklyDistribution(peakWeek) {
 // ===== PATTERN DESCRIPTIONS =====
 const PATTERN_DESCRIPTIONS = {
   fire: {
-    injury: 'Early spike from burns/inhalation, with a longer tail for severe disability and litigation in complex cases',
-    property: 'Immediate spike with re-scope waves (soot, water, corrosion), BI/EE extends as rebuilds and permits stretch'
+    injury: 'Industrial/commercial: low counts with early reporting; tail driven by severe burns/inhalation. Residential/high-rise: early fatalities and serious injuries with a long litigation tail',
+    property: 'Industrial/commercial: immediate PD spike with re-scope waves and long rebuild/BI tail (BI/EE often >2× PD). Residential/high-rise: major remediation plus long-term displacement, contents, and distress claims'
   },
   explosion: {
-    injury: 'Sharp immediate spike, fast decay; lower count but high severity (burns, TBI)',
-    property: 'Instant sharp spike across blast radius; BI/denial-of-access tail develops as downtime becomes clear'
+    injury: 'Industrial: lower counts than PD unless dense population, but high severity (burns, amputations, TBI). Port/urban: injuries can be significant but often secondary to PD/BI',
+    property: 'Industrial: instant PD spike across blast radius with strong BI/EE from cordons and outages. Port/urban: extreme value concentration and portfolio-wide BI from supply-chain disruption'
   },
   chemical: {
-    injury: 'Very fast spike, then very long tail (decades) from chronic effects and litigation',
-    property: 'Mid-fast spike, potential resurgence from contamination discovery'
+    injury: 'Very fast notification spike (hours–weeks) with a long tail from medical complications, disability reassessments, and litigation/appeals',
+    property: 'Mid-fast spike from cleanup, shutdown, and contamination; tail depends on persistence (soil/groundwater) and stigma, with possible re-spike'
   },
   nuclear: {
-    injury: 'Small early spike, very long latency tail (cancers may appear 5-20 years later)',
-    property: 'Large early spike (evacuation/decontamination), extended plateau, stigma effects'
+    injury: 'Small early spike unless high acute doses; very long latency tail driven by monitoring, psychosocial distress, and late-onset disease',
+    property: 'Very large early-to-mid spike from evacuation, loss of use, and decontamination; extended plateau from stigma and land-use restrictions'
+  }
+};
+
+const DASHBOARD_SIGNALS = {
+  chemical: {
+    injury: 'BI sharp spike → long taper',
+    property: 'PD moderate spike → possible re-spike'
+  },
+  nuclear: {
+    injury: 'BI low early → decades-long tail',
+    property: 'PD huge early spike → plateau'
+  },
+  fire: {
+    injury: 'BI low early; severe cases drive the tail',
+    property: 'PD spike + re-scoping waves; BI/EE often dominates ultimate loss'
+  },
+  explosion: {
+    injury: 'BI lower count but high severity',
+    property: 'PD instant spike; BI/EE develops with downtime'
   }
 };
 
@@ -1037,13 +1061,18 @@ function updatePatternDescription() {
 
   let description = '';
   const patterns = PATTERN_DESCRIPTIONS[incident] || PATTERN_DESCRIPTIONS.fire;
+  const signals = DASHBOARD_SIGNALS[incident] || DASHBOARD_SIGNALS.fire;
+  let signalText = '';
 
   if (claimType === 'both') {
     description = `Injury: ${patterns.injury}. Property: ${patterns.property}`;
+    signalText = `BI: ${signals.injury}. PD: ${signals.property}.`;
   } else if (claimType === 'injury') {
     description = patterns.injury;
+    signalText = signals.injury;
   } else {
     description = patterns.property;
+    signalText = signals.property;
   }
 
   // Add time horizon context
@@ -1055,6 +1084,8 @@ function updatePatternDescription() {
 
   const descEl = document.getElementById('patternDescription');
   if (descEl) descEl.textContent = description;
+  const signalEl = document.getElementById('signalDescription');
+  if (signalEl) signalEl.textContent = signalText;
 }
 
 // ===== SURGE RESOURCE MANAGEMENT =====
@@ -1580,21 +1611,21 @@ function buildRecommendations(s) {
 
   // Incident-specific recommendations
   if (s.incident === 'chemical') {
-    recs.push({ level: 'warning', text: 'Chemical release incidents typically show a sharp early spike in injury claims followed by a very long tail (potentially decades) from chronic health effects, disability reassessments, and litigation.' });
-    recs.push({ level: 'warning', text: 'Establish robust medical documentation protocols early - causation disputes are common in chemical exposure cases.' });
+    recs.push({ level: 'warning', text: 'Chemical release incidents typically show a very fast injury notification spike (hours–weeks) followed by a long tail from complications, disability reassessments, and litigation.' });
+    recs.push({ level: 'warning', text: 'Establish robust medical documentation protocols early — causation disputes are common in chemical exposure cases.' });
     if (s.claimType === 'both' || s.claimType === 'injury') {
       recs.push({ level: 'info', text: 'Consider setting up medical monitoring programs for affected populations - late-onset conditions may generate claims years later.' });
     }
     if (s.claimType === 'both' || s.claimType === 'property') {
-      recs.push({ level: 'info', text: 'Property claims may resurge if contamination is discovered in soil or groundwater - plan for potential secondary waves.' });
+      recs.push({ level: 'info', text: 'Property claims can resurge if contamination is discovered in soil or groundwater — plan for secondary waves and stigma-driven claims.' });
     }
   }
 
   if (s.incident === 'nuclear') {
-    recs.push({ level: 'warning', text: 'Nuclear incidents show distinct claim patterns: property/evacuation claims dominate early, while injury claims have very long latency (thyroid cancers may appear 5-20 years later).' });
+    recs.push({ level: 'warning', text: 'Nuclear incidents show distinct claim patterns: property/evacuation claims dominate early with a prolonged plateau from stigma and land-use limits, while injury claims have very long latency (often 5–20+ years).' });
     recs.push({ level: 'warning', text: 'Ensure specialist assessors are available for radiological claims. Standard claims staff may need additional training.' });
     if (s.claimType === 'both' || s.claimType === 'property') {
-      recs.push({ level: 'info', text: 'Property claims will include evacuation costs, loss of use, decontamination, and stigma-related value impacts. Plan for extended displacement periods.' });
+      recs.push({ level: 'info', text: 'Property claims will include evacuation, loss of use, decontamination, and stigma-related value impacts. Plan for extended displacement periods and recurring compensation rounds.' });
     }
     if (s.claimType === 'both' || s.claimType === 'injury') {
       recs.push({ level: 'info', text: 'Medical monitoring claims and psychological distress claims are common in nuclear incidents - establish clear eligibility criteria early.' });
@@ -1605,17 +1636,18 @@ function buildRecommendations(s) {
   }
 
   if (s.incident === 'explosion') {
-    recs.push({ level: 'warning', text: 'Explosion incidents create immediate high-volume property claims across a wide blast radius. Expect thousands of third-party property damage claims.' });
-    recs.push({ level: 'info', text: 'Business interruption claims often become the pacing item - they require forensic accounting and develop over time as downtime impacts become clear.' });
+    recs.push({ level: 'warning', text: 'Explosion incidents create immediate high-volume property claims across a wide blast radius, with particularly high concentrations at ports or urban logistics hubs.' });
+    recs.push({ level: 'info', text: 'Business interruption claims often become the pacing item — they require forensic accounting and develop over time as downtime impacts become clear.' });
     if (s.claimType === 'both' || s.claimType === 'injury') {
-      recs.push({ level: 'info', text: 'Injury claims are typically lower count but high severity (burns, amputations, TBI). Ensure specialist medical assessors are available.' });
+      recs.push({ level: 'info', text: 'Injury claims are typically lower count but high severity (burns, amputations, TBI) unless the blast impacts a dense population. Ensure specialist medical assessors are available.' });
     }
   }
 
   if (s.incident === 'fire') {
     recs.push({ level: 'info', text: 'Fire incidents often show property claim re-scope waves as hidden damage (soot, corrosion, smoke damage) is discovered weeks after the incident.' });
     if (s.claimType === 'both' || s.claimType === 'property') {
-      recs.push({ level: 'info', text: 'Business interruption losses often exceed property damage for industrial fires (historically ~2.7x PD for petrochemical events).' });
+      recs.push({ level: 'info', text: 'Business interruption losses often exceed property damage for industrial fires (frequently >2× PD), with rebuild delays, inflation, and permitting extending the tail.' });
+      recs.push({ level: 'info', text: 'For residential/high-rise fires, anticipate long-term displacement, accommodation, contents, and mental distress claims alongside multi-defendant litigation.' });
     }
   }
 
@@ -2270,12 +2302,12 @@ function generateReport() {
 ${s.incident === 'chemical' || s.incident === 'nuclear' || s.incident === 'fire' || s.incident === 'explosion' ? `
 <div class="pattern-note">
   <strong>Claim Pattern Note:</strong> ${s.incident === 'chemical' ?
-    'Chemical (toxic release) incidents typically show a sharp early spike in injury claims followed by a very long tail extending potentially for decades (based on Bhopal and similar incidents). Property claims may resurge if contamination is discovered in soil or groundwater.' :
+    'Chemical (toxic release) incidents typically show a very fast injury notification spike (hours–weeks) followed by a long tail from complications, disability reassessments, and litigation. Property claims spike mid-fast from cleanup/shutdown and can resurge if soil or groundwater contamination is later discovered.' :
     s.incident === 'nuclear' ?
-    'Nuclear (radiological) incidents show distinct patterns: property/evacuation claims dominate early, while injury claims have very long latency periods (5-20+ years for radiation-related cancers). Based on patterns from Fukushima, Chernobyl, and Three Mile Island.' :
+    'Nuclear (radiological) incidents show distinct patterns: property/evacuation claims dominate early with a prolonged plateau from stigma and land-use limits, while injury claims have very long latency periods (often 5–20+ years).' :
     s.incident === 'fire' ?
-    'Fire incidents often show a rapid property spike with re-scope waves as hidden damage appears, while BI/EE extends with rebuild delays; severe injury cases can create a longer liability tail.' :
-    'Explosion incidents create an immediate property spike across the blast radius, with BI/denial-of-access losses developing over time; injury claims are typically lower count but high severity.'}
+    'Fire incidents show a rapid property spike with re-scope waves as hidden damage appears, while BI/EE extends with rebuild delays. Residential/high-rise fires can add long litigation tails alongside displacement and mental distress claims.' :
+    'Explosion incidents create an immediate property spike across the blast radius, with BI/EE losses developing over time; injury claims are typically lower count but high severity unless the blast impacts a dense population.'}
 </div>` : ''}
 
 <h2>Key Metrics</h2>
