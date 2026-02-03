@@ -1181,7 +1181,7 @@ function runScenario() {
   let peakClaims = 0;
   let periodsToClear = 0;
 
-  const maxSimPeriods = isLongTerm ? 120 : Math.max(targetWeeks, 52);
+  const maxSimPeriods = isLongTerm ? 120 : Math.max(numPeriods, 52);
 
   for (let i = 0; i < Math.min(numPeriods, maxSimPeriods); i++) {
     const periodNum = i + 1;
