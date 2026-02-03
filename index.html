@@ -1236,9 +1236,12 @@ function runScenario() {
   // If backlog never cleared
   if (backlog > 0 && periodsToClear === 0) periodsToClear = -1;
 
-  // Convert periods to weeks for target comparison
+  // Convert periods to weeks for display (short/medium term)
   const weeksToClear = isLongTerm ? (periodsToClear > 0 ? Math.round(periodsToClear * 4.33) : -1) : periodsToClear;
-  const canMeetTarget = weeksToClear > 0 && weeksToClear <= targetWeeks;
+  // Compare in appropriate units: months for long-term, weeks for short/medium
+  const canMeetTarget = isLongTerm
+    ? (periodsToClear > 0 && periodsToClear <= targetPeriods)
+    : (weeksToClear > 0 && weeksToClear <= targetWeeks);
 
   // Calculate resource needs
   const maxBacklog = Math.max(...periods.map(w => w.backlog));
@@ -1253,7 +1256,7 @@ function runScenario() {
     periods, peakPeriod, peakClaims, weeklyCapacity: baseWeeklyCapacity, periodCapacity: basePeriodCapacity,
     maxBacklog, overCapacityPeriods, additionalStaff, staffNeededAtPeak, claimsPerStaffPerWeek,
     surgeEntries: JSON.parse(JSON.stringify(surgeEntries)), weightedDaysPerClaim,
-    targetWeeks, weeksToClear, periodsToClear, canMeetTarget, isLongTerm, splits,
+    targetWeeks, targetPeriods, weeksToClear, periodsToClear, canMeetTarget, isLongTerm, splits,
     claimComplexity: JSON.parse(JSON.stringify(config.claimComplexity || DEFAULT_CONFIG.claimComplexity))
   };
 
@@ -1284,7 +1287,7 @@ function showResults(scenario) {
   const timeToClearLabel = s.weeksToClear === -1
     ? (s.isLongTerm ? '10+ years' : '52+ weeks')
     : (s.isLongTerm ? s.periodsToClear + ' months' : s.weeksToClear + ' weeks');
-  const targetLabel = s.isLongTerm ? Math.round(s.targetWeeks / 4.33) + ' Months' : s.targetWeeks + ' Weeks';
+  const targetLabel = s.isLongTerm ? s.targetPeriods + ' Months' : s.targetWeeks + ' Weeks';
   const showClaimBreakdown = s.claimType === 'both' && (s.injuryClaims > 0 || s.propertyClaims > 0);
 
   let metricsHTML = `
@@ -1462,7 +1465,7 @@ function buildRecommendations(s) {
   // General capacity recommendations
   if (!s.canMeetTarget) {
     const clearLabel = s.weeksToClear === -1 ? (s.isLongTerm ? '10+ years' : '52+ weeks') : (s.isLongTerm ? s.periodsToClear + ' months' : s.weeksToClear + ' weeks');
-    const targetLabel = s.isLongTerm ? Math.round(s.targetWeeks / 4.33) + '-month' : s.targetWeeks + '-week';
+    const targetLabel = s.isLongTerm ? s.targetPeriods + '-month' : s.targetWeeks + '-week';
     recs.push({ level: 'critical', text: `Claims will not be cleared within the ${targetLabel} target (estimated ${clearLabel}). Increase staff or add surge resources.` });
   }
   if (s.additionalStaff > 0) {
@@ -2128,7 +2131,7 @@ function generateReport() {
   const timeToClearLabel = s.weeksToClear === -1
     ? (s.isLongTerm ? '10+ years' : '52+ weeks')
     : (s.isLongTerm ? s.periodsToClear + ' months' : s.weeksToClear + ' weeks');
-  const targetLabel = s.isLongTerm ? Math.round(s.targetWeeks / 4.33) + ' Months' : s.targetWeeks + ' Weeks';
+  const targetLabel = s.isLongTerm ? s.targetPeriods + ' Months' : s.targetWeeks + ' Weeks';
 
   const html = `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><title>Claims Resilience Report - ${s.site.name}</title>
