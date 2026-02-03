@@ -996,6 +996,22 @@ function getClaimDistribution(incident, claimType, timeHorizon) {
   );
 }
 
+function allocateClaimsByDistribution(totalClaims, distribution) {
+  if (totalClaims <= 0 || distribution.length === 0) return [];
+  const raw = distribution.map(d => totalClaims * d);
+  const allocation = raw.map(val => Math.floor(val));
+  let remainder = totalClaims - allocation.reduce((sum, val) => sum + val, 0);
+  if (remainder > 0) {
+    const ranked = raw
+      .map((val, idx) => ({ idx, frac: val - Math.floor(val) }))
+      .sort((a, b) => b.frac - a.frac);
+    for (let i = 0; i < remainder; i++) {
+      allocation[ranked[i % ranked.length].idx] += 1;
+    }
+  }
+  return allocation;
+}
+
 // Legacy function for backward compatibility
 function getWeeklyDistribution(peakWeek) {
   peakWeek = peakWeek || 4;
@@ -1120,13 +1136,16 @@ function runScenario() {
 
   // Get claim type splits
   const splits = config.claimTypeSplits?.[incident] || DEFAULT_CONFIG.claimTypeSplits[incident] || { injury: 0.5, property: 0.5 };
+  const splitSum = (splits.injury || 0) + (splits.property || 0);
+  const injuryRatio = splitSum > 0 ? splits.injury / splitSum : 0.5;
+  const normalizedSplits = { injury: injuryRatio, property: 1 - injuryRatio };
 
   // Calculate claims by type
   let injuryClaims = 0, propertyClaims = 0, totalClaims = 0;
   if (claimType === 'both') {
-    injuryClaims = Math.round(baseTotalClaims * splits.injury);
-    propertyClaims = Math.round(baseTotalClaims * splits.property);
-    totalClaims = injuryClaims + propertyClaims;
+    injuryClaims = Math.round(baseTotalClaims * injuryRatio);
+    propertyClaims = Math.max(0, baseTotalClaims - injuryClaims);
+    totalClaims = baseTotalClaims;
   } else if (claimType === 'injury') {
     injuryClaims = baseTotalClaims;
     totalClaims = injuryClaims;
@@ -1145,8 +1164,8 @@ function runScenario() {
   const propertyDist = propertyClaims > 0 ? getClaimDistribution(incident, 'property', timeHorizon) : [];
 
   // Calculate claims per period
-  const injuryPerPeriod = injuryDist.map(d => Math.round(injuryClaims * d));
-  const propertyPerPeriod = propertyDist.map(d => Math.round(propertyClaims * d));
+  const injuryPerPeriod = allocateClaimsByDistribution(injuryClaims, injuryDist);
+  const propertyPerPeriod = allocateClaimsByDistribution(propertyClaims, propertyDist);
 
   // Combined claims per period
   const periodicClaims = [];
@@ -1181,7 +1200,8 @@ function runScenario() {
   let peakClaims = 0;
   let periodsToClear = 0;
 
-  const maxSimPeriods = isLongTerm ? 120 : Math.max(numPeriods, 52);
+  const extraSimPeriods = isLongTerm ? 60 : 52;
+  const maxSimPeriods = Math.max(numPeriods + extraSimPeriods, 52);
 
   for (let i = 0; i < maxSimPeriods; i++) {
     const periodNum = i + 1;
@@ -1300,6 +1320,9 @@ function showResults(scenario) {
   const peakPeriodLabel = s.isLongTerm ? `Month ${s.peakPeriod}` : `Week ${s.peakPeriod}`;
 
   // Metrics
+  const maxClearLabel = s.isLongTerm
+    ? `${Math.round(s.maxSimPeriods / 12)}+ years`
+    : `${s.maxSimPeriods}+ weeks`;
   const timeToClearLabel = s.weeksToClear === -1
     ? (s.isLongTerm ? '10+ years' : `${s.maxSimPeriods}+ weeks`)
     : (s.isLongTerm ? s.periodsToClear + ' months' : s.weeksToClear + ' weeks');
@@ -1477,6 +1500,9 @@ function showResults(scenario) {
 function buildRecommendations(s) {
   const recs = [];
   const periodLabel = s.isLongTerm ? 'month' : 'week';
+  const maxClearLabel = s.isLongTerm
+    ? `${Math.round(s.maxSimPeriods / 12)}+ years`
+    : `${s.maxSimPeriods}+ weeks`;
 
   // General capacity recommendations
   if (!s.canMeetTarget) {
@@ -2144,6 +2170,9 @@ function generateReport() {
   <div class="metric"><div class="metric-val" style="color:#7c3aed">${s.propertyClaims.toLocaleString()}</div><div class="metric-lbl">Property Claims (${Math.round(s.splits.property * 100)}%)</div></div>`;
   }
 
+  const maxClearLabel = s.isLongTerm
+    ? `${Math.round(s.maxSimPeriods / 12)}+ years`
+    : `${s.maxSimPeriods}+ weeks`;
   const timeToClearLabel = s.weeksToClear === -1
     ? (s.isLongTerm ? '10+ years' : `${s.maxSimPeriods}+ weeks`)
     : (s.isLongTerm ? s.periodsToClear + ' months' : s.weeksToClear + ' weeks');
