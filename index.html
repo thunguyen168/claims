@@ -1099,6 +1099,88 @@ function renderSurgeList() {
 
 let lastScenario = null;
 
+function buildDisplayPeriods(periods, scenario) {
+  const display = [];
+  const isLongTerm = scenario.isLongTerm;
+  const timeHorizon = scenario.timeHorizon;
+
+  const enhancePeriod = (period) => ({
+    ...period,
+    windowSize: 1,
+    displayLabel: isLongTerm
+      ? `Month ${period.month}`
+      : `Week ${period.week || period.period}`,
+    surgeStaffMin: period.surgeStaff,
+    surgeStaffMax: period.surgeStaff
+  });
+
+  const aggregateWindow = (window) => {
+    const first = window[0];
+    const last = window[window.length - 1];
+    const totals = window.reduce((acc, period) => {
+      acc.newClaims += period.newClaims;
+      acc.newInjury += period.newInjury;
+      acc.newProperty += period.newProperty;
+      acc.processed += period.processed;
+      acc.effectiveCapacity += period.effectiveCapacity;
+      acc.surgeStaffMin = Math.min(acc.surgeStaffMin, period.surgeStaff);
+      acc.surgeStaffMax = Math.max(acc.surgeStaffMax, period.surgeStaff);
+      return acc;
+    }, {
+      newClaims: 0,
+      newInjury: 0,
+      newProperty: 0,
+      processed: 0,
+      effectiveCapacity: 0,
+      surgeStaffMin: Number.POSITIVE_INFINITY,
+      surgeStaffMax: 0
+    });
+
+    const label = isLongTerm
+      ? `Months ${first.month}-${last.month}`
+      : `Weeks ${first.week || first.period}-${last.week || last.period}`;
+
+    return {
+      ...last,
+      newClaims: totals.newClaims,
+      newInjury: totals.newInjury,
+      newProperty: totals.newProperty,
+      processed: totals.processed,
+      effectiveCapacity: totals.effectiveCapacity,
+      windowSize: window.length,
+      displayLabel: label,
+      surgeStaffMin: totals.surgeStaffMin === Number.POSITIVE_INFINITY ? 0 : totals.surgeStaffMin,
+      surgeStaffMax: totals.surgeStaffMax
+    };
+  };
+
+  if (timeHorizon === 'medium' && periods.length > 12) {
+    const cutoff = 12;
+    for (let i = 0; i < cutoff && i < periods.length; i++) {
+      display.push(enhancePeriod(periods[i]));
+    }
+    for (let i = cutoff; i < periods.length; i += 2) {
+      const window = periods.slice(i, Math.min(i + 2, periods.length));
+      display.push(window.length === 1 ? enhancePeriod(window[0]) : aggregateWindow(window));
+    }
+    return display;
+  }
+
+  if (isLongTerm && periods.length > 12) {
+    const cutoff = 12;
+    for (let i = 0; i < cutoff && i < periods.length; i++) {
+      display.push(enhancePeriod(periods[i]));
+    }
+    for (let i = cutoff; i < periods.length; i += 3) {
+      const window = periods.slice(i, Math.min(i + 3, periods.length));
+      display.push(window.length === 1 ? enhancePeriod(window[0]) : aggregateWindow(window));
+    }
+    return display;
+  }
+
+  return periods.map(enhancePeriod);
+}
+
 // ===== SCENARIO CALCULATION =====
 function runScenario() {
   const siteId = document.getElementById('siteSelect').value;
@@ -1360,28 +1442,12 @@ function showResults(scenario) {
   `;
   document.getElementById('metricsGrid').innerHTML = metricsHTML;
 
-  // Determine display periods - sample for long term to keep table manageable
-  let displayPeriods = s.periods;
-  let samplingRate = 1;
-  if (s.isLongTerm && s.periods.length > 24) {
-    // For long term, show monthly data but sample every 3 months after first year
-    samplingRate = 3;
-    displayPeriods = s.periods.filter((p, i) => i < 12 || i % samplingRate === 0);
-  } else if (s.timeHorizon === 'medium' && s.periods.length > 26) {
-    // For medium term, show every 2 weeks after week 12
-    displayPeriods = s.periods.filter((p, i) => i < 12 || i % 2 === 0);
-  }
-
-  // Limit display to reasonable size
-  const maxDisplayPeriods = s.isLongTerm ? 40 : 52;
-  if (displayPeriods.length > maxDisplayPeriods) {
-    displayPeriods = displayPeriods.slice(0, maxDisplayPeriods);
-  }
+  const displayPeriods = buildDisplayPeriods(s.periods, s);
 
   // Period table
   const tbody = document.getElementById('weeklyBody');
   tbody.innerHTML = '';
-  const hasSurge = displayPeriods.some(w => w.surgeStaff > 0);
+  const hasSurge = displayPeriods.some(w => w.surgeStaffMax > 0);
   const hasClaimBreakdown = s.claimType === 'both';
 
   // Update table header
@@ -1398,7 +1464,18 @@ function showResults(scenario) {
   displayPeriods.forEach(w => {
     const statusClass = w.backlog === 0 ? 'status-ok' : (w.backlog < w.effectiveCapacity ? 'status-warn' : 'status-over');
     const statusText = w.backlog === 0 ? 'On Track' : (w.backlog < w.effectiveCapacity ? 'Building Backlog' : 'Critical Backlog');
-    const periodDisplay = s.isLongTerm ? `Month ${w.month}` : `Week ${w.week || w.period}`;
+    const periodDisplay = w.displayLabel || (s.isLongTerm ? `Month ${w.month}` : `Week ${w.week || w.period}`);
+    const windowSize = w.windowSize || 1;
+    const baseCapacity = s.periodCapacity * windowSize;
+    const surgeDelta = w.effectiveCapacity - baseCapacity;
+    const surgeLabel = surgeDelta > 0 ? ` <span style="color:#8b5cf6;font-size:11px">(+${
+      surgeDelta
+    })</span>` : '';
+    const surgeStaffLabel = w.surgeStaffMax > 0
+      ? (w.surgeStaffMin === w.surgeStaffMax
+        ? `+${w.surgeStaffMax}`
+        : `${w.surgeStaffMin === 0 ? '0' : '+' + w.surgeStaffMin}-${'+' + w.surgeStaffMax}`)
+      : '-';
 
     const tr = document.createElement('tr');
     let rowHTML = `<td>${periodDisplay}</td>`;
@@ -1409,10 +1486,10 @@ function showResults(scenario) {
     rowHTML += `
       <td>${w.newClaims.toLocaleString()}</td>
       <td>${w.cumulative.toLocaleString()}</td>
-      <td>${w.effectiveCapacity.toLocaleString()}${w.surgeStaff > 0 ? ' <span style="color:#8b5cf6;font-size:11px">(+' + (w.effectiveCapacity - s.periodCapacity) + ')</span>' : ''}</td>
+      <td>${w.effectiveCapacity.toLocaleString()}${surgeLabel}</td>
       <td>${w.processed.toLocaleString()}</td>
       <td>${w.backlog.toLocaleString()}</td>
-      ${hasSurge ? '<td>' + (w.surgeStaff > 0 ? '+' + w.surgeStaff : '-') + '</td>' : ''}
+      ${hasSurge ? '<td>' + surgeStaffLabel + '</td>' : ''}
       <td class="${statusClass}">${statusText}</td>
     `;
     tr.innerHTML = rowHTML;
@@ -1474,11 +1551,12 @@ function showResults(scenario) {
   });
 
   // Draw charts
-  const chartTitle = s.isLongTerm ? `Claims Forecast Over ${displayPeriods.length} Months` :
-                     `Claims Forecast Over ${displayPeriods.length} Weeks`;
+  const chartPeriods = s.periods;
+  const chartTitle = s.isLongTerm ? `Claims Forecast Over ${chartPeriods.length} Months` :
+                     `Claims Forecast Over ${chartPeriods.length} Weeks`;
   document.getElementById('forecastChartTitle').textContent = chartTitle;
-  drawForecastChartNew(displayPeriods, s);
-  drawCapacityChartNew(displayPeriods, s);
+  drawForecastChartNew(chartPeriods, s);
+  drawCapacityChartNew(chartPeriods, s);
 }
 
 // Build recommendations based on incident type and claim patterns
@@ -2093,31 +2171,25 @@ function generateReport() {
       s.surgeEntries.map(e => `<tr><td>+${e.extraStaff} staff</td><td>From Week ${e.startWeek} onwards</td></tr>`).join('')
     : '';
 
-  // Sample periods for display
-  let displayPeriods = s.periods;
-  if (s.isLongTerm && s.periods.length > 24) {
-    displayPeriods = s.periods.filter((p, i) => i < 12 || i % 3 === 0);
-  } else if (s.timeHorizon === 'medium' && s.periods.length > 26) {
-    displayPeriods = s.periods.filter((p, i) => i < 12 || i % 2 === 0);
-  }
-  if (displayPeriods.length > 40) {
-    displayPeriods = displayPeriods.slice(0, 40);
-  }
+  const displayPeriods = buildDisplayPeriods(s.periods, s);
 
   const hasClaimBreakdown = s.claimType === 'both';
   const periodRows = displayPeriods.map(w => {
     const statusClass = w.backlog === 0 ? '#22c55e' : (w.backlog < w.effectiveCapacity ? '#eab308' : '#ef4444');
     const statusText = w.backlog === 0 ? 'On Track' : (w.backlog < w.effectiveCapacity ? 'Building Backlog' : 'Critical Backlog');
-    const periodNum = s.isLongTerm ? w.month : (w.week || w.period);
+    const periodNum = w.displayLabel || (s.isLongTerm ? `Month ${w.month}` : `Week ${w.week || w.period}`);
+    const windowSize = w.windowSize || 1;
+    const baseCapacity = s.periodCapacity * windowSize;
+    const surgeDelta = w.effectiveCapacity - baseCapacity;
     let row = `<tr>
-      <td>${periodLabel} ${periodNum}</td>`;
+      <td>${periodNum}</td>`;
     if (hasClaimBreakdown) {
       row += `<td style="color:#d97706">${w.newInjury.toLocaleString()}</td>
               <td style="color:#7c3aed">${w.newProperty.toLocaleString()}</td>`;
     }
     row += `<td>${w.newClaims.toLocaleString()}</td>
       <td>${w.cumulative.toLocaleString()}</td>
-      <td>${w.effectiveCapacity.toLocaleString()}${w.surgeStaff > 0 ? ' (+' + (w.effectiveCapacity - s.periodCapacity) + ')' : ''}</td>
+      <td>${w.effectiveCapacity.toLocaleString()}${surgeDelta > 0 ? ' (+' + surgeDelta + ')' : ''}</td>
       <td>${w.processed.toLocaleString()}</td>
       <td>${w.backlog.toLocaleString()}</td>
       <td style="color:${statusClass};font-weight:600">${statusText}</td>
