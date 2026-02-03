@@ -1253,7 +1253,7 @@ function runScenario() {
     periods, peakPeriod, peakClaims, weeklyCapacity: baseWeeklyCapacity, periodCapacity: basePeriodCapacity,
     maxBacklog, overCapacityPeriods, additionalStaff, staffNeededAtPeak, claimsPerStaffPerWeek,
     surgeEntries: JSON.parse(JSON.stringify(surgeEntries)), weightedDaysPerClaim,
-    targetWeeks, weeksToClear, canMeetTarget, isLongTerm, splits,
+    targetWeeks, weeksToClear, periodsToClear, canMeetTarget, isLongTerm, splits,
     claimComplexity: JSON.parse(JSON.stringify(config.claimComplexity || DEFAULT_CONFIG.claimComplexity))
   };
 
@@ -1281,7 +1281,10 @@ function showResults(scenario) {
   const peakPeriodLabel = s.isLongTerm ? `Month ${s.peakPeriod}` : `Week ${s.peakPeriod}`;
 
   // Metrics
-  const weeksToClearLabel = s.weeksToClear === -1 ? (s.isLongTerm ? '10+ years' : '52+ weeks') : s.weeksToClear + ' weeks';
+  const timeToClearLabel = s.weeksToClear === -1
+    ? (s.isLongTerm ? '10+ years' : '52+ weeks')
+    : (s.isLongTerm ? s.periodsToClear + ' months' : s.weeksToClear + ' weeks');
+  const targetLabel = s.isLongTerm ? Math.round(s.targetWeeks / 4.33) + ' Months' : s.targetWeeks + ' Weeks';
   const showClaimBreakdown = s.claimType === 'both' && (s.injuryClaims > 0 || s.propertyClaims > 0);
 
   let metricsHTML = `
@@ -1309,10 +1312,10 @@ function showResults(scenario) {
     </div>
     <div class="metric-card">
       <div class="metric-value ${s.canMeetTarget ? 'metric-green' : 'metric-red'}">${s.canMeetTarget ? 'Yes' : 'No'}</div>
-      <div class="metric-label">Cleared Within ${s.targetWeeks} Weeks?</div>
+      <div class="metric-label">Cleared Within ${targetLabel}?</div>
     </div>
     <div class="metric-card">
-      <div class="metric-value ${s.canMeetTarget ? 'metric-green' : 'metric-red'}">${weeksToClearLabel}</div>
+      <div class="metric-value ${s.canMeetTarget ? 'metric-green' : 'metric-red'}">${timeToClearLabel}</div>
       <div class="metric-label">Time to Clear All Claims</div>
     </div>
     <div class="metric-card">
@@ -1414,8 +1417,8 @@ function showResults(scenario) {
       <div>
         <h4 style="margin-bottom:8px;font-size:14px">Target Assessment</h4>
         <p style="font-size:13px;color:#94a3b8">
-          Target: <strong style="color:#e2e8f0">${s.targetWeeks} weeks</strong><br>
-          Estimated clearance: <strong style="color:${s.canMeetTarget ? '#22c55e' : '#ef4444'}">${weeksToClearLabel}</strong><br>
+          Target: <strong style="color:#e2e8f0">${targetLabel}</strong><br>
+          Estimated clearance: <strong style="color:${s.canMeetTarget ? '#22c55e' : '#ef4444'}">${timeToClearLabel}</strong><br>
           Status: <strong style="color:${s.canMeetTarget ? '#22c55e' : '#ef4444'}">${s.canMeetTarget ? 'On Target' : 'Exceeds Target'}</strong>
         </p>
       </div>
@@ -1458,8 +1461,9 @@ function buildRecommendations(s) {
 
   // General capacity recommendations
   if (!s.canMeetTarget) {
-    const clearLabel = s.weeksToClear === -1 ? (s.isLongTerm ? '10+ years' : '52+ weeks') : s.weeksToClear + ' weeks';
-    recs.push({ level: 'critical', text: `Claims will not be cleared within the ${s.targetWeeks}-week target (estimated ${clearLabel}). Increase staff or add surge resources.` });
+    const clearLabel = s.weeksToClear === -1 ? (s.isLongTerm ? '10+ years' : '52+ weeks') : (s.isLongTerm ? s.periodsToClear + ' months' : s.weeksToClear + ' weeks');
+    const targetLabel = s.isLongTerm ? Math.round(s.targetWeeks / 4.33) + '-month' : s.targetWeeks + '-week';
+    recs.push({ level: 'critical', text: `Claims will not be cleared within the ${targetLabel} target (estimated ${clearLabel}). Increase staff or add surge resources.` });
   }
   if (s.additionalStaff > 0) {
     recs.push({ level: 'critical', text: `Recruit or reassign ${s.additionalStaff} additional claims staff before peak ${periodLabel} (${s.isLongTerm ? 'Month' : 'Week'} ${s.peakPeriod}).` });
@@ -2121,7 +2125,10 @@ function generateReport() {
   <div class="metric"><div class="metric-val" style="color:#7c3aed">${s.propertyClaims.toLocaleString()}</div><div class="metric-lbl">Property Claims (${Math.round(s.splits.property * 100)}%)</div></div>`;
   }
 
-  const weeksToClearLabel = s.weeksToClear === -1 ? (s.isLongTerm ? '10+ years' : '52+ weeks') : s.weeksToClear + ' weeks';
+  const timeToClearLabel = s.weeksToClear === -1
+    ? (s.isLongTerm ? '10+ years' : '52+ weeks')
+    : (s.isLongTerm ? s.periodsToClear + ' months' : s.weeksToClear + ' weeks');
+  const targetLabel = s.isLongTerm ? Math.round(s.targetWeeks / 4.33) + ' Months' : s.targetWeeks + ' Weeks';
 
   const html = `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><title>Claims Resilience Report - ${s.site.name}</title>
@@ -2156,7 +2163,7 @@ function generateReport() {
   <tr><td style="font-weight:600">Base Capacity</td><td>${s.periodCapacity} ${capacityLabel} (${config.organisation.staffCount} staff)</td></tr>
   <tr><td style="font-weight:600">Weighted Avg Days/Claim</td><td>${s.weightedDaysPerClaim.toFixed(1)} days</td></tr>
   <tr><td style="font-weight:600">Claim Complexity Mix</td><td>Auto: ${s.claimComplexity.autoProcessedPct}% | 2-day: ${s.claimComplexity.twoDayPct}% | ${s.claimComplexity.customDays}-day: ${s.claimComplexity.customDayPct}% | Standard (${s.claimComplexity.standardDays || 4}d): ${Math.max(0, 100 - s.claimComplexity.autoProcessedPct - s.claimComplexity.twoDayPct - s.claimComplexity.customDayPct)}%</td></tr>
-  <tr><td style="font-weight:600">Target Processing Time</td><td>${s.targetWeeks} weeks</td></tr>
+  <tr><td style="font-weight:600">Target Processing Time</td><td>${targetLabel}</td></tr>
   ${surgeRows}
 </table>
 
@@ -2172,8 +2179,8 @@ ${s.incident === 'chemical' || s.incident === 'nuclear' ? `
   <div class="metric"><div class="metric-val blue">${s.totalClaims.toLocaleString()}</div><div class="metric-lbl">Total Estimated Claims</div></div>
   ${claimBreakdownMetrics}
   <div class="metric"><div class="metric-val yellow">${periodLabel} ${s.peakPeriod}</div><div class="metric-lbl">Peak ${periodLabel} (${s.peakClaims} claims)</div></div>
-  <div class="metric"><div class="metric-val ${s.canMeetTarget ? 'green' : 'red'}">${s.canMeetTarget ? 'Yes' : 'No'}</div><div class="metric-lbl">Cleared Within ${s.targetWeeks} Weeks?</div></div>
-  <div class="metric"><div class="metric-val ${s.canMeetTarget ? 'green' : 'red'}">${weeksToClearLabel}</div><div class="metric-lbl">Time to Clear</div></div>
+  <div class="metric"><div class="metric-val ${s.canMeetTarget ? 'green' : 'red'}">${s.canMeetTarget ? 'Yes' : 'No'}</div><div class="metric-lbl">Cleared Within ${targetLabel}?</div></div>
+  <div class="metric"><div class="metric-val ${s.canMeetTarget ? 'green' : 'red'}">${timeToClearLabel}</div><div class="metric-lbl">Time to Clear</div></div>
   <div class="metric"><div class="metric-val ${s.additionalStaff === 0 ? 'green' : 'red'}">+${s.additionalStaff}</div><div class="metric-lbl">Additional Staff Required</div></div>
   <div class="metric"><div class="metric-val yellow">${s.maxBacklog.toLocaleString()}</div><div class="metric-lbl">Peak Backlog</div></div>
 </div>
