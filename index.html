@@ -1286,10 +1286,11 @@ function runScenario() {
     cumulativeInjury += newInjury;
     cumulativeProperty += newProperty;
 
-    const available = newClaims + backlog;
+    const startingBacklog = backlog;
+    const available = newClaims + startingBacklog;
     const processed = Math.min(available, effectiveCapacity);
     totalProcessed += processed;
-    backlog = available - processed;
+    backlog = startingBacklog + newClaims - processed;
 
     if (newClaims > peakClaims) { peakClaims = newClaims; peakPeriod = periodNum; }
 
