@@ -1102,67 +1102,104 @@ function updateTimeHorizonLabels() {
 }
 
 // ===== INCIDENT CLAIM PATTERNS =====
-// Based on research: different claim patterns by incident type and claim type
-// Returns an array of relative weights for each time period
+// Severity-differentiated patterns: shape and tail weight vary by severity level.
+// Minor incidents: concentrated early spike, fast resolution, light tails.
+// Catastrophic incidents: early spike still present but broader, heavier tails,
+// more complex secondary peaks reflecting prolonged litigation and latent effects.
+// All peak positions in weeks (simulation always runs weekly).
 const CLAIM_PATTERNS = {
-  // Fire patterns
+  // Fire patterns - NFPA/Allianz data
   fire: {
-    // Fire injury: early spike (burns/inhalation), moderate tail for disability/long-term care
+    // Fire injury: early spike from burns/smoke inhalation
+    // Minor: concentrated spike, fast resolution (weeks). Catastrophic: heavier disability/PTSD tail.
     injury: {
-      short: { peakWeek: 2, shape: 'spike', tailWeight: 0.15 },
-      medium: { peakWeek: 3, shape: 'fast_decay', tailWeight: 0.10 },
-      long: { peakMonth: 2, shape: 'fast_decay', tailWeight: 0.05 }
+      minor:        { peakWeek: 2, shape: 'sharp_spike',  tailWeight: 0.05 },  // Simple burns, fast resolution
+      moderate:     { peakWeek: 2, shape: 'spike',         tailWeight: 0.12 },  // Some disability cases extend timeline
+      major:        { peakWeek: 3, shape: 'spike',         tailWeight: 0.20 },  // PTSD + complex injury tail (12-36 months)
+      catastrophic: { peakWeek: 3, shape: 'spike_long_tail', tailWeight: 0.30 } // Severe burns, disability, litigation extends years
     },
-    // Fire property: immediate spike + re-scope waves, rebuild delays
+    // Fire property: immediate spike + re-scope waves as hidden damage discovered
+    // Minor: single spike. Major/catastrophic: re-scope waves, BI exceeds PD by ~2.7x.
     property: {
-      short: { peakWeek: 3, shape: 'spike_rescope', tailWeight: 0.25 },
-      medium: { peakWeek: 4, shape: 'extended_plateau', tailWeight: 0.20 },
-      long: { peakMonth: 3, shape: 'gradual_decay', tailWeight: 0.10 }
+      minor:        { peakWeek: 2, shape: 'spike',          tailWeight: 0.08 },  // Simple property, 3-6mo resolution
+      moderate:     { peakWeek: 3, shape: 'spike_rescope',   tailWeight: 0.18 },  // Re-scope waves for hidden damage
+      major:        { peakWeek: 3, shape: 'spike_rescope',   tailWeight: 0.28 },  // Complex property + BI develops 12-36mo
+      catastrophic: { peakWeek: 4, shape: 'spike_rescope',   tailWeight: 0.38 }   // Major BI tail, rebuild delays, litigation
     }
   },
-  // Explosion patterns
+  // Explosion patterns - BP Texas City, Buncefield calibrated
   explosion: {
-    // Explosion injury: lower count but high severity, early reporting
+    // Explosion injury: sharp immediate spike (0-7 days), high severity, early reporting
+    // Minor: concentrated. Catastrophic: more severe injuries, longer rehabilitation tail.
     injury: {
-      short: { peakWeek: 1, shape: 'sharp_spike', tailWeight: 0.10 },
-      medium: { peakWeek: 2, shape: 'fast_decay', tailWeight: 0.08 },
-      long: { peakMonth: 1, shape: 'fast_decay', tailWeight: 0.05 }
+      minor:        { peakWeek: 1, shape: 'sharp_spike',  tailWeight: 0.05 },  // Localised, fast resolution
+      moderate:     { peakWeek: 1, shape: 'sharp_spike',   tailWeight: 0.10 },  // Burns, TBI - specialist assessors needed
+      major:        { peakWeek: 2, shape: 'spike',         tailWeight: 0.18 },  // Complex injuries, amputations, longer rehab
+      catastrophic: { peakWeek: 2, shape: 'spike_long_tail', tailWeight: 0.25 } // Mass casualty, extended rehabilitation + litigation
     },
-    // Explosion property: instant sharp spike (wide blast radius), BI develops over time
+    // Explosion property: instant sharp spike across blast radius (90%+ claims within 500m)
+    // Minor: concentrated blast. Catastrophic: wider radius + BI develops over 12-36 months.
     property: {
-      short: { peakWeek: 2, shape: 'sharp_spike', tailWeight: 0.30 },
-      medium: { peakWeek: 3, shape: 'spike_bi_tail', tailWeight: 0.25 },
-      long: { peakMonth: 2, shape: 'gradual_decay', tailWeight: 0.15 }
+      minor:        { peakWeek: 1, shape: 'sharp_spike',   tailWeight: 0.10 },  // Localised blast damage
+      moderate:     { peakWeek: 2, shape: 'sharp_spike',    tailWeight: 0.22 },  // Wider radius, BI starting
+      major:        { peakWeek: 2, shape: 'spike_bi_tail',  tailWeight: 0.30 },  // Significant BI tail (9+ months, Buncefield)
+      catastrophic: { peakWeek: 3, shape: 'spike_bi_tail',  tailWeight: 0.40 }   // Massive BI (BP Texas City: 7-year settlements)
     }
   },
-  // Chemical (toxic release) patterns - Bhopal-style
+  // Chemical (toxic release) patterns - Bhopal/Seveso calibrated
   chemical: {
-    // Chemical injury: very fast spike (hours-weeks), then LONG tail (complications, disability, litigation)
+    // Chemical injury: acute poisoning spike (25% in weeks 1-4), then LONG tail
+    // Minor: mainly acute. Catastrophic: decades of chronic illness (Bhopal: 40+ years).
     injury: {
-      short: { peakWeek: 2, shape: 'sharp_spike', tailWeight: 0.35 },
-      medium: { peakWeek: 3, shape: 'spike_long_tail', tailWeight: 0.40 },
-      long: { peakMonth: 2, shape: 'very_long_tail', tailWeight: 0.50 }  // Decades of claims (Bhopal)
+      minor:        { peakWeek: 2, shape: 'sharp_spike',     tailWeight: 0.15 },  // Acute poisoning, limited exposure
+      moderate:     { peakWeek: 2, shape: 'spike_long_tail',  tailWeight: 0.30 },  // Respiratory illness at months 2-24
+      major:        { peakWeek: 3, shape: 'spike_long_tail',  tailWeight: 0.45 },  // Chronic illness years 2-10, cancers
+      catastrophic: { peakWeek: 3, shape: 'very_long_tail',   tailWeight: 0.55 }   // Bhopal-scale: 1M+ claims over 40 years
     },
-    // Chemical property: mid-fast spike, depends on contamination persistence
+    // Chemical property: mid-fast spike, contamination persistence varies with severity
+    // Minor: standard property. Catastrophic: soil/groundwater contamination, decades of remediation.
     property: {
-      short: { peakWeek: 4, shape: 'moderate_spike', tailWeight: 0.25 },
-      medium: { peakWeek: 6, shape: 'extended_plateau', tailWeight: 0.30 },
-      long: { peakMonth: 4, shape: 'contamination_tail', tailWeight: 0.35 }
+      minor:        { peakWeek: 3, shape: 'moderate_spike',    tailWeight: 0.10 },  // Limited contamination
+      moderate:     { peakWeek: 4, shape: 'moderate_spike',     tailWeight: 0.22 },  // Some decontamination needed
+      major:        { peakWeek: 4, shape: 'extended_plateau',   tailWeight: 0.32 },  // Environmental cleanup extends years
+      catastrophic: { peakWeek: 5, shape: 'contamination_tail', tailWeight: 0.40 }   // Decades of remediation, secondary discovery peaks
     }
   },
-  // Nuclear (radiological) patterns - Fukushima/Chernobyl-style
+  // Nuclear (radiological) patterns - Fukushima/Three Mile Island/Chernobyl calibrated
   nuclear: {
-    // Nuclear injury: small immediate spike, VERY long tail (latency, thyroid cancers, monitoring)
+    // Nuclear injury: small immediate spike, VERY long tail (latency effects)
+    // Minor: health monitoring only. Catastrophic: thyroid cancers peak at 5-20 years.
     injury: {
-      short: { peakWeek: 3, shape: 'low_early', tailWeight: 0.40 },
-      medium: { peakWeek: 8, shape: 'delayed_rise', tailWeight: 0.55 },
-      long: { peakMonth: 84, shape: 'latency_driven', tailWeight: 0.70 }  // FIXED: Peak at ~7 years (thyroid cancers 5-20 years)
+      minor:        { peakWeek: 3, shape: 'low_early',      tailWeight: 0.25 },  // Precautionary evacuation, monitoring
+      moderate:     { peakWeek: 4, shape: 'delayed_rise',    tailWeight: 0.40 },  // Health monitoring, some latent effects
+      major:        { peakWeek: 5, shape: 'delayed_rise',    tailWeight: 0.55 },  // Thyroid cancers emerge years 5-20
+      catastrophic: { peakWeek: 6, shape: 'latency_driven',  tailWeight: 0.70 }   // Fukushima/Chernobyl-scale: 30-year claims
     },
-    // Nuclear property: very large early-to-mid spike (evacuation, decontamination), extended plateau
+    // Nuclear property: evacuation spike, extended plateau from exclusion zones
+    // Minor: brief evacuation. Catastrophic: permanent exclusion zones, stigma-driven resurgences.
     property: {
-      short: { peakWeek: 3, shape: 'rapid_rise', tailWeight: 0.50 },
-      medium: { peakWeek: 6, shape: 'evacuation_plateau', tailWeight: 0.60 },
-      long: { peakMonth: 12, shape: 'stigma_tail', tailWeight: 0.45 }
+      minor:        { peakWeek: 2, shape: 'rapid_rise',         tailWeight: 0.20 },  // Brief evacuation, quick return
+      moderate:     { peakWeek: 3, shape: 'rapid_rise',          tailWeight: 0.40 },  // Extended evacuation, some BI
+      major:        { peakWeek: 4, shape: 'evacuation_plateau',  tailWeight: 0.55 },  // Exclusion zones, years of displacement
+      catastrophic: { peakWeek: 5, shape: 'stigma_tail',         tailWeight: 0.60 }   // Permanent exclusion, stigma resurgences decades later
+    }
+  },
+  // Fertiliser (ammonium nitrate) patterns - West, Texas 2013 calibrated
+  // Blast pattern similar to explosion but with chemical exposure tail
+  fertiliser: {
+    // Fertiliser injury: sharp blast injury spike + chemical exposure tail (ammonia/nitrate)
+    injury: {
+      minor:        { peakWeek: 1, shape: 'sharp_spike',     tailWeight: 0.06 },  // Localised blast, minor chemical
+      moderate:     { peakWeek: 1, shape: 'sharp_spike',      tailWeight: 0.14 },  // Burns + ammonia exposure
+      major:        { peakWeek: 2, shape: 'spike_long_tail',  tailWeight: 0.25 },  // Significant chemical exposure tail
+      catastrophic: { peakWeek: 2, shape: 'spike_long_tail',  tailWeight: 0.35 }   // West Texas-scale: mass injury + chemical exposure
+    },
+    // Fertiliser property: blast damage spike + environmental contamination
+    property: {
+      minor:        { peakWeek: 1, shape: 'sharp_spike',     tailWeight: 0.08 },  // Localised blast radius
+      moderate:     { peakWeek: 2, shape: 'spike_bi_tail',    tailWeight: 0.20 },  // BI developing, some contamination
+      major:        { peakWeek: 2, shape: 'spike_bi_tail',    tailWeight: 0.30 },  // 150 buildings (West Texas), BI + environmental
+      catastrophic: { peakWeek: 3, shape: 'contamination_tail', tailWeight: 0.38 } // Massive blast radius + chemical contamination tail
     }
   }
 };
@@ -1580,41 +1617,30 @@ function generateShapedDistribution(numPeriods, peakPeriod, shape, tailWeight) {
   return raw.map(v => v / sum);
 }
 
-// Get distribution for a specific incident type, claim type, and time horizon
-// Distribution shape depends only on incident type (always uses 'long' lifecycle pattern).
-// numPeriods and isMonthly control the resolution.
-function getClaimDistribution(incident, claimType, timeHorizon, dynNumPeriods, dynIsMonthly) {
+// Get distribution for a specific incident type, claim type, and severity level.
+// Distribution shape varies by incident type AND severity (e.g., minor fire has a sharp
+// concentrated spike while catastrophic fire has a broader spike with heavier tail).
+// numPeriods controls resolution; simulation always runs weekly.
+function getClaimDistribution(incident, claimType, severity, dynNumPeriods, dynIsMonthly) {
   // Use dynamic period count if provided, else fall back to legacy
   let numPeriods, isMonthly;
   if (dynNumPeriods !== undefined) {
     numPeriods = dynNumPeriods;
     isMonthly = dynIsMonthly || false;
   } else {
-    const hConfig = TIME_HORIZONS[timeHorizon];
-    numPeriods = timeHorizon === 'long' ? 120 : hConfig.weeks;
-    isMonthly = timeHorizon === 'long';
+    const hConfig = TIME_HORIZONS.long;
+    numPeriods = 120;
+    isMonthly = true;
   }
 
-  // Get the pattern configuration - always use 'long' pattern for full lifecycle shape
+  // Get the pattern configuration keyed by severity level
   const patterns = CLAIM_PATTERNS[incident] || CLAIM_PATTERNS.fire;
-  const pattern = patterns[claimType] || patterns.injury;
-  const horizonPattern = pattern['long'] || pattern[timeHorizon] || pattern.short;
+  const claimTypePatterns = patterns[claimType] || patterns.injury;
+  // Select pattern for this severity level, fall back to moderate
+  const severityPattern = claimTypePatterns[severity] || claimTypePatterns.moderate || claimTypePatterns.minor;
 
-  // Determine peak period with automatic unit conversion
-  let peakPeriod;
-  if (isMonthly) {
-    // Monthly periods: use peakMonth if available, otherwise convert peakWeek
-    peakPeriod = horizonPattern.peakMonth || Math.max(1, Math.round((horizonPattern.peakWeek || 4) / 4.33));
-  } else {
-    // Weekly periods: prefer peakWeek, but convert peakMonth if that's all we have
-    if (horizonPattern.peakWeek !== undefined) {
-      peakPeriod = horizonPattern.peakWeek;
-    } else if (horizonPattern.peakMonth !== undefined) {
-      peakPeriod = Math.round(horizonPattern.peakMonth * 4.33);
-    } else {
-      peakPeriod = 4;
-    }
-  }
+  // Peak is always in weeks (simulation runs weekly)
+  let peakPeriod = severityPattern.peakWeek || 4;
 
   // Clamp peak period to not exceed total periods
   peakPeriod = Math.min(peakPeriod, numPeriods - 1);
@@ -1622,8 +1648,8 @@ function getClaimDistribution(incident, claimType, timeHorizon, dynNumPeriods, d
   return generateShapedDistribution(
     numPeriods,
     peakPeriod,
-    horizonPattern.shape,
-    horizonPattern.tailWeight
+    severityPattern.shape,
+    severityPattern.tailWeight
   );
 }
 
@@ -1677,30 +1703,97 @@ function getWeeklyDistribution(peakWeek) {
 }
 
 // ===== PATTERN DESCRIPTIONS =====
+// Severity-aware descriptions: shows how pattern shape changes with severity level
 const PATTERN_DESCRIPTIONS = {
   fire: {
-    injury: 'Early spike (0-7 days) from burns/smoke inhalation; 6-24 month settlement. Moderate tail for disability/PTSD cases (12-36 months)',
-    property: 'Immediate spike (0-30 days), re-scope waves as hidden damage discovered. Simple: 3-6mo resolution; Complex: 6-18mo. BI exceeds PD by ~2.7x',
+    injury: {
+      base: 'Early spike (0-7 days) from burns/smoke inhalation; 6-24 month settlement',
+      minor: 'Concentrated spike, fast resolution in weeks. Simple burns, minimal tail.',
+      moderate: 'Early spike with moderate disability/PTSD tail extending 12-36 months.',
+      major: 'Early spike + significant PTSD and complex injury tail (12-36 months). Specialist assessors needed.',
+      catastrophic: 'Early spike followed by prolonged tail: severe burns, long-term disability, litigation extending years.'
+    },
+    property: {
+      base: 'Immediate spike (0-30 days), re-scope waves as hidden damage discovered. BI exceeds PD by ~2.7x',
+      minor: 'Single concentrated spike, simple property claims resolve in 3-6 months.',
+      moderate: 'Spike + re-scope waves as hidden damage discovered. 6-18 month resolution.',
+      major: 'Spike + re-scope waves + significant BI tail developing over 12-36 months.',
+      catastrophic: 'Spike + multiple re-scope waves + major BI tail, rebuild delays, extended litigation.'
+    },
     template: 'explosionFire',
     historicalRef: 'NFPA/Allianz data: Fire/explosion = #1 cause of corporate losses (21% by value)'
   },
   explosion: {
-    injury: 'Sharp immediate spike (0-7 days), lower count but high severity. Burns, TBI, amputations require specialist assessors',
-    property: 'Instant sharp spike across blast radius (90%+ claims within 500m). BI develops over 12-36 months. Claim density drops rapidly with distance',
+    injury: {
+      base: 'Sharp immediate spike (0-7 days), high severity injuries. Burns, TBI, amputations',
+      minor: 'Concentrated sharp spike, localised injuries resolve in weeks.',
+      moderate: 'Sharp spike with specialist assessor demand. Burns, TBI require extended rehabilitation.',
+      major: 'Sharp spike + complex injury rehabilitation tail. Amputations, longer rehab timelines.',
+      catastrophic: 'Sharp spike + mass casualty tail: extended rehabilitation, litigation (BP Texas City: 7 years).'
+    },
+    property: {
+      base: 'Instant sharp spike across blast radius (90%+ claims within 500m). BI develops over 12-36 months',
+      minor: 'Concentrated blast radius damage, localised property claims.',
+      moderate: 'Sharp spike across wider radius. BI claims beginning to develop.',
+      major: 'Sharp spike + significant BI tail (9+ months, Buncefield pattern).',
+      catastrophic: 'Sharp spike + massive BI tail (BP Texas City: $2.1B over 7 years). Forensic accounting required.'
+    },
     template: 'explosionFire',
     historicalRef: 'BP Texas City: 15 fatalities, 4,000 claims, $2.1B settlements. Buncefield: 2,700 claims, £300M-1B'
   },
   chemical: {
-    injury: 'Bimodal distribution: acute poisoning spike (25% in weeks 1-4), then very long tail extending decades. Bhopal: 1M+ claims over 40 years',
-    property: 'Mid-fast spike for immediate damage, then resurgence (months 3-24) as soil/groundwater contamination discovered. Environmental: 5-40 years',
+    injury: {
+      base: 'Bimodal: acute poisoning spike (25% in weeks 1-4), then long tail for chronic illness',
+      minor: 'Acute poisoning spike with limited exposure. Mainly short-term respiratory effects.',
+      moderate: 'Spike + long tail: respiratory illness developing at months 2-24. Discovery rule applies.',
+      major: 'Spike + very long tail: chronic illness at years 2-10, cancers. Bhopal-scale development.',
+      catastrophic: 'Spike + decades-long tail: 1M+ claims over 40 years (Bhopal). Generational effects, ongoing litigation.'
+    },
+    property: {
+      base: 'Mid-fast spike for immediate damage, then resurgence as contamination discovered. Environmental: 5-40 years',
+      minor: 'Moderate spike for immediate property damage. Limited contamination.',
+      moderate: 'Moderate spike + decontamination phase over months.',
+      major: 'Spike + extended plateau: environmental cleanup extends years.',
+      catastrophic: 'Spike + contamination tail with secondary discovery peaks (months 12-36). Decades of remediation.'
+    },
     template: 'toxicRelease',
     historicalRef: 'Bhopal (1984): 574,304 injury claims awarded, $470M settlement, avg compensation $300-500. Effects documented 40+ years later'
   },
   nuclear: {
-    injury: 'Only 10% of ultimate claims in first month. Peak at 3-15 years (thyroid cancers). UK law allows claims up to 30 years post-incident (2022 Act)',
-    property: 'Large early spike (evacuation 164,000+ at Fukushima), extended plateau from exclusion zones, stigma-driven resurgences decades later',
+    injury: {
+      base: 'Only 10% of ultimate claims in first month. Peak at 3-15 years (thyroid cancers). UK 30-year limitation (2022 Act)',
+      minor: 'Low early claims from precautionary evacuation. Health monitoring drives later claims.',
+      moderate: 'Low initial spike + delayed rise. Health monitoring with some latent effects emerging.',
+      major: 'Low initial + delayed rise to significant volume. Thyroid cancers emerge years 5-20.',
+      catastrophic: 'Minimal early claims, latency-driven peak at years 5-20 (Fukushima/Chernobyl-scale). 30-year claims window.'
+    },
+    property: {
+      base: 'Large early spike (evacuation), extended plateau from exclusion zones, stigma-driven resurgences',
+      minor: 'Brief evacuation spike, quick return. Limited property impact.',
+      moderate: 'Evacuation spike + extended displacement. Some BI claims developing.',
+      major: 'Evacuation spike + exclusion zone plateau. Years of displacement (Fukushima: 164,000+).',
+      catastrophic: 'Evacuation spike + permanent exclusion zones + stigma-driven resurgences decades later.'
+    },
     template: 'nuclear',
     historicalRef: 'Fukushima: $70B+ compensation by 2021, avg family $900K. Three Mile Island: $82M documented, 14-year cleanup ($1B)'
+  },
+  fertiliser: {
+    injury: {
+      base: 'Sharp blast injury spike + chemical exposure tail (ammonia/nitrate compounds)',
+      minor: 'Concentrated blast spike, minor chemical exposure. Fast resolution.',
+      moderate: 'Sharp spike from burns + ammonia exposure extending timeline.',
+      major: 'Sharp spike + significant chemical exposure tail. West Texas-scale injuries.',
+      catastrophic: 'Sharp spike + prolonged chemical exposure tail: mass injury + ammonia/nitrate illness.'
+    },
+    property: {
+      base: 'Blast damage spike + environmental contamination. Similar to explosion with chemical tail',
+      minor: 'Concentrated blast radius, localised property damage.',
+      moderate: 'Blast spike + BI developing. Some environmental contamination.',
+      major: 'Blast spike + BI + environmental claims (West Texas: 150 buildings, FEMA $63.4M).',
+      catastrophic: 'Blast spike + contamination tail: massive radius + chemical contamination ($230M+, West Texas).'
+    },
+    template: 'explosionFire',
+    historicalRef: 'West, Texas (2013): 15 fatalities, 260 injured, 150 buildings. $230M losses vs $1M coverage. FEMA $63.4M to school district.'
   }
 };
 
@@ -1843,20 +1936,26 @@ function updatePatternDescription() {
   const incident = document.getElementById('incidentSelect').value;
   const claimType = document.getElementById('claimTypeSelect').value;
   const timeHorizon = document.getElementById('timeHorizonSelect').value;
+  const severity = document.getElementById('severitySelect').value;
 
   let description = '';
   const patterns = PATTERN_DESCRIPTIONS[incident] || PATTERN_DESCRIPTIONS.fire;
 
+  // Helper to get severity-specific description for a claim type
+  function getDesc(typePatterns) {
+    if (typeof typePatterns === 'string') return typePatterns;  // Legacy fallback
+    return typePatterns[severity] || typePatterns.base || typePatterns.moderate || '';
+  }
+
   if (claimType === 'both') {
-    description = `Injury: ${patterns.injury}. Property: ${patterns.property}`;
+    description = `Injury: ${getDesc(patterns.injury)}  Property: ${getDesc(patterns.property)}`;
   } else if (claimType === 'injury') {
-    description = patterns.injury;
+    description = getDesc(patterns.injury);
   } else {
-    description = patterns.property;
+    description = getDesc(patterns.property);
   }
 
   // Add full lifecycle context (distribution covers the complete lifecycle)
-  const severity = document.getElementById('severitySelect').value;
   const fullConfig = resolveHorizonConfig(incident, severity, 'long');
   const viewConfig = resolveHorizonConfig(incident, severity, timeHorizon);
   description += ` | Viewing ${viewConfig.label} of ${fullConfig.label} full lifecycle`;
@@ -1981,7 +2080,7 @@ function runScenario() {
   }
 
   // ===== FULL LIFECYCLE SIMULATION =====
-  // Distribution is based on incident type + severity ONLY (not the view dropdown).
+  // Distribution shape varies by incident type AND severity level.
   // Always simulate the FULL lifecycle (long horizon) in weekly periods.
   // The dropdown controls which portion of the timeline is displayed.
 
@@ -1995,9 +2094,9 @@ function runScenario() {
   const viewHorizonConfig = resolveHorizonConfig(incident, severity, timeHorizon);
   const viewWeeks = viewHorizonConfig.weeks;
 
-  // Get distributions based on incident type only (always full lifecycle 'long' pattern)
-  const injuryDist = injuryClaims > 0 ? getClaimDistribution(incident, 'injury', 'long', numPeriods, false) : [];
-  const propertyDist = propertyClaims > 0 ? getClaimDistribution(incident, 'property', 'long', numPeriods, false) : [];
+  // Get distributions based on incident type AND severity level
+  const injuryDist = injuryClaims > 0 ? getClaimDistribution(incident, 'injury', severity, numPeriods, false) : [];
+  const propertyDist = propertyClaims > 0 ? getClaimDistribution(incident, 'property', severity, numPeriods, false) : [];
 
   // Calculate claims per period
   const injuryPerPeriod = injuryDist.map(d => Math.round(injuryClaims * d));
