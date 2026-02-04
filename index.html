@@ -1581,7 +1581,8 @@ function generateShapedDistribution(numPeriods, peakPeriod, shape, tailWeight) {
 }
 
 // Get distribution for a specific incident type, claim type, and time horizon
-// Now supports dynamic severity-calibrated period counts and auto unit conversion
+// Distribution shape depends only on incident type (always uses 'long' lifecycle pattern).
+// numPeriods and isMonthly control the resolution.
 function getClaimDistribution(incident, claimType, timeHorizon, dynNumPeriods, dynIsMonthly) {
   // Use dynamic period count if provided, else fall back to legacy
   let numPeriods, isMonthly;
@@ -1594,19 +1595,25 @@ function getClaimDistribution(incident, claimType, timeHorizon, dynNumPeriods, d
     isMonthly = timeHorizon === 'long';
   }
 
-  // Get the pattern configuration
+  // Get the pattern configuration - always use 'long' pattern for full lifecycle shape
   const patterns = CLAIM_PATTERNS[incident] || CLAIM_PATTERNS.fire;
   const pattern = patterns[claimType] || patterns.injury;
-  const horizonPattern = pattern[timeHorizon] || pattern.short;
+  const horizonPattern = pattern['long'] || pattern[timeHorizon] || pattern.short;
 
-  // Determine peak period with unit conversion
+  // Determine peak period with automatic unit conversion
   let peakPeriod;
   if (isMonthly) {
-    // Monthly periods: use peakMonth if available, otherwise convert peakWeek to months
+    // Monthly periods: use peakMonth if available, otherwise convert peakWeek
     peakPeriod = horizonPattern.peakMonth || Math.max(1, Math.round((horizonPattern.peakWeek || 4) / 4.33));
   } else {
-    // Weekly periods: use peakWeek directly
-    peakPeriod = horizonPattern.peakWeek || 4;
+    // Weekly periods: prefer peakWeek, but convert peakMonth if that's all we have
+    if (horizonPattern.peakWeek !== undefined) {
+      peakPeriod = horizonPattern.peakWeek;
+    } else if (horizonPattern.peakMonth !== undefined) {
+      peakPeriod = Math.round(horizonPattern.peakMonth * 4.33);
+    } else {
+      peakPeriod = 4;
+    }
   }
 
   // Clamp peak period to not exceed total periods
@@ -1618,6 +1625,41 @@ function getClaimDistribution(incident, claimType, timeHorizon, dynNumPeriods, d
     horizonPattern.shape,
     horizonPattern.tailWeight
   );
+}
+
+// Aggregate weekly period data into monthly summaries for display
+function aggregateToMonthly(weeklyPeriods) {
+  const monthly = [];
+  const totalMonths = Math.ceil(weeklyPeriods.length / 4.33);
+  for (let m = 0; m < totalMonths; m++) {
+    const startWeek = Math.round(m * 4.33);
+    const endWeek = Math.min(Math.round((m + 1) * 4.33), weeklyPeriods.length);
+    const weeksInMonth = weeklyPeriods.slice(startWeek, endWeek);
+    if (weeksInMonth.length === 0) continue;
+
+    const last = weeksInMonth[weeksInMonth.length - 1];
+    monthly.push({
+      period: m + 1,
+      week: null,
+      month: m + 1,
+      newClaims: weeksInMonth.reduce((s, w) => s + w.newClaims, 0),
+      newInjury: weeksInMonth.reduce((s, w) => s + (w.newInjury || 0), 0),
+      newProperty: weeksInMonth.reduce((s, w) => s + (w.newProperty || 0), 0),
+      cumulative: last.cumulative,
+      cumulativeInjury: last.cumulativeInjury,
+      cumulativeProperty: last.cumulativeProperty,
+      effectiveCapacity: weeksInMonth.reduce((s, w) => s + w.effectiveCapacity, 0),
+      processed: weeksInMonth.reduce((s, w) => s + w.processed, 0),
+      backlog: last.backlog,
+      surgeStaff: Math.round(weeksInMonth.reduce((s, w) => s + w.surgeStaff, 0) / weeksInMonth.length),
+      utilisation: 0
+    });
+    const entry = monthly[monthly.length - 1];
+    entry.utilisation = entry.effectiveCapacity > 0
+      ? (entry.newClaims / entry.effectiveCapacity) * 100
+      : 0;
+  }
+  return monthly;
 }
 
 // Legacy function for backward compatibility
@@ -1813,11 +1855,11 @@ function updatePatternDescription() {
     description = patterns.property;
   }
 
-  // Add time horizon context (dynamic based on severity calibration)
+  // Add full lifecycle context (distribution covers the complete lifecycle)
   const severity = document.getElementById('severitySelect').value;
-  const hConfig = resolveHorizonConfig(incident, severity, timeHorizon);
-  description += ` (${hConfig.label} projection${timeHorizon === 'long' ? ' with latency effects' : ''})`;
-
+  const fullConfig = resolveHorizonConfig(incident, severity, 'long');
+  const viewConfig = resolveHorizonConfig(incident, severity, timeHorizon);
+  description += ` | Viewing ${viewConfig.label} of ${fullConfig.label} full lifecycle`;
 
   const descEl = document.getElementById('patternDescription');
   if (descEl) descEl.textContent = description;
@@ -1938,14 +1980,24 @@ function runScenario() {
     propertyClaims = Math.round(propertyClaims * adjustmentFactor);
   }
 
-  // Get severity-calibrated time horizon configuration
-  const horizonConfig = resolveHorizonConfig(incident, severity, timeHorizon);
-  const isLongTerm = horizonConfig.isMonthly;
-  const numPeriods = horizonConfig.numPeriods;
+  // ===== FULL LIFECYCLE SIMULATION =====
+  // Distribution is based on incident type + severity ONLY (not the view dropdown).
+  // Always simulate the FULL lifecycle (long horizon) in weekly periods.
+  // The dropdown controls which portion of the timeline is displayed.
 
-  // Get distributions for each claim type (pass dynamic period count and unit)
-  const injuryDist = injuryClaims > 0 ? getClaimDistribution(incident, 'injury', timeHorizon, numPeriods, isLongTerm) : [];
-  const propertyDist = propertyClaims > 0 ? getClaimDistribution(incident, 'property', timeHorizon, numPeriods, isLongTerm) : [];
+  // Full lifecycle config (always long-term, always weekly)
+  const fullHorizonConfig = resolveHorizonConfig(incident, severity, 'long');
+  const fullWeeks = fullHorizonConfig.weeks;
+  const numPeriods = fullWeeks;  // Always simulate in weekly periods
+  const isLongTerm = false;     // Weekly simulation (display may aggregate to months)
+
+  // View config for display clipping
+  const viewHorizonConfig = resolveHorizonConfig(incident, severity, timeHorizon);
+  const viewWeeks = viewHorizonConfig.weeks;
+
+  // Get distributions based on incident type only (always full lifecycle 'long' pattern)
+  const injuryDist = injuryClaims > 0 ? getClaimDistribution(incident, 'injury', 'long', numPeriods, false) : [];
+  const propertyDist = propertyClaims > 0 ? getClaimDistribution(incident, 'property', 'long', numPeriods, false) : [];
 
   // Calculate claims per period
   const injuryPerPeriod = injuryDist.map(d => Math.round(injuryClaims * d));
@@ -1965,12 +2017,12 @@ function runScenario() {
   const weightedDaysPerClaim = getWeightedDaysPerClaim();
   const baseClaimsPerStaff = weightedDaysPerClaim > 0 ? config.organisation.workDaysPerWeek / weightedDaysPerClaim : config.organisation.workDaysPerWeek;
 
-  // Adjust capacity for time horizon (monthly vs weekly)
-  const periodCapacityMultiplier = horizonConfig.periodCapacityMultiplier;
-  const basePeriodCapacity = Math.round(baseWeeklyCapacity * periodCapacityMultiplier);
+  // Capacity always weekly (simulation is always in weekly periods)
+  const periodCapacityMultiplier = 1;
+  const basePeriodCapacity = baseWeeklyCapacity;
 
   const targetWeeks = parseInt(document.getElementById('targetWeeksInput').value) || 12;
-  const targetPeriods = isLongTerm ? Math.ceil(targetWeeks / 4.33) : targetWeeks;
+  const targetPeriods = targetWeeks;
 
   // Build period breakdown with backlog
   const periods = [];
@@ -1986,13 +2038,11 @@ function runScenario() {
   for (let i = 0; i < Math.min(numPeriods, maxSimPeriods); i++) {
     const periodNum = i + 1;
 
-    // Calculate surge staff active this period (only for short/medium term)
+    // Calculate surge staff active this week
     let surgeStaff = 0;
-    if (!isLongTerm) {
-      surgeEntries.forEach(entry => {
-        if (periodNum >= entry.startWeek) surgeStaff += entry.extraStaff;
-      });
-    }
+    surgeEntries.forEach(entry => {
+      if (periodNum >= entry.startWeek) surgeStaff += entry.extraStaff;
+    });
     const surgeCapacity = Math.round(surgeStaff * baseClaimsPerStaff * periodCapacityMultiplier);
     const effectiveCapacity = basePeriodCapacity + surgeCapacity;
 
@@ -2013,8 +2063,8 @@ function runScenario() {
 
     periods.push({
       period: periodNum,
-      week: isLongTerm ? null : periodNum,
-      month: isLongTerm ? periodNum : null,
+      week: periodNum,
+      month: Math.ceil(periodNum / 4.33),
       newClaims,
       newInjury,
       newProperty,
@@ -2060,18 +2110,15 @@ function runScenario() {
     }
   }
 
-  // Convert periods to weeks for display (short/medium term)
-  const weeksToClear = isLongTerm ? (periodsToClear > 0 ? Math.round(periodsToClear * 4.33) : -1) : periodsToClear;
-  // Compare in appropriate units: months for long-term, weeks for short/medium
-  const canMeetTarget = isLongTerm
-    ? (periodsToClear > 0 && periodsToClear <= targetPeriods)
-    : (weeksToClear > 0 && weeksToClear <= targetWeeks);
+  // Periods are always weeks
+  const weeksToClear = periodsToClear;
+  const canMeetTarget = weeksToClear > 0 && weeksToClear <= targetWeeks;
 
   // Calculate resource needs
   const maxBacklog = Math.max(...periods.map(w => w.backlog));
   const overCapacityPeriods = periods.filter(w => w.newClaims > w.effectiveCapacity).length;
   const claimsPerStaffPerWeek = baseClaimsPerStaff;
-  const staffNeededAtPeak = Math.ceil(peakClaims / (claimsPerStaffPerWeek * periodCapacityMultiplier));
+  const staffNeededAtPeak = Math.ceil(peakClaims / claimsPerStaffPerWeek);
   const additionalStaff = Math.max(0, staffNeededAtPeak - config.organisation.staffCount);
 
   // Calculate ultimate claims estimates with development factors
@@ -2107,8 +2154,11 @@ function runScenario() {
     useBlastConcentration, blastRadiusByZone,
     // Underinsurance data
     coverageLimit, underinsuranceRatio, isUnderinsured, avgClaimValue, estimatedTotalValue,
-    // Severity-calibrated horizon config
-    horizonConfig
+    // Severity-calibrated horizon configs
+    fullHorizonConfig,    // Full lifecycle (always 'long')
+    viewHorizonConfig,    // Selected view window
+    viewWeeks,            // Weeks to show in current view
+    horizonConfig: viewHorizonConfig  // Alias for backward compat
   };
 
   // Display results
@@ -2124,29 +2174,67 @@ function showResults(scenario) {
   const incidentLabels = { fire: 'Fire', explosion: 'Explosion', chemical: 'Chemical (Toxic Release)', nuclear: 'Nuclear (Radiological)', fertiliser: 'Fertiliser (Ammonium Nitrate)' };
   const severityLabels = { minor: 'Minor', moderate: 'Moderate', major: 'Major', catastrophic: 'Catastrophic' };
   const claimTypeLabels = { both: 'All Claims', injury: 'Injury Claims', property: 'Property Claims' };
-  // Dynamic horizon label from severity-calibrated config
+
+  // Dynamic horizon labels from severity-calibrated config
   const horizonNames = { short: 'Short Term', medium: 'Medium Term', long: 'Long Term' };
-  const dynamicHorizonLabel = `${horizonNames[s.timeHorizon]} (0-${s.horizonConfig.label})`;
+  const viewLabel = `${horizonNames[s.timeHorizon]} (0-${s.viewHorizonConfig.label})`;
+  const fullLabel = s.fullHorizonConfig.label;
 
   document.getElementById('mainTitle').textContent = s.site.name + ' - Scenario Analysis';
   document.getElementById('mainSub').textContent =
-    incidentLabels[s.incident] + ' | ' + severityLabels[s.severity] + ' | ' + claimTypeLabels[s.claimType] + ' | ' + dynamicHorizonLabel;
+    incidentLabels[s.incident] + ' | ' + severityLabels[s.severity] + ' | ' + claimTypeLabels[s.claimType] + ' | ' + viewLabel;
 
-  // Period label based on time horizon
-  const periodLabel = s.isLongTerm ? 'Month' : 'Week';
-  const peakPeriodLabel = s.isLongTerm ? `Month ${s.peakPeriod}` : `Week ${s.peakPeriod}`;
+  // ===== VIEW WINDOW CLIPPING =====
+  // Full simulation is always in weekly periods for the complete lifecycle.
+  // The dropdown clips the view to show a section of the full timeline.
+  const viewWeeklyPeriods = s.periods.slice(0, Math.min(s.viewWeeks, s.periods.length));
 
-  // Metrics
+  // Claims arriving within the view window
+  const viewCumulative = viewWeeklyPeriods.length > 0 ? viewWeeklyPeriods[viewWeeklyPeriods.length - 1].cumulative : 0;
+  const viewPeakClaims = Math.max(...viewWeeklyPeriods.map(w => w.newClaims), 0);
+  const viewPeakWeek = viewWeeklyPeriods.findIndex(w => w.newClaims === viewPeakClaims) + 1;
+
+  // Determine display unit: weekly for <=52 weeks, monthly aggregation otherwise
+  const useMonthlyDisplay = s.viewWeeks > 52;
+  let displayPeriods;
+  let periodLabel;
+
+  if (useMonthlyDisplay) {
+    displayPeriods = aggregateToMonthly(viewWeeklyPeriods);
+    periodLabel = 'Month';
+  } else {
+    displayPeriods = viewWeeklyPeriods;
+    periodLabel = 'Week';
+  }
+
+  // Intelligent sampling for very long display lists
+  if (displayPeriods.length > 60) {
+    const samplingRate = Math.ceil(displayPeriods.length / 40);
+    displayPeriods = displayPeriods.filter((p, i) => i < 12 || i % samplingRate === 0);
+  } else if (displayPeriods.length > 30) {
+    displayPeriods = displayPeriods.filter((p, i) => i < 12 || i % 2 === 0);
+  }
+  if (displayPeriods.length > 48) {
+    displayPeriods = displayPeriods.slice(0, 48);
+  }
+
+  // Peak period label (in view units)
+  const peakPeriodLabel = useMonthlyDisplay
+    ? `Month ${Math.ceil(viewPeakWeek / 4.33)}`
+    : `Week ${viewPeakWeek}`;
+
+  // Metrics: full lifecycle values with view context
   const timeToClearLabel = s.weeksToClear === -1
-    ? (s.horizonConfig.label + '+')
-    : (s.isLongTerm ? s.periodsToClear + ' months' : s.weeksToClear + ' weeks');
-  const targetLabel = s.isLongTerm ? s.targetPeriods + ' Months' : s.targetWeeks + ' Weeks';
+    ? (fullLabel + '+')
+    : (s.weeksToClear + ' weeks');
+  const targetLabel = s.targetWeeks + ' Weeks';
   const showClaimBreakdown = s.claimType === 'both' && (s.injuryClaims > 0 || s.propertyClaims > 0);
 
   let metricsHTML = `
     <div class="metric-card">
       <div class="metric-value metric-blue">${s.totalClaims.toLocaleString()}</div>
       <div class="metric-label">Total Estimated Claims</div>
+      <div style="font-size:10px;color:#64748b;margin-top:2px">${viewCumulative.toLocaleString()} in this view (${Math.round(viewCumulative / s.totalClaims * 100)}%)</div>
     </div>`;
 
   if (showClaimBreakdown) {
@@ -2164,7 +2252,7 @@ function showResults(scenario) {
   metricsHTML += `
     <div class="metric-card">
       <div class="metric-value metric-yellow">${peakPeriodLabel}</div>
-      <div class="metric-label">Peak ${periodLabel} (${s.peakClaims} claims)</div>
+      <div class="metric-label">Peak ${periodLabel} (${viewPeakClaims} claims)</div>
     </div>
     <div class="metric-card">
       <div class="metric-value ${s.canMeetTarget ? 'metric-green' : 'metric-red'}">${s.canMeetTarget ? 'Yes' : 'No'}</div>
@@ -2184,7 +2272,7 @@ function showResults(scenario) {
     </div>
     <div class="metric-card">
       <div class="metric-value ${s.overCapacityPeriods === 0 ? 'metric-green' : 'metric-red'}">${s.overCapacityPeriods}</div>
-      <div class="metric-label">${periodLabel}s Over Capacity</div>
+      <div class="metric-label">Weeks Over Capacity</div>
     </div>
     <div class="metric-card">
       <div class="metric-value" style="color:#a855f7">${s.ultimateClaimsMid.toLocaleString()}</div>
@@ -2198,24 +2286,6 @@ function showResults(scenario) {
     </div>
   `;
   document.getElementById('metricsGrid').innerHTML = metricsHTML;
-
-  // Determine display periods - intelligently sample based on total period count
-  let displayPeriods = s.periods;
-  const totalPeriods = s.periods.length;
-  if (totalPeriods > 60) {
-    // For very long timelines (>60 periods), sample adaptively
-    const samplingRate = Math.ceil(totalPeriods / 40);
-    displayPeriods = s.periods.filter((p, i) => i < 12 || i % samplingRate === 0);
-  } else if (totalPeriods > 26) {
-    // For medium-length timelines, show every 2 periods after first 12
-    displayPeriods = s.periods.filter((p, i) => i < 12 || i % 2 === 0);
-  }
-
-  // Limit display to reasonable size
-  const maxDisplayPeriods = 48;
-  if (displayPeriods.length > maxDisplayPeriods) {
-    displayPeriods = displayPeriods.slice(0, maxDisplayPeriods);
-  }
 
   // Period table
   const tbody = document.getElementById('weeklyBody');
@@ -2237,7 +2307,7 @@ function showResults(scenario) {
   displayPeriods.forEach(w => {
     const statusClass = w.backlog === 0 ? 'status-ok' : (w.backlog < w.effectiveCapacity ? 'status-warn' : 'status-over');
     const statusText = w.backlog === 0 ? 'On Track' : (w.backlog < w.effectiveCapacity ? 'Building Backlog' : 'Critical Backlog');
-    const periodDisplay = s.isLongTerm ? `Month ${w.month}` : `Week ${w.week || w.period}`;
+    const periodDisplay = useMonthlyDisplay ? `Month ${w.month}` : `Week ${w.week || w.period}`;
 
     const tr = document.createElement('tr');
     let rowHTML = `<td>${periodDisplay}</td>`;
@@ -2259,7 +2329,7 @@ function showResults(scenario) {
   });
 
   // Resource requirements
-  const capacityLabel = s.isLongTerm ? 'Claims/month' : 'Claims/week';
+  const capacityLabel = 'Claims/week';
   const resHTML = `
     <div class="admin-grid" style="gap:16px">
       <div>
@@ -2276,8 +2346,8 @@ function showResults(scenario) {
         <p style="font-size:13px;color:#94a3b8">
           Staff needed: <strong style="color:#e2e8f0">${s.staffNeededAtPeak}</strong><br>
           Additional staff: <strong style="color:${s.additionalStaff > 0 ? '#ef4444' : '#22c55e'}">${s.additionalStaff > 0 ? '+' + s.additionalStaff : 'None'}</strong><br>
-          Peak ${periodLabel.toLowerCase()} claims: <strong style="color:#e2e8f0">${s.peakClaims}</strong><br>
-          ${periodLabel}s over capacity: <strong style="color:${s.overCapacityPeriods > 0 ? '#ef4444' : '#22c55e'}">${s.overCapacityPeriods}</strong>
+          Peak week claims: <strong style="color:#e2e8f0">${s.peakClaims}</strong><br>
+          Weeks over capacity: <strong style="color:${s.overCapacityPeriods > 0 ? '#ef4444' : '#22c55e'}">${s.overCapacityPeriods}</strong>
         </p>
       </div>
       <div>
@@ -2461,28 +2531,32 @@ function showResults(scenario) {
   }
 
   // Draw charts
-  const chartTitle = `Claims Spread - ${dynamicHorizonLabel} (${displayPeriods.length} ${periodLabel}s)`;
+  const chartTitle = `Claims Spread - ${viewLabel} (${displayPeriods.length} ${periodLabel}s shown, ${fullLabel} full lifecycle)`;
   document.getElementById('forecastChartTitle').textContent = chartTitle;
-  drawForecastChartNew(displayPeriods, s);
-  drawCapacityChartNew(displayPeriods, s);
+  // Pass display config to chart functions
+  const displayScenario = Object.assign({}, s, { isLongTerm: useMonthlyDisplay, periodLabel });
+  drawForecastChartNew(displayPeriods, displayScenario);
+  drawCapacityChartNew(displayPeriods, displayScenario);
 }
 
 // Build recommendations based on incident type and claim patterns
 function buildRecommendations(s) {
   const recs = [];
-  const periodLabel = s.isLongTerm ? 'month' : 'week';
+  // Determine if the full lifecycle is long-term (for research-based recommendations)
+  const isFullLifecycleLong = s.fullHorizonConfig && s.fullHorizonConfig.weeks > 52;
 
   // General capacity recommendations
   if (!s.canMeetTarget) {
-    const clearLabel = s.weeksToClear === -1 ? (s.horizonConfig.label + '+') : (s.isLongTerm ? s.periodsToClear + ' months' : s.weeksToClear + ' weeks');
-    const targetLabel = s.isLongTerm ? s.targetPeriods + '-month' : s.targetWeeks + '-week';
+    const fullLabel = s.fullHorizonConfig ? s.fullHorizonConfig.label : 'unknown';
+    const clearLabel = s.weeksToClear === -1 ? (fullLabel + '+') : (s.weeksToClear + ' weeks');
+    const targetLabel = s.targetWeeks + '-week';
     recs.push({ level: 'critical', text: `Claims will not be cleared within the ${targetLabel} target (estimated ${clearLabel}). Increase staff or add surge resources.` });
   }
   if (s.additionalStaff > 0) {
-    recs.push({ level: 'critical', text: `Recruit or reassign ${s.additionalStaff} additional claims staff before peak ${periodLabel} (${s.isLongTerm ? 'Month' : 'Week'} ${s.peakPeriod}).` });
+    recs.push({ level: 'critical', text: `Recruit or reassign ${s.additionalStaff} additional claims staff before peak week (Week ${s.peakPeriod}).` });
   }
   if (s.maxBacklog > s.periodCapacity * 2) {
-    recs.push({ level: 'critical', text: `Peak backlog of ${s.maxBacklog.toLocaleString()} claims exceeds 2 ${periodLabel}s of capacity. Consider emergency outsourcing.` });
+    recs.push({ level: 'critical', text: `Peak backlog of ${s.maxBacklog.toLocaleString()} claims exceeds 2 weeks of capacity. Consider emergency outsourcing.` });
   }
 
   // Processing bottleneck warnings (research-based)
@@ -2528,7 +2602,7 @@ function buildRecommendations(s) {
     if (s.claimType === 'both' || s.claimType === 'injury') {
       recs.push({ level: 'info', text: 'Psychological distress claims are significant: Fukushima paid ~$1,000/month for 6+ years. Establish clear eligibility criteria early for medical monitoring claims.' });
     }
-    if (s.isLongTerm) {
+    if (isFullLifecycleLong) {
       recs.push({ level: 'info', text: 'Stigma effects persist decades and cause claim resurgences following policy decisions or new disclosures. Three Mile Island cleanup took 14 years ($1B).' });
     }
   }
@@ -2555,9 +2629,9 @@ function buildRecommendations(s) {
     recs.push({ level: 'warning', text: 'UNDERINSURANCE RISK: Historical examples - West, Texas: $1M coverage vs $230M losses. Review coverage limits against modelled exposure.' });
   }
 
-  // Time horizon specific recommendations
-  if (s.isLongTerm) {
-    recs.push({ level: 'info', text: 'Long-term projections subject to significant uncertainty. Reserve development factors: 7-15 years = 1.5-3.0x; 15-30 years = 2.0-5.0x initial estimates.' });
+  // Long lifecycle recommendations (based on incident severity, not view selection)
+  if (isFullLifecycleLong) {
+    recs.push({ level: 'info', text: `Full lifecycle: ${s.fullHorizonConfig.label} (severity-calibrated). Long-term projections subject to significant uncertainty. Reserve development factors: 7-15 years = 1.5-3.0x; 15-30 years = 2.0-5.0x initial estimates.` });
     if (s.incident === 'chemical' || s.incident === 'nuclear') {
       recs.push({ level: 'info', text: 'Maintain claim tracking systems and IBNR reserves for late-emerging claims. Asbestos precedent: 20-60 year latency, $65B+ US insured losses.' });
     }
@@ -2601,7 +2675,7 @@ function drawForecastChartNew(periods, scenario) {
   const chartH = H - pad.top - pad.bottom;
 
   const s = scenario;
-  const hasSurge = s.surgeEntries.length > 0 && !s.isLongTerm;
+  const hasSurge = periods.some(w => w.surgeStaff > 0);
   const hasClaimBreakdown = s.claimType === 'both';
   const periodLabel = s.isLongTerm ? 'M' : 'W';
 
@@ -3102,29 +3176,31 @@ function generateReport() {
   const severityLabels = { minor: 'Minor', moderate: 'Moderate', major: 'Major', catastrophic: 'Catastrophic' };
   const claimTypeLabels = { both: 'All Claims (Injury + Property)', injury: 'Injury Claims Only', property: 'Property Claims Only' };
   const horizonNames = { short: 'Short Term', medium: 'Medium Term', long: 'Long Term' };
-  const dynamicHorizonLabel = `${horizonNames[s.timeHorizon]} (0-${s.horizonConfig.label})`;
-  const horizonLabels = { [s.timeHorizon]: dynamicHorizonLabel };
+  const viewLabel = `${horizonNames[s.timeHorizon]} (0-${s.viewHorizonConfig.label})`;
+  const fullLabel = s.fullHorizonConfig.label;
 
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
   const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
-  const periodLabel = s.isLongTerm ? 'Month' : 'Week';
-  const capacityLabel = s.isLongTerm ? 'claims/month' : 'claims/week';
+  // View-window clipping (same as showResults)
+  const rptViewWeekly = s.periods.slice(0, Math.min(s.viewWeeks, s.periods.length));
+  const rptUseMonthly = s.viewWeeks > 52;
+  const periodLabel = rptUseMonthly ? 'Month' : 'Week';
+  const capacityLabel = 'claims/week';
 
-  const surgeRows = (s.surgeEntries.length > 0 && !s.isLongTerm)
+  const surgeRows = (s.surgeEntries.length > 0)
     ? `<tr><td colspan="2" style="font-weight:700;padding-top:12px">Surge Resources Planned</td></tr>` +
       s.surgeEntries.map(e => `<tr><td>+${e.extraStaff} staff</td><td>From Week ${e.startWeek} onwards</td></tr>`).join('')
     : '';
 
-  // Sample periods for display (adaptive based on total period count)
-  let displayPeriods = s.periods;
-  const rptTotalPeriods = s.periods.length;
-  if (rptTotalPeriods > 60) {
-    const rptSamplingRate = Math.ceil(rptTotalPeriods / 40);
-    displayPeriods = s.periods.filter((p, i) => i < 12 || i % rptSamplingRate === 0);
-  } else if (rptTotalPeriods > 26) {
-    displayPeriods = s.periods.filter((p, i) => i < 12 || i % 2 === 0);
+  // Aggregate/sample for report display
+  let displayPeriods = rptUseMonthly ? aggregateToMonthly(rptViewWeekly) : rptViewWeekly;
+  if (displayPeriods.length > 60) {
+    const rptSamplingRate = Math.ceil(displayPeriods.length / 40);
+    displayPeriods = displayPeriods.filter((p, i) => i < 12 || i % rptSamplingRate === 0);
+  } else if (displayPeriods.length > 30) {
+    displayPeriods = displayPeriods.filter((p, i) => i < 12 || i % 2 === 0);
   }
   if (displayPeriods.length > 48) {
     displayPeriods = displayPeriods.slice(0, 48);
@@ -3134,7 +3210,7 @@ function generateReport() {
   const periodRows = displayPeriods.map(w => {
     const statusClass = w.backlog === 0 ? '#22c55e' : (w.backlog < w.effectiveCapacity ? '#eab308' : '#ef4444');
     const statusText = w.backlog === 0 ? 'On Track' : (w.backlog < w.effectiveCapacity ? 'Building Backlog' : 'Critical Backlog');
-    const periodNum = s.isLongTerm ? w.month : (w.week || w.period);
+    const periodNum = rptUseMonthly ? w.month : (w.week || w.period);
     let row = `<tr>
       <td>${periodLabel} ${periodNum}</td>`;
     if (hasClaimBreakdown) {
@@ -3179,9 +3255,9 @@ function generateReport() {
   }
 
   const timeToClearLabel = s.weeksToClear === -1
-    ? (s.horizonConfig.label + '+')
-    : (s.isLongTerm ? s.periodsToClear + ' months' : s.weeksToClear + ' weeks');
-  const targetLabel = s.isLongTerm ? s.targetPeriods + ' Months' : s.targetWeeks + ' Weeks';
+    ? (fullLabel + '+')
+    : (s.weeksToClear + ' weeks');
+  const targetLabel = s.targetWeeks + ' Weeks';
 
   const html = `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><title>Claims Resilience Report - ${s.site.name}</title>
@@ -3211,8 +3287,9 @@ function generateReport() {
   <tr><td style="font-weight:600">Incident Type</td><td>${incidentLabels[s.incident]}</td></tr>
   <tr><td style="font-weight:600">Claim Type</td><td>${claimTypeLabels[s.claimType]}</td></tr>
   <tr><td style="font-weight:600">Severity</td><td>${severityLabels[s.severity]}</td></tr>
-  <tr><td style="font-weight:600">Claims Spread View</td><td>${dynamicHorizonLabel}</td></tr>
-  <tr><td style="font-weight:600">Time Calibration</td><td style="font-size:11px;color:#64748b">${s.horizonConfig.note}</td></tr>
+  <tr><td style="font-weight:600">Claims Spread View</td><td>${viewLabel}</td></tr>
+  <tr><td style="font-weight:600">Full Lifecycle</td><td>${fullLabel} (severity-calibrated)</td></tr>
+  <tr><td style="font-weight:600">Time Calibration</td><td style="font-size:11px;color:#64748b">${s.viewHorizonConfig.note}</td></tr>
   <tr><td style="font-weight:600">Affected Population</td><td>${(s.site.population + s.site.staffOnSite).toLocaleString()} (${s.site.population.toLocaleString()} local + ${s.site.staffOnSite.toLocaleString()} staff)</td></tr>
   <tr><td style="font-weight:600">Base Capacity</td><td>${s.periodCapacity} ${capacityLabel} (${config.organisation.staffCount} staff)</td></tr>
   <tr><td style="font-weight:600">Weighted Avg Days/Claim</td><td>${s.weightedDaysPerClaim.toFixed(1)} days</td></tr>
