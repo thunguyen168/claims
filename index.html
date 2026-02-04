@@ -233,7 +233,7 @@ input[type="range"]::-moz-range-thumb {
       </div>
       <div class="form-group">
         <label>Incident Type</label>
-        <select id="incidentSelect" onchange="updateIncidentOptions(); runScenario()">
+        <select id="incidentSelect" onchange="updateIncidentOptions(); updateTimeHorizonLabels(); runScenario()">
           <option value="fire">Fire</option>
           <option value="explosion">Explosion</option>
           <option value="chemical">Chemical (Toxic Release)</option>
@@ -258,21 +258,24 @@ input[type="range"]::-moz-range-thumb {
         </select>
       </div>
       <div class="form-group">
-        <label>Time Horizon</label>
-        <select id="timeHorizonSelect" onchange="runScenario()">
-          <option value="short">Short Term (0-12 weeks)</option>
-          <option value="medium">Medium Term (0-2 years)</option>
-          <option value="long">Long Term (0-10+ years)</option>
-        </select>
-      </div>
-      <div class="form-group">
         <label>Severity Level</label>
-        <select id="severitySelect" onchange="runScenario()">
+        <select id="severitySelect" onchange="updateTimeHorizonLabels();runScenario()">
           <option value="minor">Minor - Small local impact</option>
           <option value="moderate">Moderate - Neighbourhood impact</option>
           <option value="major">Major - Town/city impact</option>
           <option value="catastrophic">Catastrophic - Regional impact</option>
         </select>
+      </div>
+      <div class="form-group">
+        <label>Claims Spread View</label>
+        <select id="timeHorizonSelect" onchange="runScenario()">
+          <option value="short">Short Term (0-12 weeks)</option>
+          <option value="medium">Medium Term (0-2 years)</option>
+          <option value="long">Long Term (0-10+ years)</option>
+        </select>
+        <div id="severityHorizonNote" style="background:#0f172a;border:1px solid #334155;border-radius:6px;padding:8px;margin-top:6px;font-size:10px;color:#94a3b8">
+          <strong style="color:#e2e8f0">Time Calibration:</strong> Based on incident severity and research data
+        </div>
       </div>
       <!-- Claim pattern information panel -->
       <div id="claimPatternNote" style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:10px;margin-bottom:12px;font-size:11px;color:#94a3b8">
@@ -875,11 +878,228 @@ const UK_INSURER_INSIGHTS = [
 ];
 
 // ===== TIME HORIZON CONFIGURATIONS =====
+// Legacy fixed horizons (kept as fallback)
 const TIME_HORIZONS = {
   short: { weeks: 12, label: '12 Weeks', unitLabel: 'Week' },
-  medium: { weeks: 104, label: '2 Years', unitLabel: 'Week' },  // 2 years = 104 weeks
-  long: { weeks: 520, label: '10 Years', unitLabel: 'Month' }   // 10 years = 520 weeks, display as months
+  medium: { weeks: 104, label: '2 Years', unitLabel: 'Week' },
+  long: { weeks: 520, label: '10 Years', unitLabel: 'Month' }
 };
+
+// ===== SEVERITY-BASED TIME HORIZONS (Research-Calibrated) =====
+// Time horizons dynamically calibrated by incident type and severity level.
+// Based on historical claim lifecycle data: settlement timelines, latency periods,
+// limitation periods, and documented claim development patterns.
+const SEVERITY_TIME_HORIZONS = {
+  // Fire: NFPA/Allianz data. Property 3-18mo resolution, BI 12-36mo.
+  // Minor fires resolve quickly; catastrophic may involve chemical exposure tails.
+  fire: {
+    minor: {
+      short: { weeks: 8 },
+      medium: { weeks: 26 },
+      long: { weeks: 104 },
+      note: 'Minor fires: most claims resolve within weeks. Settlement 3-6 months for simple property.'
+    },
+    moderate: {
+      short: { weeks: 12 },
+      medium: { weeks: 52 },
+      long: { weeks: 156 },
+      note: 'Moderate fires: complex property + BI claims develop over 6-18 months. PTSD claims at 12-36 months.'
+    },
+    major: {
+      short: { weeks: 12 },
+      medium: { weeks: 78 },
+      long: { weeks: 260 },
+      note: 'Major fires: BI exceeds PD by ~2.7x. Litigation extends 3-5 years (BP Texas City pattern).'
+    },
+    catastrophic: {
+      short: { weeks: 16 },
+      medium: { weeks: 104 },
+      long: { weeks: 364 },
+      note: 'Catastrophic fires: potential chemical exposure creates long-tail health claims. 69% of direct PD in industrial sector.'
+    }
+  },
+  // Explosion: BP Texas City ($2.1B/7yrs), Buncefield (£300M-1B, BI 9+ months).
+  // 90%+ claims within 500m blast radius. BI becomes pacing item at 12-36 months.
+  explosion: {
+    minor: {
+      short: { weeks: 8 },
+      medium: { weeks: 26 },
+      long: { weeks: 104 },
+      note: 'Minor explosions: localised blast damage. Property claims within 500m resolve in weeks.'
+    },
+    moderate: {
+      short: { weeks: 12 },
+      medium: { weeks: 52 },
+      long: { weeks: 156 },
+      note: 'Moderate explosions: BI claims develop over 12-36 months. Buncefield: BI settlements took 9+ months.'
+    },
+    major: {
+      short: { weeks: 12 },
+      medium: { weeks: 78 },
+      long: { weeks: 260 },
+      note: 'Major explosions: BP Texas City pattern - 4,000 claims, settlements over 7 years. Forensic accounting required for BI.'
+    },
+    catastrophic: {
+      short: { weeks: 16 },
+      medium: { weeks: 104 },
+      long: { weeks: 364 },
+      note: 'Catastrophic explosions: $2.1B+ settlement potential (BP Texas City). Secondary/consequential claims emerge at 3-24 months.'
+    }
+  },
+  // Chemical (toxic release): Bhopal (1M+ claims over 40 years), Seveso (1976).
+  // Bimodal: 25% acute (weeks 1-4), then decades of chronic illness, cancers.
+  // UK discovery rule: 3-year limitation from knowledge of injury.
+  chemical: {
+    minor: {
+      short: { weeks: 12 },
+      medium: { weeks: 104 },
+      long: { weeks: 520 },
+      note: 'Minor chemical release: acute poisoning 25% in weeks 1-4. Respiratory illness develops at months 2-24. Environmental remediation 5-10 years.'
+    },
+    moderate: {
+      short: { weeks: 16 },
+      medium: { weeks: 156 },
+      long: { weeks: 1040 },
+      note: 'Moderate toxic release: chronic illness at years 2-10. Environmental cleanup extends to decades. Discovery rule applies for latent injuries.'
+    },
+    major: {
+      short: { weeks: 24 },
+      medium: { weeks: 260 },
+      long: { weeks: 1560 },
+      note: 'Major toxic release: Bhopal pattern - 574,304 injury claims, $470M settlement. Cancers and generational effects documented 40+ years later.'
+    },
+    catastrophic: {
+      short: { weeks: 26 },
+      medium: { weeks: 260 },
+      long: { weeks: 2080 },
+      note: 'Catastrophic chemical disaster: Bhopal-scale. 1M+ claims spanning 40+ years. Long-tail cancers, generational effects, ongoing environmental remediation.'
+    }
+  },
+  // Nuclear: Fukushima ($70B+ by 2021), Three Mile Island ($82M, 14-year cleanup).
+  // UK Nuclear Installations Act 2022: 30-year personal injury limitation.
+  // Thyroid cancers peak at 5-20 years post-incident.
+  nuclear: {
+    minor: {
+      short: { weeks: 12 },
+      medium: { weeks: 156 },
+      long: { weeks: 780 },
+      note: 'Minor nuclear incident: evacuation claims immediate. Health monitoring at years 3-15. Three Mile Island: $82M documented, 14-year cleanup.'
+    },
+    moderate: {
+      short: { weeks: 16 },
+      medium: { weeks: 260 },
+      long: { weeks: 1040 },
+      note: 'Moderate nuclear incident: property exclusion zones, BI disruption months 2-36. Thyroid cancers emerge years 5-20.'
+    },
+    major: {
+      short: { weeks: 24 },
+      medium: { weeks: 364 },
+      long: { weeks: 1560 },
+      note: 'Major nuclear incident: Fukushima-scale pattern. 164,000+ evacuees. UK law: 30-year personal injury limitation (2022 Act). $70B+ compensation.'
+    },
+    catastrophic: {
+      short: { weeks: 26 },
+      medium: { weeks: 520 },
+      long: { weeks: 1560 },
+      note: 'Catastrophic nuclear disaster: 30-year limitation period applies. 20-40% of ultimate claims emerge at years 10-30 (late cancers, genetic effects).'
+    }
+  },
+  // Fertiliser (ammonium nitrate): West, Texas (2013) pattern.
+  // Similar to explosion but with potential chemical exposure tail.
+  // $230M losses vs $1M coverage. 150 buildings, 15 fatalities.
+  fertiliser: {
+    minor: {
+      short: { weeks: 8 },
+      medium: { weeks: 26 },
+      long: { weeks: 104 },
+      note: 'Minor fertiliser incident: localised blast + potential ammonia exposure. Property claims resolve in weeks.'
+    },
+    moderate: {
+      short: { weeks: 12 },
+      medium: { weeks: 52 },
+      long: { weeks: 156 },
+      note: 'Moderate fertiliser explosion: West, Texas parallel. BI and environmental claims develop over months.'
+    },
+    major: {
+      short: { weeks: 12 },
+      medium: { weeks: 78 },
+      long: { weeks: 312 },
+      note: 'Major fertiliser explosion: West, Texas - 150 buildings damaged, FEMA $63.4M to school district alone. Chemical exposure extends timeline.'
+    },
+    catastrophic: {
+      short: { weeks: 16 },
+      medium: { weeks: 104 },
+      long: { weeks: 520 },
+      note: 'Catastrophic fertiliser disaster: $230M+ losses (West, Texas). Chemical contamination creates long-tail similar to toxic release incidents.'
+    }
+  }
+};
+
+// ===== SEVERITY TIME HORIZON HELPERS =====
+
+// Get the severity-calibrated time horizon configuration
+function getSeverityTimeHorizon(incident, severity) {
+  const incidentHorizons = SEVERITY_TIME_HORIZONS[incident] || SEVERITY_TIME_HORIZONS.fire;
+  return incidentHorizons[severity] || incidentHorizons.moderate;
+}
+
+// Resolve a specific horizon (short/medium/long) into a full configuration object
+function resolveHorizonConfig(incident, severity, horizon) {
+  const severityHorizon = getSeverityTimeHorizon(incident, severity);
+  const horizonDef = severityHorizon[horizon];
+  const totalWeeks = horizonDef.weeks;
+
+  // Determine display unit: weekly if <= 52 weeks, monthly otherwise
+  const isMonthly = totalWeeks > 52;
+  const numPeriods = isMonthly ? Math.round(totalWeeks / 4.33) : totalWeeks;
+  const unitLabel = isMonthly ? 'Month' : 'Week';
+
+  // Generate human-readable label
+  let label;
+  if (totalWeeks <= 16) {
+    label = totalWeeks + ' Weeks';
+  } else if (totalWeeks <= 52) {
+    const months = Math.round(totalWeeks / 4.33);
+    label = months + ' Months';
+  } else {
+    const years = totalWeeks / 52;
+    label = years === Math.floor(years) ? years + ' Years' : years.toFixed(1) + ' Years';
+  }
+
+  return {
+    weeks: totalWeeks,
+    numPeriods,
+    isMonthly,
+    unitLabel,
+    label,
+    note: severityHorizon.note,
+    periodCapacityMultiplier: isMonthly ? 4.33 : 1
+  };
+}
+
+// Update the time horizon dropdown labels based on current incident + severity
+function updateTimeHorizonLabels() {
+  const incident = document.getElementById('incidentSelect').value;
+  const severity = document.getElementById('severitySelect').value;
+  const select = document.getElementById('timeHorizonSelect');
+
+  const horizonNames = { short: 'Short Term', medium: 'Medium Term', long: 'Long Term' };
+
+  ['short', 'medium', 'long'].forEach(h => {
+    const config = resolveHorizonConfig(incident, severity, h);
+    const option = select.querySelector(`option[value="${h}"]`);
+    if (option) {
+      option.textContent = `${horizonNames[h]} (0-${config.label})`;
+    }
+  });
+
+  // Update the severity horizon info panel
+  const severityHorizon = getSeverityTimeHorizon(incident, severity);
+  const infoEl = document.getElementById('severityHorizonNote');
+  if (infoEl) {
+    infoEl.innerHTML = `<strong style="color:#e2e8f0">Time Calibration:</strong> ${severityHorizon.note}`;
+  }
+}
 
 // ===== INCIDENT CLAIM PATTERNS =====
 // Based on research: different claim patterns by incident type and claim type
@@ -1361,22 +1581,36 @@ function generateShapedDistribution(numPeriods, peakPeriod, shape, tailWeight) {
 }
 
 // Get distribution for a specific incident type, claim type, and time horizon
-function getClaimDistribution(incident, claimType, timeHorizon) {
-  const horizonConfig = TIME_HORIZONS[timeHorizon];
-  const numPeriods = timeHorizon === 'long' ? 120 : horizonConfig.weeks;  // 120 months for long term
+// Now supports dynamic severity-calibrated period counts and auto unit conversion
+function getClaimDistribution(incident, claimType, timeHorizon, dynNumPeriods, dynIsMonthly) {
+  // Use dynamic period count if provided, else fall back to legacy
+  let numPeriods, isMonthly;
+  if (dynNumPeriods !== undefined) {
+    numPeriods = dynNumPeriods;
+    isMonthly = dynIsMonthly || false;
+  } else {
+    const hConfig = TIME_HORIZONS[timeHorizon];
+    numPeriods = timeHorizon === 'long' ? 120 : hConfig.weeks;
+    isMonthly = timeHorizon === 'long';
+  }
 
   // Get the pattern configuration
   const patterns = CLAIM_PATTERNS[incident] || CLAIM_PATTERNS.fire;
   const pattern = patterns[claimType] || patterns.injury;
   const horizonPattern = pattern[timeHorizon] || pattern.short;
 
-  // Determine peak period
+  // Determine peak period with unit conversion
   let peakPeriod;
-  if (timeHorizon === 'long') {
-    peakPeriod = horizonPattern.peakMonth || 6;
+  if (isMonthly) {
+    // Monthly periods: use peakMonth if available, otherwise convert peakWeek to months
+    peakPeriod = horizonPattern.peakMonth || Math.max(1, Math.round((horizonPattern.peakWeek || 4) / 4.33));
   } else {
+    // Weekly periods: use peakWeek directly
     peakPeriod = horizonPattern.peakWeek || 4;
   }
+
+  // Clamp peak period to not exceed total periods
+  peakPeriod = Math.min(peakPeriod, numPeriods - 1);
 
   return generateShapedDistribution(
     numPeriods,
@@ -1579,12 +1813,11 @@ function updatePatternDescription() {
     description = patterns.property;
   }
 
-  // Add time horizon context
-  if (timeHorizon === 'long') {
-    description += ' (10+ year projection with latency effects)';
-  } else if (timeHorizon === 'medium') {
-    description += ' (2-year projection)';
-  }
+  // Add time horizon context (dynamic based on severity calibration)
+  const severity = document.getElementById('severitySelect').value;
+  const hConfig = resolveHorizonConfig(incident, severity, timeHorizon);
+  description += ` (${hConfig.label} projection${timeHorizon === 'long' ? ' with latency effects' : ''})`;
+
 
   const descEl = document.getElementById('patternDescription');
   if (descEl) descEl.textContent = description;
@@ -1705,14 +1938,14 @@ function runScenario() {
     propertyClaims = Math.round(propertyClaims * adjustmentFactor);
   }
 
-  // Get time horizon configuration
-  const horizonConfig = TIME_HORIZONS[timeHorizon];
-  const isLongTerm = timeHorizon === 'long';
-  const numPeriods = isLongTerm ? 120 : horizonConfig.weeks;  // 120 months for long, weeks otherwise
+  // Get severity-calibrated time horizon configuration
+  const horizonConfig = resolveHorizonConfig(incident, severity, timeHorizon);
+  const isLongTerm = horizonConfig.isMonthly;
+  const numPeriods = horizonConfig.numPeriods;
 
-  // Get distributions for each claim type
-  const injuryDist = injuryClaims > 0 ? getClaimDistribution(incident, 'injury', timeHorizon) : [];
-  const propertyDist = propertyClaims > 0 ? getClaimDistribution(incident, 'property', timeHorizon) : [];
+  // Get distributions for each claim type (pass dynamic period count and unit)
+  const injuryDist = injuryClaims > 0 ? getClaimDistribution(incident, 'injury', timeHorizon, numPeriods, isLongTerm) : [];
+  const propertyDist = propertyClaims > 0 ? getClaimDistribution(incident, 'property', timeHorizon, numPeriods, isLongTerm) : [];
 
   // Calculate claims per period
   const injuryPerPeriod = injuryDist.map(d => Math.round(injuryClaims * d));
@@ -1732,11 +1965,8 @@ function runScenario() {
   const weightedDaysPerClaim = getWeightedDaysPerClaim();
   const baseClaimsPerStaff = weightedDaysPerClaim > 0 ? config.organisation.workDaysPerWeek / weightedDaysPerClaim : config.organisation.workDaysPerWeek;
 
-  // Adjust capacity for time horizon
-  let periodCapacityMultiplier = 1;
-  if (timeHorizon === 'long') {
-    periodCapacityMultiplier = 4.33;  // Monthly capacity (weeks per month)
-  }
+  // Adjust capacity for time horizon (monthly vs weekly)
+  const periodCapacityMultiplier = horizonConfig.periodCapacityMultiplier;
   const basePeriodCapacity = Math.round(baseWeeklyCapacity * periodCapacityMultiplier);
 
   const targetWeeks = parseInt(document.getElementById('targetWeeksInput').value) || 12;
@@ -1751,7 +1981,7 @@ function runScenario() {
   let peakClaims = 0;
   let periodsToClear = 0;
 
-  const maxSimPeriods = isLongTerm ? 120 : Math.max(numPeriods, 52);
+  const maxSimPeriods = numPeriods;
 
   for (let i = 0; i < Math.min(numPeriods, maxSimPeriods); i++) {
     const periodNum = i + 1;
@@ -1876,7 +2106,9 @@ function runScenario() {
     // Blast radius concentration data
     useBlastConcentration, blastRadiusByZone,
     // Underinsurance data
-    coverageLimit, underinsuranceRatio, isUnderinsured, avgClaimValue, estimatedTotalValue
+    coverageLimit, underinsuranceRatio, isUnderinsured, avgClaimValue, estimatedTotalValue,
+    // Severity-calibrated horizon config
+    horizonConfig
   };
 
   // Display results
@@ -1889,14 +2121,16 @@ function showResults(scenario) {
   document.getElementById('welcomeArea').style.display = 'none';
   document.getElementById('resultsArea').style.display = '';
 
-  const incidentLabels = { fire: 'Fire', explosion: 'Explosion', chemical: 'Chemical (Toxic Release)', nuclear: 'Nuclear (Radiological)' };
+  const incidentLabels = { fire: 'Fire', explosion: 'Explosion', chemical: 'Chemical (Toxic Release)', nuclear: 'Nuclear (Radiological)', fertiliser: 'Fertiliser (Ammonium Nitrate)' };
   const severityLabels = { minor: 'Minor', moderate: 'Moderate', major: 'Major', catastrophic: 'Catastrophic' };
   const claimTypeLabels = { both: 'All Claims', injury: 'Injury Claims', property: 'Property Claims' };
-  const horizonLabels = { short: 'Short Term (12 Weeks)', medium: 'Medium Term (2 Years)', long: 'Long Term (10+ Years)' };
+  // Dynamic horizon label from severity-calibrated config
+  const horizonNames = { short: 'Short Term', medium: 'Medium Term', long: 'Long Term' };
+  const dynamicHorizonLabel = `${horizonNames[s.timeHorizon]} (0-${s.horizonConfig.label})`;
 
   document.getElementById('mainTitle').textContent = s.site.name + ' - Scenario Analysis';
   document.getElementById('mainSub').textContent =
-    incidentLabels[s.incident] + ' | ' + severityLabels[s.severity] + ' | ' + claimTypeLabels[s.claimType] + ' | ' + horizonLabels[s.timeHorizon];
+    incidentLabels[s.incident] + ' | ' + severityLabels[s.severity] + ' | ' + claimTypeLabels[s.claimType] + ' | ' + dynamicHorizonLabel;
 
   // Period label based on time horizon
   const periodLabel = s.isLongTerm ? 'Month' : 'Week';
@@ -1904,7 +2138,7 @@ function showResults(scenario) {
 
   // Metrics
   const timeToClearLabel = s.weeksToClear === -1
-    ? (s.isLongTerm ? '10+ years' : '52+ weeks')
+    ? (s.horizonConfig.label + '+')
     : (s.isLongTerm ? s.periodsToClear + ' months' : s.weeksToClear + ' weeks');
   const targetLabel = s.isLongTerm ? s.targetPeriods + ' Months' : s.targetWeeks + ' Weeks';
   const showClaimBreakdown = s.claimType === 'both' && (s.injuryClaims > 0 || s.propertyClaims > 0);
@@ -1965,20 +2199,20 @@ function showResults(scenario) {
   `;
   document.getElementById('metricsGrid').innerHTML = metricsHTML;
 
-  // Determine display periods - sample for long term to keep table manageable
+  // Determine display periods - intelligently sample based on total period count
   let displayPeriods = s.periods;
-  let samplingRate = 1;
-  if (s.isLongTerm && s.periods.length > 24) {
-    // For long term, show monthly data but sample every 3 months after first year
-    samplingRate = 3;
+  const totalPeriods = s.periods.length;
+  if (totalPeriods > 60) {
+    // For very long timelines (>60 periods), sample adaptively
+    const samplingRate = Math.ceil(totalPeriods / 40);
     displayPeriods = s.periods.filter((p, i) => i < 12 || i % samplingRate === 0);
-  } else if (s.timeHorizon === 'medium' && s.periods.length > 26) {
-    // For medium term, show every 2 weeks after week 12
+  } else if (totalPeriods > 26) {
+    // For medium-length timelines, show every 2 periods after first 12
     displayPeriods = s.periods.filter((p, i) => i < 12 || i % 2 === 0);
   }
 
   // Limit display to reasonable size
-  const maxDisplayPeriods = s.isLongTerm ? 40 : 52;
+  const maxDisplayPeriods = 48;
   if (displayPeriods.length > maxDisplayPeriods) {
     displayPeriods = displayPeriods.slice(0, maxDisplayPeriods);
   }
@@ -2227,8 +2461,7 @@ function showResults(scenario) {
   }
 
   // Draw charts
-  const chartTitle = s.isLongTerm ? `Claims Forecast Over ${displayPeriods.length} Months` :
-                     `Claims Forecast Over ${displayPeriods.length} Weeks`;
+  const chartTitle = `Claims Spread - ${dynamicHorizonLabel} (${displayPeriods.length} ${periodLabel}s)`;
   document.getElementById('forecastChartTitle').textContent = chartTitle;
   drawForecastChartNew(displayPeriods, s);
   drawCapacityChartNew(displayPeriods, s);
@@ -2241,7 +2474,7 @@ function buildRecommendations(s) {
 
   // General capacity recommendations
   if (!s.canMeetTarget) {
-    const clearLabel = s.weeksToClear === -1 ? (s.isLongTerm ? '10+ years' : '52+ weeks') : (s.isLongTerm ? s.periodsToClear + ' months' : s.weeksToClear + ' weeks');
+    const clearLabel = s.weeksToClear === -1 ? (s.horizonConfig.label + '+') : (s.isLongTerm ? s.periodsToClear + ' months' : s.weeksToClear + ' weeks');
     const targetLabel = s.isLongTerm ? s.targetPeriods + '-month' : s.targetWeeks + '-week';
     recs.push({ level: 'critical', text: `Claims will not be cleared within the ${targetLabel} target (estimated ${clearLabel}). Increase staff or add surge resources.` });
   }
@@ -2865,10 +3098,12 @@ function drawCapacityChart(weeks, capacity) {
 function generateReport() {
   if (!lastScenario) { alert('Run a scenario first.'); return; }
   const s = lastScenario;
-  const incidentLabels = { fire: 'Fire', explosion: 'Explosion', chemical: 'Chemical (Toxic Release)', nuclear: 'Nuclear (Radiological)' };
+  const incidentLabels = { fire: 'Fire', explosion: 'Explosion', chemical: 'Chemical (Toxic Release)', nuclear: 'Nuclear (Radiological)', fertiliser: 'Fertiliser (Ammonium Nitrate)' };
   const severityLabels = { minor: 'Minor', moderate: 'Moderate', major: 'Major', catastrophic: 'Catastrophic' };
   const claimTypeLabels = { both: 'All Claims (Injury + Property)', injury: 'Injury Claims Only', property: 'Property Claims Only' };
-  const horizonLabels = { short: 'Short Term (12 Weeks)', medium: 'Medium Term (2 Years)', long: 'Long Term (10+ Years)' };
+  const horizonNames = { short: 'Short Term', medium: 'Medium Term', long: 'Long Term' };
+  const dynamicHorizonLabel = `${horizonNames[s.timeHorizon]} (0-${s.horizonConfig.label})`;
+  const horizonLabels = { [s.timeHorizon]: dynamicHorizonLabel };
 
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -2882,15 +3117,17 @@ function generateReport() {
       s.surgeEntries.map(e => `<tr><td>+${e.extraStaff} staff</td><td>From Week ${e.startWeek} onwards</td></tr>`).join('')
     : '';
 
-  // Sample periods for display
+  // Sample periods for display (adaptive based on total period count)
   let displayPeriods = s.periods;
-  if (s.isLongTerm && s.periods.length > 24) {
-    displayPeriods = s.periods.filter((p, i) => i < 12 || i % 3 === 0);
-  } else if (s.timeHorizon === 'medium' && s.periods.length > 26) {
+  const rptTotalPeriods = s.periods.length;
+  if (rptTotalPeriods > 60) {
+    const rptSamplingRate = Math.ceil(rptTotalPeriods / 40);
+    displayPeriods = s.periods.filter((p, i) => i < 12 || i % rptSamplingRate === 0);
+  } else if (rptTotalPeriods > 26) {
     displayPeriods = s.periods.filter((p, i) => i < 12 || i % 2 === 0);
   }
-  if (displayPeriods.length > 40) {
-    displayPeriods = displayPeriods.slice(0, 40);
+  if (displayPeriods.length > 48) {
+    displayPeriods = displayPeriods.slice(0, 48);
   }
 
   const hasClaimBreakdown = s.claimType === 'both';
@@ -2942,7 +3179,7 @@ function generateReport() {
   }
 
   const timeToClearLabel = s.weeksToClear === -1
-    ? (s.isLongTerm ? '10+ years' : '52+ weeks')
+    ? (s.horizonConfig.label + '+')
     : (s.isLongTerm ? s.periodsToClear + ' months' : s.weeksToClear + ' weeks');
   const targetLabel = s.isLongTerm ? s.targetPeriods + ' Months' : s.targetWeeks + ' Weeks';
 
@@ -2973,8 +3210,9 @@ function generateReport() {
   <tr><td style="font-weight:600;width:200px">Site</td><td>${s.site.name} - ${s.site.location}</td></tr>
   <tr><td style="font-weight:600">Incident Type</td><td>${incidentLabels[s.incident]}</td></tr>
   <tr><td style="font-weight:600">Claim Type</td><td>${claimTypeLabels[s.claimType]}</td></tr>
-  <tr><td style="font-weight:600">Time Horizon</td><td>${horizonLabels[s.timeHorizon]}</td></tr>
   <tr><td style="font-weight:600">Severity</td><td>${severityLabels[s.severity]}</td></tr>
+  <tr><td style="font-weight:600">Claims Spread View</td><td>${dynamicHorizonLabel}</td></tr>
+  <tr><td style="font-weight:600">Time Calibration</td><td style="font-size:11px;color:#64748b">${s.horizonConfig.note}</td></tr>
   <tr><td style="font-weight:600">Affected Population</td><td>${(s.site.population + s.site.staffOnSite).toLocaleString()} (${s.site.population.toLocaleString()} local + ${s.site.staffOnSite.toLocaleString()} staff)</td></tr>
   <tr><td style="font-weight:600">Base Capacity</td><td>${s.periodCapacity} ${capacityLabel} (${config.organisation.staffCount} staff)</td></tr>
   <tr><td style="font-weight:600">Weighted Avg Days/Claim</td><td>${s.weightedDaysPerClaim.toFixed(1)} days</td></tr>
@@ -3121,6 +3359,7 @@ ${(() => {
 
 // ===== INIT =====
 populateSites();
+updateTimeHorizonLabels();
 runScenario();
 
 // Redraw on resize
