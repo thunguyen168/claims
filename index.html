@@ -5,213 +5,80 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Claims Resilience Testing Tool</title>
 <style>
-/* ===== Reset & Base ===== */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
-  background: #0f172a; color: #e2e8f0; min-height: 100vh;
-}
-a { color: #60a5fa; }
-
-/* ===== Layout ===== */
-.app { display: flex; min-height: 100vh; }
-.sidebar {
-  width: 280px; background: #1e293b; border-right: 1px solid #334155;
-  padding: 20px; flex-shrink: 0; overflow-y: auto;
-}
-.main { flex: 1; padding: 24px; overflow-y: auto; }
-
-/* ===== Navigation ===== */
-.nav-title {
-  font-size: 14px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: 1px; color: #94a3b8; margin-bottom: 16px;
-}
-.nav-tabs { display: flex; gap: 4px; margin-bottom: 20px; }
-.nav-tab {
-  flex: 1; padding: 8px 4px; text-align: center; font-size: 12px; font-weight: 600;
-  background: #334155; color: #94a3b8; border: none; border-radius: 6px; cursor: pointer;
-  transition: all 0.2s;
-}
-.nav-tab.active { background: #3b82f6; color: #fff; }
-.nav-tab:hover:not(.active) { background: #475569; }
-
-/* ===== Form Controls ===== */
-.form-group { margin-bottom: 16px; }
-.form-group label {
-  display: block; font-size: 12px; font-weight: 600;
-  color: #94a3b8; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;
-}
-select, input[type="number"], input[type="text"] {
-  width: 100%; padding: 10px 12px; background: #0f172a; border: 1px solid #334155;
-  border-radius: 8px; color: #e2e8f0; font-size: 14px; outline: none;
-  transition: border-color 0.2s;
-}
-select:focus, input:focus { border-color: #3b82f6; }
-.btn {
-  padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px;
-  font-weight: 600; cursor: pointer; transition: all 0.2s; width: 100%;
-}
-.btn-primary { background: #3b82f6; color: #fff; }
-.btn-primary:hover { background: #2563eb; }
-.btn-success { background: #22c55e; color: #fff; }
-.btn-success:hover { background: #16a34a; }
-.btn-danger { background: #ef4444; color: #fff; margin-top: 8px; }
-.btn-danger:hover { background: #dc2626; }
-.btn-secondary { background: #475569; color: #e2e8f0; margin-top: 8px; }
-.btn-secondary:hover { background: #64748b; }
-
-/* ===== Cards ===== */
-.card {
-  background: #1e293b; border: 1px solid #334155; border-radius: 12px;
-  padding: 20px; margin-bottom: 20px;
-}
-.card-title {
-  font-size: 16px; font-weight: 700; margin-bottom: 16px;
-  padding-bottom: 12px; border-bottom: 1px solid #334155;
-}
-
-/* ===== Metrics Grid ===== */
-.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px; }
-.metric-card {
-  background: #1e293b; border: 1px solid #334155; border-radius: 12px;
-  padding: 16px; text-align: center;
-}
-.metric-value { font-size: 28px; font-weight: 800; margin-bottom: 4px; }
-.metric-label { font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
-.metric-green { color: #22c55e; }
-.metric-yellow { color: #eab308; }
-.metric-red { color: #ef4444; }
-.metric-blue { color: #3b82f6; }
-
-/* ===== Charts (Canvas-based) ===== */
-.chart-container { position: relative; width: 100%; margin-bottom: 12px; }
-canvas { width: 100%; display: block; }
-
-/* ===== Capacity Table ===== */
-.capacity-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.capacity-table th, .capacity-table td {
-  padding: 10px 12px; text-align: left; border-bottom: 1px solid #334155;
-}
-.capacity-table th { color: #94a3b8; font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
-.status-ok { color: #22c55e; font-weight: 600; }
-.status-warn { color: #eab308; font-weight: 600; }
-.status-over { color: #ef4444; font-weight: 600; }
-
-/* ===== Recommendations ===== */
-.rec-list { list-style: none; }
-.rec-list li { padding: 10px 12px; border-left: 3px solid #3b82f6; margin-bottom: 8px; background: #0f172a; border-radius: 0 8px 8px 0; font-size: 13px; }
-.rec-list li.critical { border-left-color: #ef4444; }
-.rec-list li.warning { border-left-color: #eab308; }
-.rec-list li.info { border-left-color: #3b82f6; }
-
-/* ===== Warning Box ===== */
-.warning-box {
-  background: #1e293b;
-  border: 2px solid #eab308;
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 20px;
-}
-.warning-box.critical {
-  border-color: #ef4444;
-  background: #1a1a2a;
-}
-.warning-box-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: #ef4444;
-  margin-bottom: 8px;
-}
-
-/* ===== Backend Admin ===== */
-.admin-section { margin-bottom: 24px; }
-.admin-section h3 { font-size: 14px; font-weight: 700; color: #94a3b8; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
-.admin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.admin-grid .form-group { margin-bottom: 8px; }
-.site-card {
-  background: #0f172a; border: 1px solid #334155; border-radius: 8px;
-  padding: 16px; margin-bottom: 12px;
-}
-.site-card-header {
-  display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;
-}
-.site-card-header h4 { font-size: 14px; font-weight: 600; }
-.tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
-.tag-active { background: #22c55e22; color: #22c55e; }
-
-/* ===== Header ===== */
-.header {
-  display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 24px; flex-wrap: wrap; gap: 12px;
-}
-.header h1 { font-size: 22px; font-weight: 800; }
-.header-sub { font-size: 13px; color: #94a3b8; }
-
-/* ===== Responsive ===== */
-@media (max-width: 900px) {
-  .app { flex-direction: column; }
-  .sidebar { width: 100%; border-right: none; border-bottom: 1px solid #334155; }
-  .metrics { grid-template-columns: 1fr 1fr; }
-}
-@media (max-width: 500px) {
-  .metrics { grid-template-columns: 1fr; }
-  .admin-grid { grid-template-columns: 1fr; }
-}
-
-/* ===== Legend ===== */
-.chart-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; font-size: 12px; }
-.legend-item { display: flex; align-items: center; gap: 6px; }
-.legend-swatch { width: 12px; height: 12px; border-radius: 3px; }
-
-/* ===== Toggle ===== */
-.toggle-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.toggle-label { font-size: 13px; }
-.toggle {
-  width: 40px; height: 22px; background: #475569; border-radius: 11px;
-  position: relative; cursor: pointer; transition: background 0.2s;
-}
-.toggle.on { background: #3b82f6; }
-.toggle::after {
-  content: ''; position: absolute; width: 18px; height: 18px; background: #fff;
-  border-radius: 50%; top: 2px; left: 2px; transition: transform 0.2s;
-}
-.toggle.on::after { transform: translateX(18px); }
-
-/* Progress bar */
-.progress-bar { height: 8px; background: #334155; border-radius: 4px; overflow: hidden; margin-top: 4px; }
-.progress-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
-
-/* Range slider */
-.range-group { margin-bottom: 16px; }
-.range-group label { display: block; font-size: 12px; font-weight: 600; color: #94a3b8; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
-.range-value { font-size: 13px; color: #3b82f6; font-weight: 700; float: right; }
-input[type="range"] {
-  -webkit-appearance: none; width: 100%; height: 6px; background: #334155;
-  border-radius: 3px; outline: none; margin-top: 4px;
-}
-input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none; width: 16px; height: 16px; background: #3b82f6;
-  border-radius: 50%; cursor: pointer;
-}
-input[type="range"]::-moz-range-thumb {
-  width: 16px; height: 16px; background: #3b82f6; border-radius: 50%;
-  cursor: pointer; border: none;
-}
-
-/* Surge resources */
-.surge-entry {
-  display: flex; gap: 6px; align-items: center; margin-bottom: 6px;
-  background: #0f172a; padding: 6px 8px; border-radius: 6px; font-size: 12px;
-}
-.surge-entry select, .surge-entry input {
-  width: auto; padding: 4px 6px; font-size: 12px;
-}
-.surge-entry .btn { width: auto; padding: 4px 8px; font-size: 11px; }
-.surge-list { max-height: 160px; overflow-y: auto; margin-bottom: 8px; }
-
-/* Report button */
-.btn-report { background: #8b5cf6; color: #fff; margin-top: 8px; }
-.btn-report:hover { background: #7c3aed; }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
+a{color:#60a5fa}
+.app{display:flex;min-height:100vh}
+.sidebar{width:280px;background:#1e293b;border-right:1px solid #334155;padding:20px;flex-shrink:0;overflow-y:auto}
+.main{flex:1;padding:24px;overflow-y:auto}
+.nav-title{font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;margin-bottom:16px}
+.nav-tabs{display:flex;gap:4px;margin-bottom:20px}
+.nav-tab{flex:1;padding:8px 4px;text-align:center;font-size:12px;font-weight:600;background:#334155;color:#94a3b8;border:none;border-radius:6px;cursor:pointer;transition:all .2s}
+.nav-tab.active{background:#3b82f6;color:#fff}
+.nav-tab:hover:not(.active){background:#475569}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+select,input[type="number"],input[type="text"]{width:100%;padding:10px 12px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#e2e8f0;font-size:14px;outline:none;transition:border-color .2s}
+select:focus,input:focus{border-color:#3b82f6}
+.btn{padding:10px 20px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;width:100%}
+.btn-primary{background:#3b82f6;color:#fff}
+.btn-primary:hover{background:#2563eb}
+.btn-success{background:#22c55e;color:#fff}
+.btn-success:hover{background:#16a34a}
+.btn-danger{background:#ef4444;color:#fff;margin-top:8px}
+.btn-danger:hover{background:#dc2626}
+.btn-secondary{background:#475569;color:#e2e8f0;margin-top:8px}
+.btn-secondary:hover{background:#64748b}
+.card{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:20px;margin-bottom:20px}
+.card-title{font-size:16px;font-weight:700;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #334155}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;margin-bottom:20px}
+.metric-card{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:16px;text-align:center}
+.metric-value{font-size:28px;font-weight:800;margin-bottom:4px}
+.metric-label{font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px}
+.metric-green{color:#22c55e} .metric-yellow{color:#eab308} .metric-red{color:#ef4444} .metric-blue{color:#3b82f6}
+.chart-container{position:relative;width:100%;margin-bottom:12px}
+canvas{width:100%;display:block}
+.capacity-table{width:100%;border-collapse:collapse;font-size:13px}
+.capacity-table th,.capacity-table td{padding:10px 12px;text-align:left;border-bottom:1px solid #334155}
+.capacity-table th{color:#94a3b8;font-weight:600;text-transform:uppercase;font-size:11px;letter-spacing:.5px}
+.status-ok{color:#22c55e;font-weight:600} .status-warn{color:#eab308;font-weight:600} .status-over{color:#ef4444;font-weight:600}
+.rec-list{list-style:none}
+.rec-list li{padding:10px 12px;border-left:3px solid #3b82f6;margin-bottom:8px;background:#0f172a;border-radius:0 8px 8px 0;font-size:13px}
+.rec-list li.critical{border-left-color:#ef4444} .rec-list li.warning{border-left-color:#eab308} .rec-list li.info{border-left-color:#3b82f6}
+.warning-box{background:#1e293b;border:2px solid #eab308;border-radius:8px;padding:16px;margin-bottom:20px}
+.warning-box.critical{border-color:#ef4444;background:#1a1a2a}
+.warning-box-title{font-size:14px;font-weight:700;color:#ef4444;margin-bottom:8px}
+.admin-section{margin-bottom:24px}
+.admin-section h3{font-size:14px;font-weight:700;color:#94a3b8;margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px}
+.admin-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.admin-grid .form-group{margin-bottom:8px}
+.site-card{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:16px;margin-bottom:12px}
+.site-card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.site-card-header h4{font-size:14px;font-weight:600}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.tag-active{background:#22c55e22;color:#22c55e}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+.header h1{font-size:22px;font-weight:800}
+.header-sub{font-size:13px;color:#94a3b8}
+@media(max-width:900px){.app{flex-direction:column}.sidebar{width:100%;border-right:none;border-bottom:1px solid #334155}.metrics{grid-template-columns:1fr 1fr}}
+@media(max-width:500px){.metrics{grid-template-columns:1fr}.admin-grid{grid-template-columns:1fr}}
+.chart-legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:12px}
+.legend-item{display:flex;align-items:center;gap:6px}
+.legend-swatch{width:12px;height:12px;border-radius:3px}
+.progress-bar{height:8px;background:#334155;border-radius:4px;overflow:hidden;margin-top:4px}
+.progress-fill{height:100%;border-radius:4px;transition:width .3s}
+.range-group{margin-bottom:16px}
+.range-group label{display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+.range-value{font-size:13px;color:#3b82f6;font-weight:700;float:right}
+input[type="range"]{-webkit-appearance:none;width:100%;height:6px;background:#334155;border-radius:3px;outline:none;margin-top:4px}
+input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;background:#3b82f6;border-radius:50%;cursor:pointer}
+input[type="range"]::-moz-range-thumb{width:16px;height:16px;background:#3b82f6;border-radius:50%;cursor:pointer;border:none}
+.surge-entry{display:flex;gap:6px;align-items:center;margin-bottom:6px;background:#0f172a;padding:6px 8px;border-radius:6px;font-size:12px}
+.surge-entry select,.surge-entry input{width:auto;padding:4px 6px;font-size:12px}
+.surge-entry .btn{width:auto;padding:4px 8px;font-size:11px}
+.surge-list{max-height:160px;overflow-y:auto;margin-bottom:8px}
+.btn-report{background:#8b5cf6;color:#fff;margin-top:8px}
+.btn-report:hover{background:#7c3aed}
 </style>
 </head>
 <body>
@@ -514,6 +381,16 @@ input[type="range"]::-moz-range-thumb {
 </div>
 
 <script>
+// ╔══════════════════════════════════════════════════════════════╗
+// ║  CLAIMS RESILIENCE TESTING TOOL                             ║
+// ║  Configuration Data → State → Helpers → UI → Charts → Init ║
+// ╚══════════════════════════════════════════════════════════════╝
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION 1: CONFIGURATION DATA
+// All reference data, constants, and default settings
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 // ===== DEFAULT CONFIGURATION =====
 const DEFAULT_CONFIG = {
   organisation: {
@@ -675,17 +552,6 @@ const UK_LEGAL_FRAMEWORK = {
   }
 };
 
-// ===== RESERVE DEVELOPMENT FACTORS =====
-// Based on historical claim development patterns
-const RESERVE_DEVELOPMENT_FACTORS = {
-  '0-12months': { min: 1.0, max: 1.2, note: 'Initial estimates often low' },
-  '1-3years': { min: 1.2, max: 1.5, note: 'Litigation costs emerge' },
-  '3-7years': { min: 1.3, max: 2.0, note: 'Regulatory actions peak' },
-  '7-15years': { min: 1.5, max: 3.0, note: 'Cancer diagnoses begin' },
-  '15-30years': { min: 2.0, max: 5.0, note: 'Mesothelioma-type claims' },
-  '30plus': { min: null, max: null, note: 'Highly uncertain - nuclear/severe toxic only' }
-};
-
 // ===== HISTORICAL CLAIM VOLUME DATA =====
 // Based on actual incident data from research
 const HISTORICAL_CLAIM_VOLUMES = {
@@ -806,34 +672,6 @@ const HISTORICAL_CLAIM_VOLUMES = {
   }
 };
 
-// ===== PROCESSING TIMELINE BY CLAIM TYPE =====
-const PROCESSING_TIMELINES = {
-  propertySimple: {
-    name: 'Property (Simple)',
-    initialAssessment: { min: 1, max: 4, unit: 'weeks' },
-    settlementOffer: { min: 1, max: 3, unit: 'months' },
-    finalResolution: { min: 3, max: 6, unit: 'months' }
-  },
-  propertyComplex: {
-    name: 'Property (Complex)',
-    initialAssessment: { min: 1, max: 3, unit: 'months' },
-    settlementOffer: { min: 3, max: 9, unit: 'months' },
-    finalResolution: { min: 6, max: 18, unit: 'months' }
-  },
-  businessInterruption: {
-    name: 'Business Interruption',
-    initialAssessment: { min: 3, max: 12, unit: 'months' },
-    settlementOffer: { min: 6, max: 18, unit: 'months' },
-    finalResolution: { min: 12, max: 36, unit: 'months' }
-  },
-  personalInjury: {
-    name: 'Personal Injury',
-    initialAssessment: { min: 1, max: 6, unit: 'months' },
-    settlementOffer: { min: 6, max: 18, unit: 'months' },
-    finalResolution: { min: 12, max: 36, unit: 'months' }
-  }
-};
-
 // ===== CLAIM DISTRIBUTION TEMPLATES (Research-Based Percentages) =====
 // Bimodal distribution: immediate spike + long tail for latent claims
 const CLAIM_DISTRIBUTION_TEMPLATES = {
@@ -865,17 +703,6 @@ const CLAIM_DISTRIBUTION_TEMPLATES = {
     ]
   }
 };
-
-// ===== KEY INSIGHTS FOR UK INSURERS =====
-const UK_INSURER_INSIGHTS = [
-  { insight: 'Immediate claims (0-12 months) represent 60-90% of property but only 40-60% of ultimate value for incidents with toxic exposure', category: 'timing' },
-  { insight: 'Business interruption typically has longest processing time (12-36 months) and highest dispute rate', category: 'processing' },
-  { insight: 'Latent health claims under UK law can be filed up to 30 years post-incident for nuclear; 3 years from discovery for other toxic exposure', category: 'legal' },
-  { insight: 'Severity multipliers: Each order-of-magnitude increase in fatalities typically correlates with 5-10x increase in total claim count', category: 'volume' },
-  { insight: 'Underinsurance is common: West, Texas had $1M coverage vs. $230M losses; Bhopal settlement vastly underestimated long-term health costs', category: 'risk' },
-  { insight: 'Environmental claims post-2022 Nuclear Installations Act now explicitly covered - expect higher nuclear liability reserves', category: 'legal' },
-  { insight: 'Processing bottlenecks occur at 3-6 months (adjuster capacity) and 18-36 months (litigation)', category: 'processing' }
-];
 
 // ===== TIME HORIZON CONFIGURATIONS =====
 // Legacy fixed horizons (kept as fallback)
@@ -1204,6 +1031,11 @@ const CLAIM_PATTERNS = {
   }
 };
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION 2: STATE MANAGEMENT
+// Config persistence, mutable state
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 // Load config from localStorage or use defaults
 let config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
 try {
@@ -1218,6 +1050,11 @@ try {
 function saveConfig() {
   try { localStorage.setItem('claimsToolConfig', JSON.stringify(config)); } catch(e) {}
 }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION 3: HELPER FUNCTIONS
+// Calculations, data lookups, distribution model
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 // ===== CAPACITY CALCULATION =====
 // Calculate weighted average days per claim based on complexity mix
@@ -1239,6 +1076,11 @@ function getWeeklyCapacity() {
   if (weightedDays <= 0) return config.organisation.staffCount * config.organisation.workDaysPerWeek;
   return Math.round(config.organisation.staffCount * config.organisation.workDaysPerWeek / weightedDays);
 }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION 4: UI UPDATE FUNCTIONS
+// View switching, admin panel, site management, surge resources
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 // ===== VIEW SWITCHING =====
 function switchView(view) {
@@ -1688,18 +1530,35 @@ function aggregateToMonthly(weeklyPeriods) {
   return monthly;
 }
 
-// Legacy function for backward compatibility
-function getWeeklyDistribution(peakWeek) {
-  peakWeek = peakWeek || 4;
-  const raw = [];
-  const sigma = 1.5 + (peakWeek - 2) * 0.15;
-  const mu = peakWeek;
-  for (let w = 1; w <= 12; w++) {
-    const val = Math.exp(-0.5 * Math.pow((w - mu) / sigma, 2)) + 0.015;
-    raw.push(val);
+// Prepare display periods from a scenario: clips to view window, aggregates to monthly
+// if needed, and applies intelligent sampling for large period counts.
+function getDisplayPeriods(scenario) {
+  const s = scenario;
+  const viewWeeklyPeriods = s.periods.slice(0, Math.min(s.viewWeeks, s.periods.length));
+  const viewCumulative = viewWeeklyPeriods.length > 0 ? viewWeeklyPeriods[viewWeeklyPeriods.length - 1].cumulative : 0;
+  const viewPeakClaims = Math.max(...viewWeeklyPeriods.map(w => w.newClaims), 0);
+  const viewPeakWeek = viewWeeklyPeriods.findIndex(w => w.newClaims === viewPeakClaims) + 1;
+
+  const useMonthlyDisplay = s.viewWeeks > 52;
+  const periodLabel = useMonthlyDisplay ? 'Month' : 'Week';
+  let displayPeriods = useMonthlyDisplay ? aggregateToMonthly(viewWeeklyPeriods) : viewWeeklyPeriods;
+
+  // Intelligent sampling for very long display lists
+  if (displayPeriods.length > 60) {
+    const samplingRate = Math.ceil(displayPeriods.length / 40);
+    displayPeriods = displayPeriods.filter((p, i) => i < 12 || i % samplingRate === 0);
+  } else if (displayPeriods.length > 30) {
+    displayPeriods = displayPeriods.filter((p, i) => i < 12 || i % 2 === 0);
   }
-  const sum = raw.reduce((a, b) => a + b, 0);
-  return raw.map(v => v / sum);
+  if (displayPeriods.length > 48) {
+    displayPeriods = displayPeriods.slice(0, 48);
+  }
+
+  const peakPeriodLabel = useMonthlyDisplay
+    ? `Month ${Math.ceil(viewPeakWeek / 4.33)}`
+    : `Week ${viewPeakWeek}`;
+
+  return { displayPeriods, periodLabel, useMonthlyDisplay, viewCumulative, viewPeakClaims, viewPeakWeek, peakPeriodLabel };
 }
 
 // ===== PATTERN DESCRIPTIONS =====
@@ -1804,22 +1663,6 @@ function getApplicableClaimCategories(incident) {
     .map(([key, cat]) => ({ key, ...cat }));
 }
 
-// Get historical examples for incident type
-function getHistoricalExamples(incident) {
-  switch(incident) {
-    case 'fire':
-      return HISTORICAL_CLAIM_VOLUMES.industrialFire;
-    case 'explosion':
-      return HISTORICAL_CLAIM_VOLUMES.chemicalExplosion;
-    case 'chemical':
-      return HISTORICAL_CLAIM_VOLUMES.toxicRelease;
-    case 'nuclear':
-      return HISTORICAL_CLAIM_VOLUMES.nuclear;
-    default:
-      return null;
-  }
-}
-
 // Get reserve development factor for time horizon
 function getReserveDevelopmentFactor(timeHorizon, incident) {
   const factors = config.reserveDevelopmentFactors || DEFAULT_CONFIG.reserveDevelopmentFactors;
@@ -1917,10 +1760,6 @@ function getAverageClaimValue(incident, severity) {
 
 function getClaimValueSources(incident) {
   return AVERAGE_CLAIM_VALUES[incident]?.sources || [];
-}
-
-function getAllClaimValues() {
-  return AVERAGE_CLAIM_VALUES;
 }
 
 // Get claim distribution template
@@ -2026,6 +1865,11 @@ function renderSurgeList() {
 }
 
 let lastScenario = null;
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION 5: SCENARIO CALCULATION & RESULTS
+// Core simulation logic, results display, recommendations
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 // ===== SCENARIO CALCULATION =====
 function runScenario() {
@@ -2284,43 +2128,7 @@ function showResults(scenario) {
     incidentLabels[s.incident] + ' | ' + severityLabels[s.severity] + ' | ' + claimTypeLabels[s.claimType] + ' | ' + viewLabel;
 
   // ===== VIEW WINDOW CLIPPING =====
-  // Full simulation is always in weekly periods for the complete lifecycle.
-  // The dropdown clips the view to show a section of the full timeline.
-  const viewWeeklyPeriods = s.periods.slice(0, Math.min(s.viewWeeks, s.periods.length));
-
-  // Claims arriving within the view window
-  const viewCumulative = viewWeeklyPeriods.length > 0 ? viewWeeklyPeriods[viewWeeklyPeriods.length - 1].cumulative : 0;
-  const viewPeakClaims = Math.max(...viewWeeklyPeriods.map(w => w.newClaims), 0);
-  const viewPeakWeek = viewWeeklyPeriods.findIndex(w => w.newClaims === viewPeakClaims) + 1;
-
-  // Determine display unit: weekly for <=52 weeks, monthly aggregation otherwise
-  const useMonthlyDisplay = s.viewWeeks > 52;
-  let displayPeriods;
-  let periodLabel;
-
-  if (useMonthlyDisplay) {
-    displayPeriods = aggregateToMonthly(viewWeeklyPeriods);
-    periodLabel = 'Month';
-  } else {
-    displayPeriods = viewWeeklyPeriods;
-    periodLabel = 'Week';
-  }
-
-  // Intelligent sampling for very long display lists
-  if (displayPeriods.length > 60) {
-    const samplingRate = Math.ceil(displayPeriods.length / 40);
-    displayPeriods = displayPeriods.filter((p, i) => i < 12 || i % samplingRate === 0);
-  } else if (displayPeriods.length > 30) {
-    displayPeriods = displayPeriods.filter((p, i) => i < 12 || i % 2 === 0);
-  }
-  if (displayPeriods.length > 48) {
-    displayPeriods = displayPeriods.slice(0, 48);
-  }
-
-  // Peak period label (in view units)
-  const peakPeriodLabel = useMonthlyDisplay
-    ? `Month ${Math.ceil(viewPeakWeek / 4.33)}`
-    : `Week ${viewPeakWeek}`;
+  const { displayPeriods, periodLabel, useMonthlyDisplay, viewCumulative, viewPeakClaims, viewPeakWeek, peakPeriodLabel } = getDisplayPeriods(s);
 
   // Metrics: full lifecycle values with view context
   const timeToClearLabel = s.weeksToClear === -1
@@ -2634,8 +2442,8 @@ function showResults(scenario) {
   document.getElementById('forecastChartTitle').textContent = chartTitle;
   // Pass display config to chart functions
   const displayScenario = Object.assign({}, s, { isLongTerm: useMonthlyDisplay, periodLabel });
-  drawForecastChartNew(displayPeriods, displayScenario);
-  drawCapacityChartNew(displayPeriods, displayScenario);
+  drawForecastChart(displayPeriods, displayScenario);
+  drawCapacityChart(displayPeriods, displayScenario);
 }
 
 // Build recommendations based on incident type and claim patterns
@@ -2753,9 +2561,12 @@ function buildRecommendations(s) {
   return recs;
 }
 
-// ===== CHART DRAWING (Pure Canvas, no dependencies) =====
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION 6: CHART RENDERING
+// Pure canvas chart drawing, no external dependencies
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-function drawForecastChartNew(periods, scenario) {
+function drawForecastChart(periods, scenario) {
   const canvas = document.getElementById('forecastChart');
   const ctx = canvas.getContext('2d');
   const dpr = window.devicePixelRatio || 1;
@@ -2966,7 +2777,7 @@ function drawForecastChartNew(periods, scenario) {
   document.getElementById('forecastLegend').innerHTML = legendHTML;
 }
 
-function drawCapacityChartNew(periods, scenario) {
+function drawCapacityChart(periods, scenario) {
   const canvas = document.getElementById('capacityChart');
   const ctx = canvas.getContext('2d');
   const dpr = window.devicePixelRatio || 1;
@@ -3056,218 +2867,11 @@ function drawCapacityChartNew(periods, scenario) {
   `;
 }
 
-// Legacy chart functions for backward compatibility
-function drawForecastChart(weeks, capacity, hasSurge) {
-  const canvas = document.getElementById('forecastChart');
-  const ctx = canvas.getContext('2d');
-  const dpr = window.devicePixelRatio || 1;
-  const rect = canvas.parentElement.getBoundingClientRect();
-  canvas.width = rect.width * dpr;
-  canvas.height = 300 * dpr;
-  canvas.style.height = '300px';
-  ctx.scale(dpr, dpr);
-  const W = rect.width;
-  const H = 300;
 
-  ctx.clearRect(0, 0, W, H);
-
-  const pad = { top: 20, right: 20, bottom: 40, left: 60 };
-  const chartW = W - pad.left - pad.right;
-  const chartH = H - pad.top - pad.bottom;
-
-  const maxVal = Math.max(capacity, ...weeks.map(w => w.newClaims), ...weeks.map(w => w.effectiveCapacity)) * 1.15;
-  const xStep = chartW / 11;
-
-  // Grid lines
-  ctx.strokeStyle = '#334155';
-  ctx.lineWidth = 1;
-  for (let i = 0; i <= 4; i++) {
-    const y = pad.top + (chartH / 4) * i;
-    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + chartW, y); ctx.stroke();
-    ctx.fillStyle = '#64748b';
-    ctx.font = '11px sans-serif';
-    ctx.textAlign = 'right';
-    ctx.fillText(Math.round(maxVal - (maxVal / 4) * i).toLocaleString(), pad.left - 8, y + 4);
-  }
-
-  // X labels
-  ctx.textAlign = 'center';
-  ctx.fillStyle = '#64748b';
-  weeks.forEach((w, i) => {
-    ctx.fillText('W' + w.week, pad.left + i * xStep, H - pad.bottom + 20);
-  });
-
-  // Capacity line
-  const capY = pad.top + chartH - (capacity / maxVal) * chartH;
-  ctx.strokeStyle = '#ef4444';
-  ctx.lineWidth = 2;
-  ctx.setLineDash([6, 4]);
-  ctx.beginPath(); ctx.moveTo(pad.left, capY); ctx.lineTo(pad.left + chartW, capY); ctx.stroke();
-  ctx.setLineDash([]);
-
-  // Area fill under claims curve
-  ctx.beginPath();
-  ctx.moveTo(pad.left, pad.top + chartH);
-  weeks.forEach((w, i) => {
-    const x = pad.left + i * xStep;
-    const y = pad.top + chartH - (w.newClaims / maxVal) * chartH;
-    if (i === 0) ctx.lineTo(x, y);
-    else ctx.lineTo(x, y);
-  });
-  ctx.lineTo(pad.left + 11 * xStep, pad.top + chartH);
-  ctx.closePath();
-  const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + chartH);
-  grad.addColorStop(0, 'rgba(59,130,246,0.3)');
-  grad.addColorStop(1, 'rgba(59,130,246,0.02)');
-  ctx.fillStyle = grad;
-  ctx.fill();
-
-  // Claims line with smooth curve
-  ctx.strokeStyle = '#3b82f6';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  const points = weeks.map((w, i) => ({
-    x: pad.left + i * xStep,
-    y: pad.top + chartH - (w.newClaims / maxVal) * chartH
-  }));
-
-  // Draw smooth curve using bezier
-  ctx.moveTo(points[0].x, points[0].y);
-  for (let i = 1; i < points.length; i++) {
-    const prev = points[i - 1];
-    const curr = points[i];
-    const cpx = (prev.x + curr.x) / 2;
-    ctx.bezierCurveTo(cpx, prev.y, cpx, curr.y, curr.x, curr.y);
-  }
-  ctx.stroke();
-
-  // Data points
-  points.forEach(p => {
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
-    ctx.fillStyle = '#3b82f6';
-    ctx.fill();
-    ctx.strokeStyle = '#1e293b';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  });
-
-  // Cumulative line
-  const maxCum = weeks[weeks.length - 1].cumulative * 1.1;
-  ctx.strokeStyle = '#22c55e';
-  ctx.lineWidth = 2;
-  ctx.setLineDash([4, 3]);
-  ctx.beginPath();
-  weeks.forEach((w, i) => {
-    const x = pad.left + i * xStep;
-    const y = pad.top + chartH - (w.cumulative / maxCum) * chartH;
-    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-  });
-  ctx.stroke();
-  ctx.setLineDash([]);
-
-  // Effective capacity line (if surge active)
-  if (hasSurge) {
-    ctx.strokeStyle = '#8b5cf6';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([4, 3]);
-    ctx.beginPath();
-    weeks.forEach((w, i) => {
-      const x = pad.left + i * xStep;
-      const y = pad.top + chartH - (w.effectiveCapacity / maxVal) * chartH;
-      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-
-  // Legend
-  document.getElementById('forecastLegend').innerHTML = `
-    <div class="legend-item"><div class="legend-swatch" style="background:#3b82f6"></div> New Claims/Week</div>
-    <div class="legend-item"><div class="legend-swatch" style="background:#22c55e"></div> Cumulative Claims</div>
-    <div class="legend-item"><div class="legend-swatch" style="background:#ef4444"></div> Base Capacity (${capacity})</div>
-    ${hasSurge ? '<div class="legend-item"><div class="legend-swatch" style="background:#8b5cf6"></div> Effective Capacity (with surge)</div>' : ''}
-  `;
-}
-
-function drawCapacityChart(weeks, capacity) {
-  const canvas = document.getElementById('capacityChart');
-  const ctx = canvas.getContext('2d');
-  const dpr = window.devicePixelRatio || 1;
-  const rect = canvas.parentElement.getBoundingClientRect();
-  canvas.width = rect.width * dpr;
-  canvas.height = 250 * dpr;
-  canvas.style.height = '250px';
-  ctx.scale(dpr, dpr);
-  const W = rect.width;
-  const H = 250;
-
-  ctx.clearRect(0, 0, W, H);
-
-  const pad = { top: 20, right: 20, bottom: 40, left: 60 };
-  const chartW = W - pad.left - pad.right;
-  const chartH = H - pad.top - pad.bottom;
-  const barW = (chartW / 12) * 0.7;
-  const gap = (chartW / 12) * 0.3;
-
-  const maxUtil = Math.max(100, ...weeks.map(w => w.utilisation)) * 1.15;
-
-  // Grid
-  ctx.strokeStyle = '#334155'; ctx.lineWidth = 1;
-  [0, 25, 50, 75, 100].forEach(pct => {
-    const y = pad.top + chartH - (pct / maxUtil) * chartH;
-    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + chartW, y); ctx.stroke();
-    ctx.fillStyle = '#64748b'; ctx.font = '11px sans-serif'; ctx.textAlign = 'right';
-    ctx.fillText(pct + '%', pad.left - 8, y + 4);
-  });
-
-  // 100% line
-  const y100 = pad.top + chartH - (100 / maxUtil) * chartH;
-  ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
-  ctx.beginPath(); ctx.moveTo(pad.left, y100); ctx.lineTo(pad.left + chartW, y100); ctx.stroke();
-  ctx.setLineDash([]);
-
-  // Bars
-  weeks.forEach((w, i) => {
-    const x = pad.left + i * (chartW / 12) + gap / 2;
-    const barH = (w.utilisation / maxUtil) * chartH;
-    const y = pad.top + chartH - barH;
-
-    let color;
-    if (w.utilisation <= 70) color = '#22c55e';
-    else if (w.utilisation <= 100) color = '#eab308';
-    else color = '#ef4444';
-
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    // Rounded top corners
-    const r = 3;
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + barW - r, y);
-    ctx.quadraticCurveTo(x + barW, y, x + barW, y + r);
-    ctx.lineTo(x + barW, pad.top + chartH);
-    ctx.lineTo(x, pad.top + chartH);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
-    ctx.fill();
-
-    // Label
-    ctx.fillStyle = '#e2e8f0'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText(Math.round(w.utilisation) + '%', x + barW / 2, y - 6);
-
-    // X label
-    ctx.fillStyle = '#64748b'; ctx.font = '11px sans-serif';
-    ctx.fillText('W' + w.week, x + barW / 2, H - pad.bottom + 20);
-  });
-
-  document.getElementById('capacityLegend').innerHTML = `
-    <div class="legend-item"><div class="legend-swatch" style="background:#22c55e"></div> Under 70%</div>
-    <div class="legend-item"><div class="legend-swatch" style="background:#eab308"></div> 70-100%</div>
-    <div class="legend-item"><div class="legend-swatch" style="background:#ef4444"></div> Over Capacity</div>
-  `;
-}
-
-// ===== REPORT GENERATION =====
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION 7: REPORT GENERATION
+// PDF report creation (opens in new window for print)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function generateReport() {
   if (!lastScenario) { alert('Run a scenario first.'); return; }
   const s = lastScenario;
@@ -3282,28 +2886,13 @@ function generateReport() {
   const dateStr = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
   const timeStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
-  // View-window clipping (same as showResults)
-  const rptViewWeekly = s.periods.slice(0, Math.min(s.viewWeeks, s.periods.length));
-  const rptUseMonthly = s.viewWeeks > 52;
-  const periodLabel = rptUseMonthly ? 'Month' : 'Week';
+  const { displayPeriods, periodLabel, useMonthlyDisplay: rptUseMonthly } = getDisplayPeriods(s);
   const capacityLabel = 'claims/week';
 
   const surgeRows = (s.surgeEntries.length > 0)
     ? `<tr><td colspan="2" style="font-weight:700;padding-top:12px">Surge Resources Planned</td></tr>` +
       s.surgeEntries.map(e => `<tr><td>+${e.extraStaff} staff</td><td>From Week ${e.startWeek} onwards</td></tr>`).join('')
     : '';
-
-  // Aggregate/sample for report display
-  let displayPeriods = rptUseMonthly ? aggregateToMonthly(rptViewWeekly) : rptViewWeekly;
-  if (displayPeriods.length > 60) {
-    const rptSamplingRate = Math.ceil(displayPeriods.length / 40);
-    displayPeriods = displayPeriods.filter((p, i) => i < 12 || i % rptSamplingRate === 0);
-  } else if (displayPeriods.length > 30) {
-    displayPeriods = displayPeriods.filter((p, i) => i < 12 || i % 2 === 0);
-  }
-  if (displayPeriods.length > 48) {
-    displayPeriods = displayPeriods.slice(0, 48);
-  }
 
   const hasClaimBreakdown = s.claimType === 'both';
   const periodRows = displayPeriods.map(w => {
@@ -3533,16 +3122,22 @@ ${(() => {
   printWindow.onload = function() { printWindow.print(); };
 }
 
-// ===== INIT =====
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION 8: INITIALIZATION
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 populateSites();
 updateTimeHorizonLabels();
 runScenario();
 
-// Redraw on resize
+// Debounced resize handler
+let resizeTimer;
 window.addEventListener('resize', () => {
-  if (document.getElementById('resultsArea').style.display !== 'none') {
-    runScenario();
-  }
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    if (document.getElementById('resultsArea').style.display !== 'none') {
+      runScenario();
+    }
+  }, 150);
 });
 </script>
 </body>
