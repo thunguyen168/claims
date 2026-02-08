@@ -42,7 +42,7 @@ button:focus-visible{outline:2px solid #3b82f6;outline-offset:2px}
 /* Tooltip styles */
 .help-tooltip{position:relative;display:inline-block;cursor:help;margin-left:4px}
 .help-tooltip .tooltip-icon{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#475569;color:#94a3b8;font-size:9px;font-weight:700;line-height:1}
-.help-tooltip .tooltip-content{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:#0f172a;border:1px solid #475569;border-radius:6px;padding:8px 10px;font-size:11px;color:#94a3b8;white-space:normal;width:220px;z-index:100;opacity:0;pointer-events:none;transition:opacity .2s;line-height:1.4}
+.help-tooltip .tooltip-content{position:fixed;background:#0f172a;border:1px solid #475569;border-radius:6px;padding:10px 12px;font-size:11px;color:#94a3b8;white-space:normal;width:300px;z-index:200;opacity:0;pointer-events:none;transition:opacity .15s;line-height:1.5;box-shadow:0 4px 16px rgba(0,0,0,0.4)}
 .help-tooltip:hover .tooltip-content,.help-tooltip:focus .tooltip-content{opacity:1;pointer-events:auto}
 /* Chart tooltip */
 .chart-tooltip{position:absolute;background:#1e293b;border:1px solid #3b82f6;border-radius:6px;padding:8px 12px;font-size:11px;color:#e2e8f0;pointer-events:none;z-index:10;display:none;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.3)}
@@ -55,7 +55,11 @@ button:focus-visible{outline:2px solid #3b82f6;outline-offset:2px}
 /* Unsaved changes indicator */
 .unsaved-indicator{display:none;font-size:10px;color:#eab308;margin-top:4px}
 .unsaved-indicator.visible{display:block}
-.sidebar{width:280px;background:#1e293b;border-right:1px solid #334155;padding:20px;flex-shrink:0;overflow-y:auto;position:sticky;top:0;height:100vh}
+.sidebar{width:280px;min-width:220px;max-width:600px;background:#1e293b;border-right:1px solid #334155;padding:20px;flex-shrink:0;overflow-y:auto;position:sticky;top:0;height:100vh;overflow-x:visible}
+.sidebar-resize-handle{position:absolute;top:0;right:-4px;width:8px;height:100%;cursor:col-resize;z-index:50;background:transparent;transition:background .15s}
+.sidebar-resize-handle:hover,.sidebar-resize-handle.active{background:rgba(59,130,246,0.4)}
+.sidebar-resize-handle::after{content:'';position:absolute;top:50%;right:2px;width:4px;height:40px;transform:translateY(-50%);border-radius:2px;background:#475569;opacity:0;transition:opacity .15s}
+.sidebar-resize-handle:hover::after,.sidebar-resize-handle.active::after{opacity:1}
 .main{flex:1;padding:24px;overflow-y:auto}
 .nav-title{font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;margin-bottom:16px}
 .nav-tabs{display:flex;gap:4px;margin-bottom:20px}
@@ -187,7 +191,8 @@ input[type="range"]::-moz-range-thumb{width:16px;height:16px;background:#3b82f6;
 
 <div class="app" role="application">
   <!-- Sidebar -->
-  <nav class="sidebar" aria-label="Scenario configuration">
+  <nav class="sidebar" id="sidebarNav" aria-label="Scenario configuration" style="position:relative">
+    <div class="sidebar-resize-handle" id="sidebarResizeHandle" title="Drag to resize sidebar"></div>
     <div class="nav-title" id="navTitle">Claims Resilience Tool</div>
     <div class="nav-tabs" role="tablist" aria-label="View selection">
       <button class="nav-tab active" role="tab" aria-selected="true" aria-controls="scenarioPanel" id="scenarioTab" onclick="switchView('scenario')">Scenario</button>
@@ -4926,7 +4931,7 @@ function loadMCAdmin() {
     '<tr><td style="font-weight:600">' + pd.label +
     '<div class="help-tooltip" tabindex="0" style="display:inline-block;vertical-align:middle" aria-label="Definition: ' + pd.label + '">' +
     '<span class="tooltip-icon">?</span>' +
-    '<span class="tooltip-content" style="width:280px;left:0;transform:none">' + (pd.definition || pd.note) + '</span></div></td>' +
+    '<span class="tooltip-content">' + (pd.definition || pd.note) + '</span></div></td>' +
     '<td><input type="number" value="' + pd.minFactor + '" step="0.1" onchange="updateMCParam(' + i + ',\'minFactor\',parseFloat(this.value))" aria-label="' + pd.label + ' minimum"></td>' +
     '<td><input type="number" value="' + pd.maxFactor + '" step="0.1" onchange="updateMCParam(' + i + ',\'maxFactor\',parseFloat(this.value))" aria-label="' + pd.label + ' maximum"></td>' +
     '<td style="font-size:10px;color:#64748b">' + pd.note + (pd.isAbsolute ? ' (absolute)' : ' (factor)') + '</td></tr>'
@@ -4956,6 +4961,101 @@ function resetMCDefaults() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 8: INITIALIZATION
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// ===== SIDEBAR RESIZE =====
+(function() {
+  const sidebar = document.getElementById('sidebarNav');
+  const handle = document.getElementById('sidebarResizeHandle');
+  if (!sidebar || !handle) return;
+
+  // Restore saved width
+  const savedWidth = safeStorageGet('claimsToolSidebarWidth');
+  if (savedWidth) {
+    const w = parseInt(savedWidth);
+    if (w >= 220 && w <= 600) sidebar.style.width = w + 'px';
+  }
+
+  let dragging = false;
+  let startX = 0;
+  let startWidth = 0;
+
+  handle.addEventListener('mousedown', function(e) {
+    e.preventDefault();
+    dragging = true;
+    startX = e.clientX;
+    startWidth = sidebar.getBoundingClientRect().width;
+    handle.classList.add('active');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  document.addEventListener('mousemove', function(e) {
+    if (!dragging) return;
+    const newWidth = Math.min(600, Math.max(220, startWidth + (e.clientX - startX)));
+    sidebar.style.width = newWidth + 'px';
+  });
+
+  document.addEventListener('mouseup', function() {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove('active');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    safeStorageSet('claimsToolSidebarWidth', Math.round(sidebar.getBoundingClientRect().width).toString());
+    // Redraw charts since main area width changed
+    if (lastScenario && document.getElementById('resultsArea').style.display !== 'none') {
+      showResults(lastScenario);
+    }
+  });
+
+  // Touch support
+  handle.addEventListener('touchstart', function(e) {
+    const touch = e.touches[0];
+    dragging = true;
+    startX = touch.clientX;
+    startWidth = sidebar.getBoundingClientRect().width;
+    handle.classList.add('active');
+  }, { passive: true });
+
+  document.addEventListener('touchmove', function(e) {
+    if (!dragging) return;
+    const touch = e.touches[0];
+    const newWidth = Math.min(600, Math.max(220, startWidth + (touch.clientX - startX)));
+    sidebar.style.width = newWidth + 'px';
+  }, { passive: true });
+
+  document.addEventListener('touchend', function() {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove('active');
+    safeStorageSet('claimsToolSidebarWidth', Math.round(sidebar.getBoundingClientRect().width).toString());
+    if (lastScenario && document.getElementById('resultsArea').style.display !== 'none') {
+      showResults(lastScenario);
+    }
+  });
+})();
+
+// ===== TOOLTIP POSITIONING =====
+// Position fixed tooltips near their trigger icon so they aren't clipped by sidebar overflow
+document.addEventListener('mouseover', function(e) {
+  const trigger = e.target.closest('.help-tooltip');
+  if (!trigger) return;
+  const tip = trigger.querySelector('.tooltip-content');
+  if (!tip) return;
+  const rect = trigger.getBoundingClientRect();
+  const tipWidth = 300;
+  // Position to the right of the sidebar if inside it, otherwise above the icon
+  const sidebar = document.getElementById('sidebarNav');
+  const inSidebar = sidebar && sidebar.contains(trigger);
+  if (inSidebar) {
+    const sidebarRect = sidebar.getBoundingClientRect();
+    tip.style.left = sidebarRect.right + 8 + 'px';
+    tip.style.top = Math.max(8, rect.top - 20) + 'px';
+  } else {
+    tip.style.left = Math.min(rect.left, window.innerWidth - tipWidth - 16) + 'px';
+    tip.style.top = (rect.top - tip.offsetHeight - 8) + 'px';
+  }
+});
 
 // Restore color blind mode preference
 try {
