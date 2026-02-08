@@ -79,6 +79,37 @@ input[type="range"]::-moz-range-thumb{width:16px;height:16px;background:#3b82f6;
 .surge-list{max-height:160px;overflow-y:auto;margin-bottom:8px}
 .btn-report{background:#8b5cf6;color:#fff;margin-top:8px}
 .btn-report:hover{background:#7c3aed}
+.btn-mc{background:#f59e0b;color:#1e293b;margin-top:8px}
+.btn-mc:hover{background:#d97706}
+.mc-toggle{display:flex;gap:4px;margin-bottom:12px}
+.mc-toggle button{flex:1;padding:6px 4px;font-size:11px;font-weight:600;background:#334155;color:#94a3b8;border:none;border-radius:6px;cursor:pointer;transition:all .2s}
+.mc-toggle button.active{background:#f59e0b;color:#1e293b}
+.mc-progress{background:#334155;border-radius:6px;height:24px;overflow:hidden;margin:12px 0;position:relative}
+.mc-progress-fill{height:100%;background:linear-gradient(90deg,#f59e0b,#eab308);border-radius:6px;transition:width .1s;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#1e293b}
+.mc-results-area{margin-top:20px}
+.mc-card{background:#1e293b;border:1px solid #f59e0b33;border-radius:12px;padding:20px;margin-bottom:20px}
+.mc-card .card-title{color:#f59e0b;border-bottom-color:#f59e0b33}
+.mc-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:20px}
+.mc-metric-card{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:16px}
+.mc-metric-card .det-value{font-size:20px;font-weight:800;color:#3b82f6}
+.mc-metric-card .mc-range{font-size:13px;color:#f59e0b;margin-top:4px}
+.mc-metric-card .mc-ci{font-size:11px;color:#94a3b8;margin-top:2px}
+.mc-metric-card .metric-label{font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-top:6px}
+.mc-badge{display:inline-block;background:#f59e0b22;color:#f59e0b;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;text-transform:uppercase;letter-spacing:.5px}
+.mc-method{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:12px;margin-top:12px;font-size:11px;color:#94a3b8}
+.mc-param-table{width:100%;border-collapse:collapse;font-size:12px}
+.mc-param-table th,.mc-param-table td{padding:6px 8px;text-align:left;border-bottom:1px solid #334155}
+.mc-param-table th{color:#94a3b8;font-weight:600;text-transform:uppercase;font-size:10px}
+.mc-param-table input{width:70px;padding:4px 6px;background:#0f172a;border:1px solid #334155;border-radius:4px;color:#e2e8f0;font-size:12px}
+.mc-convergence{display:flex;align-items:center;gap:8px;font-size:12px;color:#94a3b8;margin-top:8px}
+.mc-convergence .dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.mc-convergence .dot.converged{background:#22c55e}
+.mc-convergence .dot.running{background:#f59e0b;animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.hist-tooltip{position:absolute;background:#1e293b;border:1px solid #f59e0b;border-radius:6px;padding:8px;font-size:11px;color:#e2e8f0;pointer-events:none;z-index:10;display:none}
+.validation-pass{color:#22c55e;font-weight:600}
+.validation-warn{color:#eab308;font-weight:600}
+.validation-fail{color:#ef4444;font-weight:600}
 </style>
 </head>
 <body>
@@ -172,7 +203,32 @@ input[type="range"]::-moz-range-thumb{width:16px;height:16px;background:#3b82f6;
 
       <div style="margin-top:20px">
         <button class="btn btn-primary" onclick="runScenario()">Run Scenario</button>
+        <button class="btn btn-mc" onclick="runMonteCarlo()">Run Monte Carlo (10,000 sims)</button>
         <button class="btn btn-report" onclick="generateReport()">Generate PDF Report</button>
+      </div>
+
+      <!-- MC Mode Toggle -->
+      <div id="mcSidebarControls" style="margin-top:16px;display:none">
+        <div class="form-group">
+          <label>Monte Carlo Mode</label>
+          <div class="mc-toggle">
+            <button id="mcSimpleBtn" class="active" onclick="setMCMode('simple')">Simple</button>
+            <button id="mcAdvancedBtn" onclick="setMCMode('advanced')">Advanced</button>
+          </div>
+        </div>
+        <div id="mcAdvancedControls" style="display:none">
+          <div class="form-group">
+            <label>Iterations</label>
+            <input type="number" id="mcIterations" value="10000" min="1000" max="100000" step="1000" style="font-size:12px">
+          </div>
+          <div class="form-group">
+            <label>Convergence Tolerance (%)</label>
+            <input type="number" id="mcTolerance" value="2" min="0.5" max="10" step="0.5" style="font-size:12px">
+          </div>
+          <div style="font-size:10px;color:#64748b;margin-top:4px">
+            Configure distributions in Admin → MC Config
+          </div>
+        </div>
       </div>
     </div>
 
@@ -269,6 +325,28 @@ input[type="range"]::-moz-range-thumb{width:16px;height:16px;background:#3b82f6;
         <button class="btn btn-success" onclick="addSitePrompt()" style="margin-top:12px">+ Add Site</button>
       </div>
 
+      <div class="admin-section">
+        <h3>Monte Carlo Configuration</h3>
+        <p style="font-size:11px;color:#64748b;margin-bottom:10px">Triangular distribution parameters (min / mode / max) for each stochastic variable. Mode uses current config value.</p>
+        <div style="overflow-x:auto">
+          <table class="mc-param-table" id="mcParamTable">
+            <thead><tr><th>Parameter</th><th>Min Factor</th><th>Max Factor</th><th>Notes</th></tr></thead>
+            <tbody id="mcParamBody"></tbody>
+          </table>
+        </div>
+        <div style="margin-top:12px">
+          <div class="form-group">
+            <label>Default Iterations</label>
+            <input type="number" id="adminMCIterations" value="10000" min="1000" max="100000" step="1000" onchange="saveMCAdmin()">
+          </div>
+          <div class="form-group">
+            <label>Convergence Tolerance (%)</label>
+            <input type="number" id="adminMCTolerance" value="2" min="0.5" max="10" step="0.5" onchange="saveMCAdmin()">
+          </div>
+        </div>
+        <button class="btn btn-secondary" onclick="resetMCDefaults()" style="font-size:12px;padding:6px 12px">Reset MC to Defaults</button>
+      </div>
+
       <div class="admin-section" style="margin-top:20px">
         <button class="btn btn-secondary" onclick="exportConfig()">Export Config</button>
         <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">Import Config</button>
@@ -361,6 +439,81 @@ input[type="range"]::-moz-range-thumb{width:16px;height:16px;background:#3b82f6;
       <div class="card">
         <div class="card-title">Recommendations</div>
         <ul class="rec-list" id="recList"></ul>
+      </div>
+    </div>
+
+    <!-- Monte Carlo Results -->
+    <div id="mcResultsArea" class="mc-results-area" style="display:none">
+      <!-- MC Progress Bar -->
+      <div id="mcProgressContainer" style="display:none">
+        <div class="card" style="border-color:#f59e0b33">
+          <div class="card-title" style="color:#f59e0b">Monte Carlo Simulation Running</div>
+          <div class="mc-progress"><div class="mc-progress-fill" id="mcProgressBar" style="width:0%">0%</div></div>
+          <div class="mc-convergence" id="mcConvergenceStatus">
+            <span class="dot running"></span> Running iterations...
+          </div>
+        </div>
+      </div>
+
+      <!-- MC Summary Metrics with CI -->
+      <div class="mc-card">
+        <div class="card-title">Monte Carlo Analysis <span class="mc-badge">Probabilistic</span></div>
+        <div id="mcMethodNote" class="mc-method"></div>
+        <div class="mc-metrics" id="mcMetricsGrid"></div>
+      </div>
+
+      <!-- MC Distribution Charts -->
+      <div class="mc-card">
+        <div class="card-title">Claims Distribution <span class="mc-badge">10,000 simulations</span></div>
+        <div class="chart-container"><canvas id="mcClaimsHistogram" height="280"></canvas></div>
+        <div class="chart-legend" id="mcClaimsHistLegend"></div>
+      </div>
+
+      <div class="mc-card">
+        <div class="card-title">Financial Exposure Distribution</div>
+        <div class="chart-container"><canvas id="mcValueHistogram" height="280"></canvas></div>
+        <div class="chart-legend" id="mcValueHistLegend"></div>
+      </div>
+
+      <div class="mc-card">
+        <div class="card-title">Time to Clear Distribution</div>
+        <div class="chart-container"><canvas id="mcClearTimeHistogram" height="280"></canvas></div>
+        <div class="chart-legend" id="mcClearTimeLegend"></div>
+      </div>
+
+      <!-- Exceedance Curves -->
+      <div class="mc-card">
+        <div class="card-title">Exceedance Probability Curves</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div>
+            <div style="font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:8px">Claims Count</div>
+            <div class="chart-container"><canvas id="mcClaimsExceedance" height="220"></canvas></div>
+          </div>
+          <div>
+            <div style="font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:8px">Financial Value</div>
+            <div class="chart-container"><canvas id="mcValueExceedance" height="220"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tornado / Sensitivity Chart -->
+      <div class="mc-card">
+        <div class="card-title">Sensitivity Analysis (Tornado Chart)</div>
+        <p style="font-size:11px;color:#94a3b8;margin-bottom:12px">Shows which input parameters contribute most to output uncertainty (Spearman rank correlation)</p>
+        <div class="chart-container"><canvas id="mcTornadoChart" height="320"></canvas></div>
+      </div>
+
+      <!-- Deterministic vs MC Comparison -->
+      <div class="mc-card">
+        <div class="card-title">Deterministic vs Monte Carlo Comparison</div>
+        <div id="mcComparisonContent"></div>
+      </div>
+
+      <!-- Historical Validation -->
+      <div class="mc-card">
+        <div class="card-title">Historical Validation</div>
+        <p style="font-size:11px;color:#94a3b8;margin-bottom:12px">Back-testing: do known historical outcomes fall within the simulated confidence intervals?</p>
+        <div id="mcValidationContent"></div>
       </div>
     </div>
 
@@ -1129,6 +1282,7 @@ function loadAdmin() {
   document.getElementById('rateMajor').value = (config.severityRates.major * 100);
   document.getElementById('rateCatastrophic').value = (config.severityRates.catastrophic * 100);
   renderSitesAdmin();
+  if (typeof loadMCAdmin === 'function') loadMCAdmin();
 }
 
 function saveAdmin() {
@@ -3120,6 +3274,817 @@ ${(() => {
   printWindow.document.write(html);
   printWindow.document.close();
   printWindow.onload = function() { printWindow.print(); };
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION MC: MONTE CARLO SIMULATION ENGINE
+// Triangular distributions, Gaussian copula correlation,
+// convergence checking, sensitivity analysis, historical validation
+// Methodology: Gaussian copula Monte Carlo with triangular marginals
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// ===== MC DEFAULT CONFIGURATION =====
+const MC_DEFAULT_CONFIG = {
+  iterations: 10000,
+  convergenceTolerance: 0.02,
+  convergenceCheckInterval: 500,
+  batchSize: 500,
+  paramDefs: [
+    { key: 'claimRate',       label: 'Claim Rate',              minFactor: 0.4, maxFactor: 2.0, note: '% of affected population filing' },
+    { key: 'incidentMult',    label: 'Incident Multiplier',     minFactor: 0.6, maxFactor: 1.8, note: 'Severity scaling factor' },
+    { key: 'claimMultPP',     label: 'Claims Per Person',       minFactor: 0.7, maxFactor: 1.5, note: 'Multiple filings per individual' },
+    { key: 'injuryRatio',     label: 'Injury/Property Split',   minFactor: 0.6, maxFactor: 1.4, note: 'Injury proportion vs property' },
+    { key: 'peakWeekShift',   label: 'Peak Timing Shift',       minFactor: -2,  maxFactor: 2,   note: 'Weeks earlier/later than expected', isAbsolute: true },
+    { key: 'tailWeight',      label: 'Tail Weight',             minFactor: 0.7, maxFactor: 1.4, note: 'Long-tail claim emergence' },
+    { key: 'processingTime',  label: 'Processing Time',         minFactor: 0.7, maxFactor: 1.5, note: 'Days per claim variability' },
+    { key: 'population',      label: 'Affected Population',     minFactor: 0.5, maxFactor: 2.0, note: 'Actual vs estimated exposure' },
+    { key: 'claimValue',      label: 'Avg Claim Value',         minFactor: 0.4, maxFactor: 2.5, note: 'Per-claim financial amount' },
+    { key: 'reserveDev',      label: 'Reserve Development',     minFactor: 0.8, maxFactor: 1.3, note: 'Ultimate claims multiplier' },
+    { key: 'staffAvail',      label: 'Staff Availability',      minFactor: 0.6, maxFactor: 1.0, note: 'Attrition under stress' }
+  ],
+  // Correlation matrix (Gaussian copula) - order matches paramDefs
+  correlationMatrix: [
+  //  clmR  incM  clMP  injR  pkWk  tail  proc  popn  clVl  rsDv  stAv
+    [ 1.00, 0.30, 0.20, 0.10, 0.05, 0.40,-0.10, 0.30, 0.50, 0.30,-0.10], // claimRate
+    [ 0.30, 1.00, 0.25, 0.05, 0.10, 0.30, 0.15, 0.20, 0.40, 0.25,-0.05], // incidentMult
+    [ 0.20, 0.25, 1.00, 0.10, 0.05, 0.20, 0.10, 0.15, 0.20, 0.15, 0.00], // claimMultPP
+    [ 0.10, 0.05, 0.10, 1.00, 0.00, 0.10, 0.05, 0.00, 0.15, 0.05, 0.00], // injuryRatio
+    [ 0.05, 0.10, 0.05, 0.00, 1.00, 0.15, 0.00, 0.00, 0.00, 0.10, 0.00], // peakWeekShift
+    [ 0.40, 0.30, 0.20, 0.10, 0.15, 1.00, 0.10, 0.15, 0.30, 0.50,-0.05], // tailWeight
+    [-0.10, 0.15, 0.10, 0.05, 0.00, 0.10, 1.00, 0.00, 0.10, 0.10,-0.30], // processingTime
+    [ 0.30, 0.20, 0.15, 0.00, 0.00, 0.15, 0.00, 1.00, 0.20, 0.15, 0.00], // population
+    [ 0.50, 0.40, 0.20, 0.15, 0.00, 0.30, 0.10, 0.20, 1.00, 0.35,-0.05], // claimValue
+    [ 0.30, 0.25, 0.15, 0.05, 0.10, 0.50, 0.10, 0.15, 0.35, 1.00,-0.05], // reserveDev
+    [-0.10,-0.05, 0.00, 0.00, 0.00,-0.05,-0.30, 0.00,-0.05,-0.05, 1.00]  // staffAvail
+  ]
+};
+
+let mcConfig = JSON.parse(JSON.stringify(MC_DEFAULT_CONFIG));
+try {
+  const savedMC = localStorage.getItem('claimsToolMCConfig');
+  if (savedMC) { const parsed = JSON.parse(savedMC); if (parsed.paramDefs) mcConfig = parsed; }
+} catch(e) {}
+
+function saveMCConfig() {
+  try { localStorage.setItem('claimsToolMCConfig', JSON.stringify(mcConfig)); } catch(e) {}
+}
+
+let mcMode = 'simple';
+let mcRunning = false;
+let lastMCResults = null;
+
+// ===== MATH UTILITIES =====
+
+function normalCDF(x) {
+  const a1=0.254829592, a2=-0.284496736, a3=1.421413741, a4=-1.453152027, a5=1.061405429, p=0.3275911;
+  const sign = x < 0 ? -1 : 1;
+  const ax = Math.abs(x) / Math.SQRT2;
+  const t = 1.0 / (1.0 + p * ax);
+  const y = 1.0 - (((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-ax*ax);
+  return 0.5 * (1.0 + sign * y);
+}
+
+function boxMuller() {
+  let u1; do { u1 = Math.random(); } while (u1 === 0);
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * Math.random());
+}
+
+function choleskyDecompose(A) {
+  const n = A.length;
+  const L = Array.from({length: n}, () => new Array(n).fill(0));
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j <= i; j++) {
+      let sum = 0;
+      for (let k = 0; k < j; k++) sum += L[i][k] * L[j][k];
+      if (i === j) { const d = A[i][i] - sum; L[i][j] = d > 0 ? Math.sqrt(d) : 0; }
+      else { L[i][j] = L[j][j] > 0 ? (A[i][j] - sum) / L[j][j] : 0; }
+    }
+  }
+  return L;
+}
+
+function triangularQuantile(u, min, mode, max) {
+  if (max <= min) return mode;
+  const fc = (mode - min) / (max - min);
+  if (u < fc) return min + Math.sqrt(u * (max - min) * (mode - min));
+  return max - Math.sqrt((1 - u) * (max - min) * (max - mode));
+}
+
+function generateCorrelatedUniforms(choleskyL, n) {
+  const z = new Array(n);
+  for (let i = 0; i < n; i++) z[i] = boxMuller();
+  const u = new Array(n);
+  for (let i = 0; i < n; i++) {
+    let sum = 0;
+    for (let j = 0; j <= i; j++) sum += choleskyL[i][j] * z[j];
+    u[i] = Math.max(0.001, Math.min(0.999, normalCDF(sum)));
+  }
+  return u;
+}
+
+// ===== PURE SCENARIO CALCULATOR (no DOM) =====
+function calculateScenarioCore(params) {
+  const {
+    totalAffected, claimRate, incidentMult, claimMultPP,
+    injuryRatio, propertyRatio, claimType,
+    incident, severity,
+    peakWeekShift, tailWeightFactor,
+    processingTimeFactor, staffAvailFactor,
+    basePeriodCapacity,
+    useBlastConcentration, site,
+    claimValuePerClaim, reserveDevMidpoint,
+    surgeEntries, targetWeeks
+  } = params;
+
+  const baseTotalClaims = Math.round(totalAffected * claimRate * incidentMult * claimMultPP);
+  let injuryClaims = 0, propertyClaims = 0, totalClaims = 0;
+  if (claimType === 'both') {
+    injuryClaims = Math.round(baseTotalClaims * injuryRatio);
+    propertyClaims = Math.round(baseTotalClaims * propertyRatio);
+    totalClaims = injuryClaims + propertyClaims;
+  } else if (claimType === 'injury') {
+    injuryClaims = baseTotalClaims; totalClaims = injuryClaims;
+  } else {
+    propertyClaims = baseTotalClaims; totalClaims = propertyClaims;
+  }
+
+  if (useBlastConcentration && totalClaims > 0) {
+    const blastResult = applyBlastRadiusConcentration(totalClaims, site, true);
+    if (blastResult.total > 0) {
+      const adj = blastResult.total / totalClaims;
+      totalClaims = blastResult.total;
+      injuryClaims = Math.round(injuryClaims * adj);
+      propertyClaims = Math.round(propertyClaims * adj);
+    }
+  }
+
+  const fullWeeks = resolveHorizonConfig(incident, severity, 'long').weeks;
+  const simWeeks = Math.min(fullWeeks, 520);
+
+  const patterns = CLAIM_PATTERNS[incident] || CLAIM_PATTERNS.fire;
+  const injP = (patterns.injury || {})[severity] || { peakWeek: 3, shape: 'spike', tailWeight: 0.15 };
+  const propP = (patterns.property || {})[severity] || { peakWeek: 3, shape: 'spike', tailWeight: 0.15 };
+
+  const injPeak = Math.max(1, Math.round((injP.peakWeek || 3) + peakWeekShift));
+  const propPeak = Math.max(1, Math.round((propP.peakWeek || 3) + peakWeekShift));
+  const injTail = Math.max(0.01, (injP.tailWeight || 0.15) * tailWeightFactor);
+  const propTail = Math.max(0.01, (propP.tailWeight || 0.15) * tailWeightFactor);
+
+  const injDist = injuryClaims > 0 ? generateShapedDistribution(simWeeks, injPeak, injP.shape, injTail) : [];
+  const propDist = propertyClaims > 0 ? generateShapedDistribution(simWeeks, propPeak, propP.shape, propTail) : [];
+
+  const injPerWeek = injDist.map(d => Math.round(injuryClaims * d));
+  const propPerWeek = propDist.map(d => Math.round(propertyClaims * d));
+
+  const effectiveBaseCapacity = Math.max(1, Math.round(basePeriodCapacity * staffAvailFactor * processingTimeFactor));
+  const wdpc = getWeightedDaysPerClaim();
+  const claimsPerStaff = wdpc > 0 ? config.organisation.workDaysPerWeek / wdpc : config.organisation.workDaysPerWeek;
+
+  let cumulative = 0, backlog = 0, peakClaims = 0, peakWeek = 0, maxBacklog = 0, overCapacityWeeks = 0;
+  let weeksToClear = -1;
+
+  for (let i = 0; i < simWeeks; i++) {
+    const weekNum = i + 1;
+    let surgeStaff = 0;
+    (surgeEntries || []).forEach(e => { if (weekNum >= e.startWeek) surgeStaff += e.extraStaff; });
+    const surgeCapacity = Math.round(surgeStaff * claimsPerStaff * processingTimeFactor);
+    const weeklyCapacity = effectiveBaseCapacity + surgeCapacity;
+
+    const newClaims = (injPerWeek[i] || 0) + (propPerWeek[i] || 0);
+    cumulative += newClaims;
+    if (newClaims > peakClaims) { peakClaims = newClaims; peakWeek = weekNum; }
+
+    const available = newClaims + backlog;
+    const processed = Math.min(available, weeklyCapacity);
+    backlog = available - processed;
+    if (backlog > maxBacklog) maxBacklog = backlog;
+    if (newClaims > weeklyCapacity) overCapacityWeeks++;
+
+    if (weeksToClear === -1 && backlog === 0 && cumulative >= totalClaims * 0.95) {
+      weeksToClear = weekNum;
+    }
+  }
+
+  const staffNeededAtPeak = peakClaims > 0
+    ? Math.ceil(peakClaims / Math.max(1, effectiveBaseCapacity / Math.max(1, Math.round(config.organisation.staffCount * staffAvailFactor))))
+    : config.organisation.staffCount;
+  const additionalStaff = Math.max(0, staffNeededAtPeak - Math.round(config.organisation.staffCount * staffAvailFactor));
+  const canMeetTarget = weeksToClear !== -1 && weeksToClear <= targetWeeks;
+  const ultimateClaims = Math.round(totalClaims * reserveDevMidpoint);
+  const estimatedValue = ultimateClaims * claimValuePerClaim;
+
+  return {
+    totalClaims, injuryClaims, propertyClaims,
+    peakClaims, peakWeek, weeksToClear,
+    maxBacklog, overCapacityWeeks,
+    additionalStaff, staffNeededAtPeak, canMeetTarget,
+    ultimateClaims, estimatedValue
+  };
+}
+
+// ===== MC PARAMETER SAMPLING =====
+function sampleMCParameters(choleskyL) {
+  const uniforms = generateCorrelatedUniforms(choleskyL, mcConfig.paramDefs.length);
+  const sampled = {};
+  mcConfig.paramDefs.forEach((pd, i) => {
+    const u = uniforms[i];
+    if (pd.isAbsolute) {
+      sampled[pd.key] = triangularQuantile(u, pd.minFactor, 0, pd.maxFactor);
+    } else {
+      sampled[pd.key] = triangularQuantile(u, pd.minFactor, 1.0, pd.maxFactor);
+    }
+  });
+  return { sampled, uniforms };
+}
+
+// ===== STATISTICS =====
+function computePercentiles(arr, pcts) {
+  const sorted = [...arr].sort((a, b) => a - b);
+  const n = sorted.length;
+  const result = {};
+  pcts.forEach(p => {
+    const idx = Math.min(n - 1, Math.max(0, Math.floor(p / 100 * n)));
+    result['P' + p] = sorted[idx];
+  });
+  result.mean = arr.reduce((s, v) => s + v, 0) / n;
+  result.std = Math.sqrt(arr.reduce((s, v) => s + (v - result.mean) ** 2, 0) / n);
+  result.min = sorted[0]; result.max = sorted[n - 1];
+  return result;
+}
+
+function buildHistogram(arr, numBins) {
+  const sorted = [...arr].sort((a, b) => a - b);
+  const min = sorted[0], max = sorted[sorted.length - 1];
+  if (max === min) return { bins: [{ low: min, high: max, count: arr.length, pct: 100 }], min, max };
+  const binWidth = (max - min) / numBins;
+  const bins = [];
+  for (let i = 0; i < numBins; i++) bins.push({ low: min + i * binWidth, high: min + (i + 1) * binWidth, count: 0, pct: 0 });
+  arr.forEach(v => { let idx = Math.floor((v - min) / binWidth); if (idx >= numBins) idx = numBins - 1; bins[idx].count++; });
+  bins.forEach(b => b.pct = (b.count / arr.length) * 100);
+  return { bins, min, max };
+}
+
+function buildExceedanceCurve(arr) {
+  const sorted = [...arr].sort((a, b) => a - b);
+  const n = sorted.length, step = Math.max(1, Math.floor(n / 200));
+  const points = [];
+  for (let i = 0; i < n; i += step) points.push({ value: sorted[i], exceedance: 1 - (i / n) });
+  points.push({ value: sorted[n - 1], exceedance: 1 / n });
+  return points;
+}
+
+function spearmanCorrelation(x, y) {
+  const n = x.length;
+  function rankArray(arr) {
+    const indexed = arr.map((v, i) => ({ v, i })).sort((a, b) => a.v - b.v);
+    const ranks = new Array(n);
+    indexed.forEach((item, rank) => { ranks[item.i] = rank + 1; });
+    return ranks;
+  }
+  const rx = rankArray(x), ry = rankArray(y);
+  let sumD2 = 0;
+  for (let i = 0; i < n; i++) sumD2 += (rx[i] - ry[i]) ** 2;
+  return 1 - (6 * sumD2) / (n * (n * n - 1));
+}
+
+// ===== HISTORICAL VALIDATION DATA =====
+const HISTORICAL_VALIDATION = {
+  explosion: {
+    bpTexasCity: { name: 'BP Texas City (2005)', totalClaims: 4000, totalValue: 2100000000, severity: 'catastrophic', population: 80000 },
+    buncefield: { name: 'Buncefield UK (2005)', totalClaims: 2700, totalValue: 700000000, severity: 'major', population: 60000 }
+  },
+  chemical: {
+    bhopal: { name: 'Bhopal (1984)', totalClaims: 1029517, totalValue: 470000000, severity: 'catastrophic', population: 500000 }
+  },
+  nuclear: {
+    fukushima: { name: 'Fukushima (2011)', totalClaims: 164000, totalValue: 70000000000, severity: 'catastrophic', population: 200000 },
+    threeMileIsland: { name: 'Three Mile Island (1979)', totalClaims: 2000, totalValue: 82000000, severity: 'moderate', population: 50000 }
+  },
+  fertiliser: {
+    westTexas: { name: 'West, Texas (2013)', totalClaims: 425, totalValue: 230000000, severity: 'catastrophic', population: 2800 }
+  },
+  fire: {
+    genericMajor: { name: 'Typical Major Industrial Fire', totalClaims: 350, totalValue: 42000000, severity: 'major', population: 25000 }
+  }
+};
+
+// ===== MAIN MC RUNNER =====
+function runMonteCarlo() {
+  if (mcRunning) return;
+  if (!lastScenario) { alert('Run a scenario first to establish baseline.'); return; }
+
+  mcRunning = true;
+  const s = lastScenario;
+
+  document.getElementById('mcSidebarControls').style.display = '';
+  document.getElementById('mcResultsArea').style.display = '';
+  document.getElementById('mcProgressContainer').style.display = '';
+
+  const iterations = mcMode === 'advanced'
+    ? (parseInt(document.getElementById('mcIterations').value) || 10000)
+    : mcConfig.iterations;
+  const tolerance = mcMode === 'advanced'
+    ? ((parseFloat(document.getElementById('mcTolerance').value) || 2) / 100)
+    : mcConfig.convergenceTolerance;
+
+  const choleskyL = choleskyDecompose(mcConfig.correlationMatrix);
+
+  const site = s.site;
+  const totalAffected = site.population + site.staffOnSite;
+  const claimRate = config.severityRates[s.severity];
+  const incidentMult = config.incidentMultipliers[s.incident] || 1.0;
+  const claimMultPP = config.claimMultiplierPerPerson?.[s.incident] || DEFAULT_CONFIG.claimMultiplierPerPerson?.[s.incident] || 1.0;
+  const splits = config.claimTypeSplits?.[s.incident] || DEFAULT_CONFIG.claimTypeSplits[s.incident];
+  const blastModel = document.getElementById('blastRadiusSelect')?.value || 'uniform';
+  const useBlast = (s.incident === 'explosion' || s.incident === 'fertiliser') && blastModel === 'concentrated';
+  const reserveFactor = getReserveDevelopmentFactor(s.timeHorizon, s.incident);
+  const avgClaimValue = getAverageClaimValue(s.incident, s.severity);
+  const baseWeeklyCapacity = getWeeklyCapacity();
+
+  const results = {
+    totalClaims: [], injuryClaims: [], propertyClaims: [],
+    peakClaims: [], peakWeek: [], weeksToClear: [],
+    maxBacklog: [], overCapacityWeeks: [],
+    additionalStaff: [], staffNeededAtPeak: [],
+    ultimateClaims: [], estimatedValue: [],
+    canMeetTarget: []
+  };
+  const inputSamples = {};
+  mcConfig.paramDefs.forEach(pd => { inputSamples[pd.key] = []; });
+
+  let completed = 0, converged = false, prevMedian = null;
+
+  function processBatch() {
+    const batchEnd = Math.min(completed + mcConfig.batchSize, iterations);
+    for (let i = completed; i < batchEnd; i++) {
+      const { sampled } = sampleMCParameters(choleskyL);
+
+      const mcInjuryRatio = Math.max(0.05, Math.min(0.95, splits.injury * sampled.injuryRatio));
+
+      mcConfig.paramDefs.forEach(pd => { inputSamples[pd.key].push(sampled[pd.key]); });
+
+      const result = calculateScenarioCore({
+        totalAffected: Math.round(totalAffected * sampled.population),
+        claimRate: claimRate * sampled.claimRate,
+        incidentMult: incidentMult * sampled.incidentMult,
+        claimMultPP: claimMultPP * sampled.claimMultPP,
+        injuryRatio: mcInjuryRatio,
+        propertyRatio: 1 - mcInjuryRatio,
+        claimType: s.claimType,
+        incident: s.incident,
+        severity: s.severity,
+        peakWeekShift: sampled.peakWeekShift,
+        tailWeightFactor: sampled.tailWeight,
+        processingTimeFactor: 1 / sampled.processingTime,
+        staffAvailFactor: sampled.staffAvail,
+        basePeriodCapacity: baseWeeklyCapacity,
+        useBlastConcentration: useBlast,
+        site,
+        claimValuePerClaim: avgClaimValue * sampled.claimValue,
+        reserveDevMidpoint: reserveFactor.midpoint * sampled.reserveDev,
+        surgeEntries: s.surgeEntries || surgeEntries,
+        targetWeeks: s.targetWeeks
+      });
+
+      for (const key in results) {
+        if (result[key] !== undefined) results[key].push(result[key]);
+      }
+    }
+    completed = batchEnd;
+
+    const pct = Math.round((completed / iterations) * 100);
+    const bar = document.getElementById('mcProgressBar');
+    bar.style.width = pct + '%';
+    bar.textContent = pct + '% (' + completed.toLocaleString() + '/' + iterations.toLocaleString() + ')';
+
+    if (completed % mcConfig.convergenceCheckInterval === 0 && completed > mcConfig.convergenceCheckInterval) {
+      const sorted = [...results.totalClaims].sort((a, b) => a - b);
+      const currentMedian = sorted[Math.floor(sorted.length / 2)];
+      if (prevMedian !== null) {
+        const change = Math.abs(currentMedian - prevMedian) / Math.max(1, prevMedian);
+        if (change < tolerance) {
+          converged = true;
+          document.getElementById('mcConvergenceStatus').innerHTML =
+            '<span class="dot converged"></span> Converged at ' + completed.toLocaleString() + ' iterations (median stable within ' + (tolerance * 100).toFixed(1) + '%)';
+        }
+      }
+      prevMedian = currentMedian;
+    }
+
+    if (completed < iterations && !converged) {
+      setTimeout(processBatch, 0);
+    } else {
+      if (!converged) {
+        document.getElementById('mcConvergenceStatus').innerHTML =
+          '<span class="dot converged"></span> Completed ' + completed.toLocaleString() + ' iterations';
+      }
+      document.getElementById('mcProgressBar').style.width = '100%';
+      document.getElementById('mcProgressBar').textContent = '100% Complete';
+
+      lastMCResults = { iterations: completed, converged, results, inputSamples, baseScenario: s, stats: {}, sensitivity: {} };
+
+      const pctiles = [5, 10, 25, 50, 75, 90, 95, 99];
+      for (const key in results) {
+        if (key === 'canMeetTarget') {
+          lastMCResults.stats[key] = { probabilityYes: results[key].filter(v => v).length / completed };
+        } else {
+          lastMCResults.stats[key] = computePercentiles(results[key], pctiles);
+        }
+      }
+
+      const outputKeys = ['totalClaims', 'estimatedValue', 'weeksToClear', 'additionalStaff'];
+      outputKeys.forEach(outKey => {
+        lastMCResults.sensitivity[outKey] = [];
+        mcConfig.paramDefs.forEach(pd => {
+          if (inputSamples[pd.key] && results[outKey]) {
+            const corr = spearmanCorrelation(inputSamples[pd.key], results[outKey]);
+            lastMCResults.sensitivity[outKey].push({ param: pd.label, correlation: corr, key: pd.key });
+          }
+        });
+        lastMCResults.sensitivity[outKey].sort((a, b) => Math.abs(b.correlation) - Math.abs(a.correlation));
+      });
+
+      displayMCResults(lastMCResults);
+      mcRunning = false;
+      setTimeout(() => { document.getElementById('mcProgressContainer').style.display = 'none'; }, 1500);
+    }
+  }
+  processBatch();
+}
+
+// ===== MC RESULTS DISPLAY =====
+function displayMCResults(mc) {
+  const s = mc.baseScenario, st = mc.stats;
+
+  document.getElementById('mcMethodNote').innerHTML =
+    '<strong>Methodology:</strong> Gaussian copula Monte Carlo simulation with triangular marginal distributions. ' +
+    mc.iterations.toLocaleString() + ' iterations' + (mc.converged ? ' (converged)' : '') +
+    '. Inter-parameter correlations modelled via Cholesky-decomposed correlation matrix. ' +
+    'All ' + mcConfig.paramDefs.length + ' stochastic parameters varied simultaneously.' +
+    '<br><strong>Parameters varied:</strong> ' + mcConfig.paramDefs.map(p => p.label).join(', ');
+
+  const grid = document.getElementById('mcMetricsGrid');
+  const metrics = [
+    { label: 'Total Claims', det: s.totalClaims, stats: st.totalClaims, fmt: v => Math.round(v).toLocaleString() },
+    { label: 'Injury Claims', det: s.injuryClaims, stats: st.injuryClaims, fmt: v => Math.round(v).toLocaleString() },
+    { label: 'Property Claims', det: s.propertyClaims, stats: st.propertyClaims, fmt: v => Math.round(v).toLocaleString() },
+    { label: 'Peak Weekly Claims', det: s.peakClaims, stats: st.peakClaims, fmt: v => Math.round(v).toLocaleString() },
+    { label: 'Time to Clear (wks)', det: s.weeksToClear, stats: st.weeksToClear, fmt: v => v === -1 ? 'N/A' : Math.round(v).toLocaleString() },
+    { label: 'Max Backlog', det: s.maxBacklog, stats: st.maxBacklog, fmt: v => Math.round(v).toLocaleString() },
+    { label: 'Addl Staff Needed', det: s.additionalStaff, stats: st.additionalStaff, fmt: v => '+' + Math.round(v).toLocaleString() },
+    { label: 'Ultimate Claims', det: s.ultimateClaimsMid || s.ultimateClaims || 0, stats: st.ultimateClaims, fmt: v => Math.round(v).toLocaleString() },
+    { label: 'Estimated Value', det: s.estimatedTotalValue || 0, stats: st.estimatedValue, fmt: v => '\u00A3' + (v / 1e6).toFixed(1) + 'M' },
+    { label: 'Can Meet Target', det: s.canMeetTarget, stats: st.canMeetTarget, isBool: true }
+  ];
+
+  grid.innerHTML = metrics.map(m => {
+    if (m.isBool) {
+      const prob = (m.stats.probabilityYes * 100).toFixed(1);
+      const color = m.stats.probabilityYes > 0.7 ? '#22c55e' : m.stats.probabilityYes > 0.3 ? '#eab308' : '#ef4444';
+      return '<div class="mc-metric-card">' +
+        '<div class="det-value" style="color:' + (m.det ? '#22c55e' : '#ef4444') + '">' + (m.det ? 'Yes' : 'No') + ' <span style="font-size:11px;color:#64748b">(det.)</span></div>' +
+        '<div class="mc-range" style="color:' + color + '">' + prob + '% probability</div>' +
+        '<div class="metric-label">' + m.label + '</div></div>';
+    }
+    const detVal = m.det !== null ? m.fmt(m.det) : 'N/A';
+    return '<div class="mc-metric-card">' +
+      '<div class="det-value">' + detVal + ' <span style="font-size:11px;color:#64748b">(deterministic)</span></div>' +
+      '<div class="mc-range">P10: ' + m.fmt(m.stats.P10) + ' \u2014 P50: ' + m.fmt(m.stats.P50) + ' \u2014 P90: ' + m.fmt(m.stats.P90) + '</div>' +
+      '<div class="mc-ci">95% CI: ' + m.fmt(m.stats.P5) + ' \u2013 ' + m.fmt(m.stats.P95) + ' | Mean: ' + m.fmt(m.stats.mean) + '</div>' +
+      '<div class="metric-label">' + m.label + '</div></div>';
+  }).join('');
+
+  drawMCHistogram('mcClaimsHistogram', mc.results.totalClaims, 'Total Claims', s.totalClaims, 'mcClaimsHistLegend');
+  drawMCHistogram('mcValueHistogram', mc.results.estimatedValue, 'Estimated Value', null, 'mcValueHistLegend', v => '\u00A3' + (v / 1e6).toFixed(1) + 'M');
+  drawMCHistogram('mcClearTimeHistogram', mc.results.weeksToClear.filter(v => v > 0), 'Weeks to Clear', s.weeksToClear > 0 ? s.weeksToClear : null, 'mcClearTimeLegend');
+
+  drawExceedanceChart('mcClaimsExceedance', mc.results.totalClaims, 'Claims');
+  drawExceedanceChart('mcValueExceedance', mc.results.estimatedValue, 'Value', v => '\u00A3' + (v / 1e6).toFixed(0) + 'M');
+
+  drawTornadoChart('mcTornadoChart', mc.sensitivity.totalClaims, 'Total Claims');
+
+  displayComparison(mc);
+  displayHistoricalValidation(mc);
+}
+
+// ===== MC CHART: HISTOGRAM =====
+function drawMCHistogram(canvasId, data, title, deterministicValue, legendId, formatter) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || !data || data.length === 0) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * dpr; canvas.height = 280 * dpr; canvas.style.height = '280px';
+  ctx.scale(dpr, dpr);
+  const W = rect.width, H = 280;
+  ctx.clearRect(0, 0, W, H);
+
+  const fmt = formatter || (v => Math.round(v).toLocaleString());
+  const hist = buildHistogram(data, 40);
+  const pad = { top: 20, right: 20, bottom: 50, left: 70 };
+  const chartW = W - pad.left - pad.right, chartH = H - pad.top - pad.bottom;
+  const maxPct = Math.max(...hist.bins.map(b => b.pct));
+  const barW = chartW / hist.bins.length;
+
+  const sorted = [...data].sort((a, b) => a - b);
+  const p5 = sorted[Math.floor(sorted.length * 0.05)];
+  const p25 = sorted[Math.floor(sorted.length * 0.25)];
+  const p50 = sorted[Math.floor(sorted.length * 0.50)];
+  const p75 = sorted[Math.floor(sorted.length * 0.75)];
+  const p95 = sorted[Math.floor(sorted.length * 0.95)];
+
+  // Grid
+  ctx.strokeStyle = '#334155'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (chartH / 4) * i;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + chartW, y); ctx.stroke();
+    ctx.fillStyle = '#64748b'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText((maxPct - (maxPct / 4) * i).toFixed(1) + '%', pad.left - 6, y + 4);
+  }
+
+  // Bars
+  hist.bins.forEach((bin, i) => {
+    const x = pad.left + i * barW;
+    const barH = maxPct > 0 ? (bin.pct / maxPct) * chartH : 0;
+    const y = pad.top + chartH - barH;
+    const midVal = (bin.low + bin.high) / 2;
+    if (midVal < p5 || midVal > p95) ctx.fillStyle = 'rgba(239,68,68,0.6)';
+    else if (midVal < p25 || midVal > p75) ctx.fillStyle = 'rgba(234,179,8,0.6)';
+    else ctx.fillStyle = 'rgba(59,130,246,0.6)';
+    ctx.fillRect(x + 1, y, Math.max(1, barW - 2), barH);
+  });
+
+  // Deterministic line
+  if (deterministicValue !== null && deterministicValue > 0 && hist.max > hist.min) {
+    const detX = pad.left + ((deterministicValue - hist.min) / (hist.max - hist.min)) * chartW;
+    if (detX >= pad.left && detX <= pad.left + chartW) {
+      ctx.strokeStyle = '#22c55e'; ctx.lineWidth = 2; ctx.setLineDash([6, 3]);
+      ctx.beginPath(); ctx.moveTo(detX, pad.top); ctx.lineTo(detX, pad.top + chartH); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = '#22c55e'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('Det: ' + fmt(deterministicValue), detX, pad.top - 4);
+    }
+  }
+
+  // P50 line
+  if (hist.max > hist.min) {
+    const p50X = pad.left + ((p50 - hist.min) / (hist.max - hist.min)) * chartW;
+    ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2; ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.moveTo(p50X, pad.top); ctx.lineTo(p50X, pad.top + chartH); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = '#f59e0b'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('P50: ' + fmt(p50), p50X, pad.top + chartH + 14);
+  }
+
+  // X labels
+  ctx.fillStyle = '#64748b'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+  for (let i = 0; i <= 6; i++) {
+    const val = hist.min + (hist.max - hist.min) * (i / 6);
+    ctx.fillText(fmt(val), pad.left + (i / 6) * chartW, pad.top + chartH + 30);
+  }
+
+  ctx.save(); ctx.translate(14, pad.top + chartH / 2); ctx.rotate(-Math.PI / 2);
+  ctx.fillStyle = '#64748b'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('Frequency (%)', 0, 0); ctx.restore();
+
+  if (legendId) {
+    document.getElementById(legendId).innerHTML =
+      '<div class="legend-item"><div class="legend-swatch" style="background:#3b82f6"></div> P25-P75 (IQR)</div>' +
+      '<div class="legend-item"><div class="legend-swatch" style="background:#eab308"></div> P5-P25 / P75-P95</div>' +
+      '<div class="legend-item"><div class="legend-swatch" style="background:#ef4444"></div> Tail (&lt; P5 / &gt; P95)</div>' +
+      (deterministicValue !== null ? '<div class="legend-item"><div class="legend-swatch" style="background:#22c55e"></div> Deterministic</div>' : '') +
+      '<div class="legend-item"><div class="legend-swatch" style="background:#f59e0b"></div> Median (P50)</div>';
+  }
+}
+
+// ===== MC CHART: EXCEEDANCE CURVE =====
+function drawExceedanceChart(canvasId, data, label, formatter) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || !data || data.length === 0) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * dpr; canvas.height = 220 * dpr; canvas.style.height = '220px';
+  ctx.scale(dpr, dpr);
+  const W = rect.width, H = 220;
+  ctx.clearRect(0, 0, W, H);
+
+  const curve = buildExceedanceCurve(data);
+  const fmt = formatter || (v => Math.round(v).toLocaleString());
+  const pad = { top: 16, right: 16, bottom: 40, left: 56 };
+  const chartW = W - pad.left - pad.right, chartH = H - pad.top - pad.bottom;
+  const minVal = curve[0].value, maxVal = curve[curve.length - 1].value;
+  const valRange = maxVal - minVal || 1;
+
+  ctx.strokeStyle = '#334155'; ctx.lineWidth = 1;
+  [0, 0.2, 0.4, 0.6, 0.8, 1.0].forEach(p => {
+    const y = pad.top + chartH * (1 - p);
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + chartW, y); ctx.stroke();
+    ctx.fillStyle = '#64748b'; ctx.font = '10px sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText((p * 100).toFixed(0) + '%', pad.left - 4, y + 4);
+  });
+
+  // Curve + fill
+  ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  curve.forEach((pt, i) => {
+    const x = pad.left + ((pt.value - minVal) / valRange) * chartW;
+    const y = pad.top + chartH * (1 - pt.exceedance);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  ctx.lineTo(pad.left + chartW, pad.top + chartH);
+  ctx.lineTo(pad.left, pad.top + chartH);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + chartH);
+  grad.addColorStop(0, 'rgba(245,158,11,0.2)'); grad.addColorStop(1, 'rgba(245,158,11,0.02)');
+  ctx.fillStyle = grad; ctx.fill();
+
+  ctx.fillStyle = '#64748b'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+  for (let i = 0; i <= 5; i++) {
+    const val = minVal + valRange * (i / 5);
+    ctx.fillText(fmt(val), pad.left + (i / 5) * chartW, H - pad.bottom + 16);
+  }
+
+  ctx.save(); ctx.translate(12, pad.top + chartH / 2); ctx.rotate(-Math.PI / 2);
+  ctx.fillText('P(X > x)', 0, 0); ctx.restore();
+  ctx.fillText(label, pad.left + chartW / 2, H - 4);
+}
+
+// ===== MC CHART: TORNADO =====
+function drawTornadoChart(canvasId, sensData, outputLabel) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || !sensData || sensData.length === 0) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * dpr; canvas.height = 320 * dpr; canvas.style.height = '320px';
+  ctx.scale(dpr, dpr);
+  const W = rect.width, H = 320;
+  ctx.clearRect(0, 0, W, H);
+
+  const top = sensData.slice(0, Math.min(10, sensData.length));
+  const pad = { top: 30, right: 30, bottom: 30, left: 160 };
+  const chartW = W - pad.left - pad.right, chartH = H - pad.top - pad.bottom;
+  const barH = Math.min(24, chartH / top.length - 4);
+  const maxCorr = Math.max(0.1, Math.max(...top.map(d => Math.abs(d.correlation))));
+
+  ctx.fillStyle = '#e2e8f0'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('Sensitivity to ' + outputLabel, W / 2, 16);
+
+  const centerX = pad.left + chartW / 2;
+  ctx.strokeStyle = '#64748b'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(centerX, pad.top); ctx.lineTo(centerX, pad.top + chartH); ctx.stroke();
+
+  ctx.fillStyle = '#64748b'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+  [-1, -0.5, 0, 0.5, 1].forEach(v => {
+    const x = centerX + (v / maxCorr) * (chartW / 2);
+    if (x >= pad.left && x <= pad.left + chartW) ctx.fillText(v.toFixed(1), x, pad.top + chartH + 16);
+  });
+
+  top.forEach((d, i) => {
+    const y = pad.top + i * (chartH / top.length) + (chartH / top.length - barH) / 2;
+    const w = (d.correlation / maxCorr) * (chartW / 2);
+    ctx.fillStyle = d.correlation > 0 ? 'rgba(59,130,246,0.7)' : 'rgba(239,68,68,0.7)';
+    if (w > 0) ctx.fillRect(centerX, y, w, barH);
+    else ctx.fillRect(centerX + w, y, -w, barH);
+
+    ctx.fillStyle = '#e2e8f0'; ctx.font = '11px sans-serif'; ctx.textAlign = 'right';
+    ctx.fillText(d.param, pad.left - 8, y + barH / 2 + 4);
+    ctx.fillStyle = '#94a3b8'; ctx.font = '10px sans-serif';
+    ctx.textAlign = d.correlation > 0 ? 'left' : 'right';
+    ctx.fillText(d.correlation.toFixed(3), centerX + w + (d.correlation > 0 ? 4 : -4), y + barH / 2 + 4);
+  });
+
+  ctx.fillStyle = '#64748b'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('Spearman Rank Correlation', W / 2, H - 6);
+}
+
+// ===== COMPARISON TABLE =====
+function displayComparison(mc) {
+  const s = mc.baseScenario, st = mc.stats;
+  const fmt = v => Math.round(v).toLocaleString();
+  const fmtMoney = v => '\u00A3' + (v / 1e6).toFixed(1) + 'M';
+
+  const rows = [
+    { label: 'Total Claims', det: s.totalClaims, mc: st.totalClaims, fmt },
+    { label: 'Injury Claims', det: s.injuryClaims, mc: st.injuryClaims, fmt },
+    { label: 'Property Claims', det: s.propertyClaims, mc: st.propertyClaims, fmt },
+    { label: 'Peak Weekly Claims', det: s.peakClaims, mc: st.peakClaims, fmt },
+    { label: 'Weeks to Clear', det: s.weeksToClear, mc: st.weeksToClear, fmt },
+    { label: 'Max Backlog', det: s.maxBacklog, mc: st.maxBacklog, fmt },
+    { label: 'Additional Staff', det: s.additionalStaff, mc: st.additionalStaff, fmt },
+    { label: 'Ultimate Claims', det: s.ultimateClaimsMid || s.ultimateClaims || 0, mc: st.ultimateClaims, fmt },
+    { label: 'Estimated Value', det: s.estimatedTotalValue || 0, mc: st.estimatedValue, fmt: fmtMoney }
+  ];
+
+  document.getElementById('mcComparisonContent').innerHTML =
+    '<table class="capacity-table" style="font-size:12px"><thead><tr>' +
+    '<th>Metric</th><th>Deterministic</th><th>MC P10</th><th>MC P50 (Median)</th><th>MC P90</th><th>MC Mean</th><th>Difference (P50 vs Det)</th>' +
+    '</tr></thead><tbody>' +
+    rows.map(r => {
+      const diff = r.mc.P50 - r.det;
+      const diffPct = r.det !== 0 ? ((diff / r.det) * 100).toFixed(1) : 'N/A';
+      const diffColor = Math.abs(diff) / Math.max(1, Math.abs(r.det)) > 0.1 ? '#eab308' : '#22c55e';
+      return '<tr><td style="font-weight:600">' + r.label + '</td>' +
+        '<td>' + r.fmt(r.det) + '</td>' +
+        '<td style="color:#3b82f6">' + r.fmt(r.mc.P10) + '</td>' +
+        '<td style="color:#f59e0b;font-weight:700">' + r.fmt(r.mc.P50) + '</td>' +
+        '<td style="color:#ef4444">' + r.fmt(r.mc.P90) + '</td>' +
+        '<td>' + r.fmt(r.mc.mean) + '</td>' +
+        '<td style="color:' + diffColor + '">' + (diff >= 0 ? '+' : '') + r.fmt(diff) + ' (' + diffPct + '%)</td></tr>';
+    }).join('') +
+    '<tr><td style="font-weight:600">Can Meet Target</td>' +
+    '<td style="color:' + (s.canMeetTarget ? '#22c55e' : '#ef4444') + '">' + (s.canMeetTarget ? 'Yes' : 'No') + '</td>' +
+    '<td colspan="5" style="color:#f59e0b;font-weight:700">' + (st.canMeetTarget.probabilityYes * 100).toFixed(1) + '% probability of meeting target</td></tr>' +
+    '</tbody></table>';
+}
+
+// ===== HISTORICAL VALIDATION =====
+function displayHistoricalValidation(mc) {
+  const incident = mc.baseScenario.incident;
+  const validationData = HISTORICAL_VALIDATION[incident];
+  if (!validationData) {
+    document.getElementById('mcValidationContent').innerHTML =
+      '<p style="color:#94a3b8;font-size:13px">No historical validation data available for this incident type.</p>';
+    return;
+  }
+
+  const claimsSorted = [...mc.results.totalClaims].sort((a, b) => a - b);
+  const valueSorted = [...mc.results.estimatedValue].sort((a, b) => a - b);
+
+  function getPercentile(sorted, value) {
+    let idx = sorted.findIndex(v => v >= value);
+    if (idx === -1) idx = sorted.length;
+    return (idx / sorted.length * 100).toFixed(1);
+  }
+
+  let html = '<table class="capacity-table" style="font-size:12px">' +
+    '<thead><tr><th>Historical Incident</th><th>Actual Claims</th><th>MC Percentile</th><th>Actual Value</th><th>MC Percentile</th><th>Assessment</th></tr></thead><tbody>';
+
+  for (const key in validationData) {
+    const hist = validationData[key];
+    const currentPop = mc.baseScenario.site.population + mc.baseScenario.site.staffOnSite;
+    const scaleFactor = currentPop / (hist.population || currentPop);
+    const scaledClaims = Math.round(hist.totalClaims * scaleFactor);
+    const scaledClaimPct = getPercentile(claimsSorted, scaledClaims);
+    const valuePct = getPercentile(valueSorted, hist.totalValue);
+    const pctNum = parseFloat(scaledClaimPct);
+    let assessment, assessClass;
+    if (pctNum >= 2 && pctNum <= 98) { assessment = 'Within range'; assessClass = 'validation-pass'; }
+    else if (pctNum >= 0.5 && pctNum <= 99.5) { assessment = 'Edge of range'; assessClass = 'validation-warn'; }
+    else { assessment = 'Outside range'; assessClass = 'validation-fail'; }
+
+    html += '<tr><td style="font-weight:600">' + hist.name + '<br><span style="font-size:10px;color:#64748b">Pop: ' + hist.population.toLocaleString() + ' (scale: ' + scaleFactor.toFixed(2) + 'x)</span></td>' +
+      '<td>' + hist.totalClaims.toLocaleString() + '<br><span style="font-size:10px;color:#64748b">Scaled: ' + scaledClaims.toLocaleString() + '</span></td>' +
+      '<td>P' + scaledClaimPct + '</td>' +
+      '<td>\u00A3' + (hist.totalValue / 1e6).toFixed(0) + 'M</td>' +
+      '<td>P' + valuePct + '</td>' +
+      '<td class="' + assessClass + '">' + assessment + '</td></tr>';
+  }
+
+  html += '</tbody></table>' +
+    '<div style="margin-top:12px;font-size:11px;color:#94a3b8">' +
+    '<strong>Interpretation:</strong> Historical outcomes falling between P2-P98 indicate the model produces realistic uncertainty ranges. ' +
+    'Claims are population-scaled to enable comparison. Financial values are nominal (not inflation-adjusted).</div>';
+
+  document.getElementById('mcValidationContent').innerHTML = html;
+}
+
+// ===== MC UI CONTROLS =====
+function setMCMode(mode) {
+  mcMode = mode;
+  document.getElementById('mcSimpleBtn').classList.toggle('active', mode === 'simple');
+  document.getElementById('mcAdvancedBtn').classList.toggle('active', mode === 'advanced');
+  document.getElementById('mcAdvancedControls').style.display = mode === 'advanced' ? '' : 'none';
+}
+
+function loadMCAdmin() {
+  const body = document.getElementById('mcParamBody');
+  if (!body) return;
+  body.innerHTML = mcConfig.paramDefs.map((pd, i) =>
+    '<tr><td style="font-weight:600">' + pd.label + '</td>' +
+    '<td><input type="number" value="' + pd.minFactor + '" step="0.1" onchange="updateMCParam(' + i + ',\'minFactor\',parseFloat(this.value))"></td>' +
+    '<td><input type="number" value="' + pd.maxFactor + '" step="0.1" onchange="updateMCParam(' + i + ',\'maxFactor\',parseFloat(this.value))"></td>' +
+    '<td style="font-size:10px;color:#64748b">' + pd.note + (pd.isAbsolute ? ' (absolute)' : ' (factor)') + '</td></tr>'
+  ).join('');
+  document.getElementById('adminMCIterations').value = mcConfig.iterations;
+  document.getElementById('adminMCTolerance').value = (mcConfig.convergenceTolerance * 100);
+}
+
+function updateMCParam(idx, field, value) {
+  mcConfig.paramDefs[idx][field] = value;
+  saveMCConfig();
+}
+
+function saveMCAdmin() {
+  mcConfig.iterations = parseInt(document.getElementById('adminMCIterations').value) || 10000;
+  mcConfig.convergenceTolerance = (parseFloat(document.getElementById('adminMCTolerance').value) || 2) / 100;
+  saveMCConfig();
+}
+
+function resetMCDefaults() {
+  mcConfig = JSON.parse(JSON.stringify(MC_DEFAULT_CONFIG));
+  saveMCConfig();
+  loadMCAdmin();
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
