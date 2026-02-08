@@ -613,6 +613,17 @@ input[type="range"]::-moz-range-thumb{width:16px;height:16px;background:#3b82f6;
         <p style="font-size:11px;color:#94a3b8;margin-bottom:12px">Back-testing: do known historical outcomes fall within the simulated confidence intervals?</p>
         <div id="mcValidationContent"></div>
       </div>
+
+      <!-- Parameter Definitions (collapsible) -->
+      <div class="mc-card">
+        <div class="card-title" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between" onclick="toggleMCParamDefs()" role="button" tabindex="0" aria-expanded="false" aria-controls="mcParamDefsBody" id="mcParamDefsToggle">
+          <span>Monte Carlo Parameter Definitions</span>
+          <span id="mcParamDefsArrow" style="font-size:14px;transition:transform .2s">&#9654;</span>
+        </div>
+        <div id="mcParamDefsBody" style="display:none;margin-top:12px">
+          <div id="mcParamDefsContent"></div>
+        </div>
+      </div>
     </div>
 
     <div id="welcomeArea">
@@ -4576,8 +4587,12 @@ function displayMCResults(mc) {
     mc.iterations.toLocaleString() + ' iterations' + (mc.converged ? ' (converged)' : '') +
     '. Inter-parameter correlations modelled via Cholesky-decomposed correlation matrix. ' +
     'All ' + mcConfig.paramDefs.length + ' stochastic parameters varied simultaneously.' +
-    '<br><br><strong>Parameter Definitions:</strong>' +
-    '<table class="capacity-table" style="font-size:11px;margin-top:8px"><thead><tr>' +
+    '<br><strong>Parameters varied:</strong> ' + mcConfig.paramDefs.map(p => p.label).join(', ');
+
+  // Populate collapsible parameter definitions section
+  document.getElementById('mcParamDefsContent').innerHTML =
+    '<p style="font-size:12px;color:#94a3b8;margin-bottom:12px">Each parameter is sampled from a triangular distribution (min, mode=1.0, max) and correlated via a Gaussian copula. Click a row to expand its full definition.</p>' +
+    '<table class="capacity-table" style="font-size:11px"><thead><tr>' +
     '<th>Parameter</th><th>Range</th><th>Description</th></tr></thead><tbody>' +
     mcConfig.paramDefs.map(p => {
       const rangeLabel = p.isAbsolute
@@ -4956,6 +4971,16 @@ function resetMCDefaults() {
   saveMCConfig();
   loadMCAdmin();
   showToast('Monte Carlo parameters reset to defaults', 'info');
+}
+
+function toggleMCParamDefs() {
+  const body = document.getElementById('mcParamDefsBody');
+  const arrow = document.getElementById('mcParamDefsArrow');
+  const toggle = document.getElementById('mcParamDefsToggle');
+  const open = body.style.display === 'none';
+  body.style.display = open ? '' : 'none';
+  arrow.style.transform = open ? 'rotate(90deg)' : '';
+  toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
