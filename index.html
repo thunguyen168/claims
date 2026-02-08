@@ -9,6 +9,52 @@
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh}
 a{color:#60a5fa}
 .app{display:flex;min-height:100vh}
+/* Focus indicators for accessibility */
+:focus-visible{outline:2px solid #3b82f6;outline-offset:2px;border-radius:4px}
+select:focus-visible,input:focus-visible{outline:2px solid #3b82f6;outline-offset:1px}
+button:focus-visible{outline:2px solid #3b82f6;outline-offset:2px}
+.skip-link{position:absolute;top:-40px;left:0;background:#3b82f6;color:#fff;padding:8px 16px;z-index:100;font-size:14px;font-weight:600;transition:top .2s}
+.skip-link:focus{top:0}
+/* Loading overlay */
+.loading-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(15,23,42,0.85);display:flex;align-items:center;justify-content:center;z-index:1000;opacity:0;pointer-events:none;transition:opacity .2s}
+.loading-overlay.active{opacity:1;pointer-events:auto}
+.loading-spinner{width:40px;height:40px;border:3px solid #334155;border-top-color:#3b82f6;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{color:#94a3b8;margin-top:12px;font-size:14px}
+/* Confirmation dialog */
+.confirm-dialog-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(15,23,42,0.85);display:flex;align-items:center;justify-content:center;z-index:1001;opacity:0;pointer-events:none;transition:opacity .2s}
+.confirm-dialog-overlay.active{opacity:1;pointer-events:auto}
+.confirm-dialog{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:24px;max-width:400px;width:90%}
+.confirm-dialog h3{font-size:16px;font-weight:700;margin-bottom:12px}
+.confirm-dialog p{font-size:14px;color:#94a3b8;margin-bottom:20px;line-height:1.5}
+.confirm-dialog-buttons{display:flex;gap:8px;justify-content:flex-end}
+.confirm-dialog-buttons button{padding:8px 16px;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer}
+.confirm-dialog-buttons .btn-confirm{background:#ef4444;color:#fff}
+.confirm-dialog-buttons .btn-cancel{background:#475569;color:#e2e8f0}
+/* Toast notifications */
+.toast-container{position:fixed;top:20px;right:20px;z-index:1002;display:flex;flex-direction:column;gap:8px}
+.toast{background:#1e293b;border:1px solid #334155;border-radius:8px;padding:12px 16px;font-size:13px;color:#e2e8f0;box-shadow:0 4px 12px rgba(0,0,0,0.3);transform:translateX(120%);transition:transform .3s;max-width:350px}
+.toast.show{transform:translateX(0)}
+.toast.toast-success{border-left:3px solid #22c55e}
+.toast.toast-error{border-left:3px solid #ef4444}
+.toast.toast-warning{border-left:3px solid #eab308}
+.toast.toast-info{border-left:3px solid #3b82f6}
+/* Tooltip styles */
+.help-tooltip{position:relative;display:inline-block;cursor:help;margin-left:4px}
+.help-tooltip .tooltip-icon{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;background:#475569;color:#94a3b8;font-size:9px;font-weight:700;line-height:1}
+.help-tooltip .tooltip-content{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);background:#0f172a;border:1px solid #475569;border-radius:6px;padding:8px 10px;font-size:11px;color:#94a3b8;white-space:normal;width:220px;z-index:100;opacity:0;pointer-events:none;transition:opacity .2s;line-height:1.4}
+.help-tooltip:hover .tooltip-content,.help-tooltip:focus .tooltip-content{opacity:1;pointer-events:auto}
+/* Chart tooltip */
+.chart-tooltip{position:absolute;background:#1e293b;border:1px solid #3b82f6;border-radius:6px;padding:8px 12px;font-size:11px;color:#e2e8f0;pointer-events:none;z-index:10;display:none;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,0.3)}
+/* Screen reader only */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+/* Color blind mode */
+.color-blind .metric-green,.color-blind .status-ok{color:#0072B2!important}
+.color-blind .metric-red,.color-blind .status-over{color:#D55E00!important}
+.color-blind .metric-yellow,.color-blind .status-warn{color:#E69F00!important}
+/* Unsaved changes indicator */
+.unsaved-indicator{display:none;font-size:10px;color:#eab308;margin-top:4px}
+.unsaved-indicator.visible{display:block}
 .sidebar{width:280px;background:#1e293b;border-right:1px solid #334155;padding:20px;flex-shrink:0;overflow-y:auto}
 .main{flex:1;padding:24px;overflow-y:auto}
 .nav-title{font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;margin-bottom:16px}
@@ -60,8 +106,8 @@ canvas{width:100%;display:block}
 .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px}
 .header h1{font-size:22px;font-weight:800}
 .header-sub{font-size:13px;color:#94a3b8}
-@media(max-width:900px){.app{flex-direction:column}.sidebar{width:100%;border-right:none;border-bottom:1px solid #334155}.metrics{grid-template-columns:1fr 1fr}}
-@media(max-width:500px){.metrics{grid-template-columns:1fr}.admin-grid{grid-template-columns:1fr}}
+@media(max-width:900px){.app{flex-direction:column}.sidebar{width:100%;border-right:none;border-bottom:1px solid #334155}.metrics{grid-template-columns:1fr 1fr}canvas{min-height:200px}.mc-metrics{grid-template-columns:1fr 1fr}}
+@media(max-width:500px){.metrics{grid-template-columns:1fr}.admin-grid{grid-template-columns:1fr}.mc-metrics{grid-template-columns:1fr}.header{flex-direction:column}.confirm-dialog{padding:16px}canvas{min-height:180px}select,input[type="number"],input[type="text"]{font-size:16px}}
 .chart-legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:12px}
 .legend-item{display:flex;align-items:center;gap:6px}
 .legend-swatch{width:12px;height:12px;border-radius:3px}
@@ -113,25 +159,50 @@ input[type="range"]::-moz-range-thumb{width:16px;height:16px;background:#3b82f6;
 </style>
 </head>
 <body>
+<!-- Skip link for keyboard accessibility -->
+<a href="#mainContent" class="skip-link">Skip to main content</a>
 
-<div class="app">
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loadingOverlay" role="status" aria-live="polite">
+  <div style="text-align:center">
+    <div class="loading-spinner"></div>
+    <div class="loading-text" id="loadingText">Loading...</div>
+  </div>
+</div>
+
+<!-- Confirmation dialog -->
+<div class="confirm-dialog-overlay" id="confirmDialog" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+  <div class="confirm-dialog">
+    <h3 id="confirmTitle">Confirm Action</h3>
+    <p id="confirmMessage">Are you sure?</p>
+    <div class="confirm-dialog-buttons">
+      <button class="btn-cancel" onclick="closeConfirmDialog(false)">Cancel</button>
+      <button class="btn-confirm" id="confirmOkBtn" onclick="closeConfirmDialog(true)">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer" aria-live="polite" aria-atomic="true"></div>
+
+<div class="app" role="application">
   <!-- Sidebar -->
-  <div class="sidebar">
-    <div class="nav-title">Claims Resilience Tool</div>
-    <div class="nav-tabs">
-      <button class="nav-tab active" onclick="switchView('scenario')">Scenario</button>
-      <button class="nav-tab" onclick="switchView('admin')">Admin</button>
+  <nav class="sidebar" aria-label="Scenario configuration">
+    <div class="nav-title" id="navTitle">Claims Resilience Tool</div>
+    <div class="nav-tabs" role="tablist" aria-label="View selection">
+      <button class="nav-tab active" role="tab" aria-selected="true" aria-controls="scenarioPanel" id="scenarioTab" onclick="switchView('scenario')">Scenario</button>
+      <button class="nav-tab" role="tab" aria-selected="false" aria-controls="adminPanel" id="adminTab" onclick="switchView('admin')">Admin</button>
     </div>
 
     <!-- Scenario Panel -->
-    <div id="scenarioPanel">
+    <div id="scenarioPanel" role="tabpanel" aria-labelledby="scenarioTab">
       <div class="form-group">
-        <label>Select Site</label>
-        <select id="siteSelect" onchange="runScenario()"></select>
+        <label for="siteSelect">Select Site</label>
+        <select id="siteSelect" aria-label="Select site for scenario analysis" onchange="debouncedRunScenario()"></select>
       </div>
       <div class="form-group">
-        <label>Incident Type</label>
-        <select id="incidentSelect" onchange="updateIncidentOptions(); updateTimeHorizonLabels(); runScenario()">
+        <label for="incidentSelect">Incident Type <span class="help-tooltip" tabindex="0" aria-label="Help: Incident type affects claim distribution patterns and severity multipliers"><span class="tooltip-icon">?</span><span class="tooltip-content">The type of industrial incident. Each type has different claim distribution patterns, severity multipliers, and historical reference data.</span></span></label>
+        <select id="incidentSelect" aria-label="Select incident type" onchange="updateIncidentOptions(); updateTimeHorizonLabels(); debouncedRunScenario()">
           <option value="fire">Fire</option>
           <option value="explosion">Explosion</option>
           <option value="chemical">Chemical (Toxic Release)</option>
@@ -140,24 +211,24 @@ input[type="range"]::-moz-range-thumb{width:16px;height:16px;background:#3b82f6;
         </select>
       </div>
       <div class="form-group" id="blastRadiusGroup" style="display:none">
-        <label>Blast Radius Model</label>
-        <select id="blastRadiusSelect" onchange="runScenario()">
+        <label for="blastRadiusSelect">Blast Radius Model</label>
+        <select id="blastRadiusSelect" aria-label="Select blast radius model" onchange="debouncedRunScenario()">
           <option value="uniform">Uniform Distribution</option>
           <option value="concentrated">Concentrated (Research-Based)</option>
         </select>
         <div style="font-size:10px;color:#64748b;margin-top:2px">90% claims within 500m for explosions</div>
       </div>
       <div class="form-group">
-        <label>Claim Type</label>
-        <select id="claimTypeSelect" onchange="runScenario()">
+        <label for="claimTypeSelect">Claim Type</label>
+        <select id="claimTypeSelect" aria-label="Select claim type filter" onchange="debouncedRunScenario()">
           <option value="both">Both (Injury + Property)</option>
           <option value="injury">Injury Claims (Bodily Injury)</option>
           <option value="property">Property Claims (PD/BI/Economic)</option>
         </select>
       </div>
       <div class="form-group">
-        <label>Severity Level</label>
-        <select id="severitySelect" onchange="updateTimeHorizonLabels();runScenario()">
+        <label for="severitySelect">Severity Level <span class="help-tooltip" tabindex="0" aria-label="Help: Severity determines claim rate and time horizons"><span class="tooltip-icon">?</span><span class="tooltip-content">Severity determines the percentage of affected population filing claims and calibrates time horizons based on historical incident data.</span></span></label>
+        <select id="severitySelect" aria-label="Select severity level" onchange="updateTimeHorizonLabels();debouncedRunScenario()">
           <option value="minor">Minor - Small local impact</option>
           <option value="moderate">Moderate - Neighbourhood impact</option>
           <option value="major">Major - Town/city impact</option>
@@ -165,8 +236,8 @@ input[type="range"]::-moz-range-thumb{width:16px;height:16px;background:#3b82f6;
         </select>
       </div>
       <div class="form-group">
-        <label>Claims Spread View</label>
-        <select id="timeHorizonSelect" onchange="runScenario()">
+        <label for="timeHorizonSelect">Claims Spread View <span class="help-tooltip" tabindex="0" aria-label="Help: Controls how much of the claim lifecycle is displayed"><span class="tooltip-icon">?</span><span class="tooltip-content">Controls the time window displayed. The full claim lifecycle is always simulated; this controls how much is shown. Time horizons are calibrated by incident type and severity.</span></span></label>
+        <select id="timeHorizonSelect" aria-label="Select claims spread time horizon" onchange="debouncedRunScenario()">
           <option value="short">Short Term (0-12 weeks)</option>
           <option value="medium">Medium Term (0-2 years)</option>
           <option value="long">Long Term (0-10+ years)</option>
@@ -190,21 +261,22 @@ input[type="range"]::-moz-range-thumb{width:16px;height:16px;background:#3b82f6;
       </div>
 
       <div class="form-group">
-        <label>Target Processing Time (weeks)</label>
-        <input type="number" id="targetWeeksInput" value="12" min="1" max="52" step="1" onchange="runScenario()">
+        <label for="targetWeeksInput">Target Processing Time (weeks) <span class="help-tooltip" tabindex="0" aria-label="Help: Target time to clear all claims"><span class="tooltip-icon">?</span><span class="tooltip-content">Set the target number of weeks within which all claims should be processed. The tool will indicate if current capacity can meet this target.</span></span></label>
+        <input type="number" id="targetWeeksInput" value="12" min="1" max="520" step="1" aria-label="Target processing time in weeks" onchange="debouncedRunScenario()">
         <div style="font-size:10px;color:#64748b;margin-top:2px">All claims should be processed within this many weeks</div>
       </div>
 
       <div class="form-group">
-        <label>Coverage Limit (£M) - Optional</label>
-        <input type="number" id="coverageLimitInput" value="" placeholder="e.g. 50" min="0" step="1" onchange="runScenario()">
+        <label for="coverageLimitInput">Coverage Limit (£M) - Optional</label>
+        <input type="number" id="coverageLimitInput" value="" placeholder="e.g. 50" min="0" step="1" aria-label="Coverage limit in millions of pounds" onchange="debouncedRunScenario()">
         <div style="font-size:10px;color:#64748b;margin-top:2px">Enter policy limit to check underinsurance risk</div>
       </div>
 
       <div style="margin-top:20px">
-        <button class="btn btn-primary" onclick="runScenario()">Run Scenario</button>
-        <button class="btn btn-mc" onclick="runMonteCarlo()">Run Monte Carlo (10,000 sims)</button>
-        <button class="btn btn-report" onclick="generateReport()">Generate PDF Report</button>
+        <button class="btn btn-primary" onclick="runScenario()" aria-label="Run scenario analysis">Run Scenario</button>
+        <button class="btn btn-mc" onclick="runMonteCarlo()" aria-label="Run Monte Carlo simulation with 10,000 iterations">Run Monte Carlo (10,000 sims)</button>
+        <button class="btn btn-report" onclick="generateReport()" aria-label="Generate PDF report">Generate PDF Report</button>
+        <button class="btn btn-secondary" onclick="exportCSV()" aria-label="Export scenario data as CSV">Export CSV</button>
       </div>
 
       <!-- MC Mode Toggle -->
@@ -218,31 +290,37 @@ input[type="range"]::-moz-range-thumb{width:16px;height:16px;background:#3b82f6;
         </div>
         <div id="mcAdvancedControls" style="display:none">
           <div class="form-group">
-            <label>Iterations</label>
-            <input type="number" id="mcIterations" value="10000" min="1000" max="100000" step="1000" style="font-size:12px">
+            <label for="mcIterations">Iterations</label>
+            <input type="number" id="mcIterations" value="10000" min="1000" max="100000" step="1000" style="font-size:12px" aria-label="Number of Monte Carlo iterations" inputmode="numeric">
           </div>
           <div class="form-group">
-            <label>Convergence Tolerance (%)</label>
-            <input type="number" id="mcTolerance" value="2" min="0.5" max="10" step="0.5" style="font-size:12px">
+            <label for="mcTolerance">Convergence Tolerance (%)</label>
+            <input type="number" id="mcTolerance" value="2" min="0.5" max="10" step="0.5" style="font-size:12px" aria-label="Convergence tolerance percentage">
+          </div>
+          <div class="form-group">
+            <label for="mcSeedInput">Random Seed (optional) <span class="help-tooltip" tabindex="0" aria-label="Help: Random seed for reproducibility"><span class="tooltip-icon">?</span><span class="tooltip-content">Set a numeric seed for reproducible Monte Carlo simulations. Leave blank for random results each run.</span></span></label>
+            <input type="number" id="mcSeedInput" value="" placeholder="Leave blank for random" style="font-size:12px" aria-label="Random seed for reproducible simulations" inputmode="numeric">
           </div>
           <div style="font-size:10px;color:#64748b;margin-top:4px">
             Configure distributions in Admin → MC Config
           </div>
+          <button class="btn btn-secondary" style="font-size:11px;padding:4px 10px;margin-top:8px" onclick="exportMCResults()" aria-label="Export Monte Carlo results as CSV">Export MC Results (CSV)</button>
         </div>
       </div>
     </div>
 
     <!-- Admin Panel -->
-    <div id="adminPanel" style="display:none">
+    <div id="adminPanel" role="tabpanel" aria-labelledby="adminTab" style="display:none">
+      <div class="unsaved-indicator" id="unsavedIndicator">You have unsaved changes</div>
       <div class="admin-section">
         <h3>Organisation Settings</h3>
         <div class="form-group">
-          <label>Number of Claims Staff</label>
-          <input type="number" id="adminStaff" value="8" onchange="saveAdmin()">
+          <label for="adminStaff">Number of Claims Staff</label>
+          <input type="number" id="adminStaff" value="8" min="1" max="1000" aria-label="Number of claims processing staff" inputmode="numeric" onchange="saveAdmin()">
         </div>
         <div class="form-group">
-          <label>Working Days per Week</label>
-          <input type="number" id="adminWorkDays" value="5" onchange="saveAdmin()">
+          <label for="adminWorkDays">Working Days per Week</label>
+          <input type="number" id="adminWorkDays" value="5" min="1" max="7" aria-label="Working days per week" inputmode="numeric" onchange="saveAdmin()">
         </div>
         <div style="background:#0f172a;border:1px solid #334155;border-radius:8px;padding:12px;margin-top:8px">
           <div style="font-size:12px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Calculated Weekly Capacity</div>
@@ -344,23 +422,28 @@ input[type="range"]::-moz-range-thumb{width:16px;height:16px;background:#3b82f6;
             <input type="number" id="adminMCTolerance" value="2" min="0.5" max="10" step="0.5" onchange="saveMCAdmin()">
           </div>
         </div>
-        <button class="btn btn-secondary" onclick="resetMCDefaults()" style="font-size:12px;padding:6px 12px">Reset MC to Defaults</button>
+        <button class="btn btn-secondary" onclick="confirmAction('Reset Monte Carlo Defaults', 'This will reset all Monte Carlo parameters to their default values. This cannot be undone.', resetMCDefaults)" style="font-size:12px;padding:6px 12px" aria-label="Reset Monte Carlo parameters to defaults">Reset MC to Defaults</button>
       </div>
 
       <div class="admin-section" style="margin-top:20px">
-        <button class="btn btn-secondary" onclick="exportConfig()">Export Config</button>
-        <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">Import Config</button>
-        <input type="file" id="importFile" accept=".json" style="display:none" onchange="importConfig(event)">
+        <button class="btn btn-secondary" onclick="exportConfig()" aria-label="Export configuration as JSON file">Export Config</button>
+        <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()" aria-label="Import configuration from JSON file">Import Config</button>
+        <input type="file" id="importFile" accept=".json" style="display:none" onchange="importConfig(event)" aria-label="Select configuration file to import">
       </div>
     </div>
-  </div>
+  </nav>
 
   <!-- Main Content -->
-  <div class="main">
+  <main class="main" id="mainContent" aria-label="Scenario results">
     <div class="header">
       <div>
         <h1 id="mainTitle">Claims Resilience Testing</h1>
         <div class="header-sub" id="mainSub">Select a scenario to begin analysis</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <label style="font-size:11px;color:#94a3b8;display:flex;align-items:center;gap:4px;cursor:pointer">
+          <input type="checkbox" id="colorBlindToggle" onchange="toggleColorBlindMode()" aria-label="Toggle color blind friendly mode"> Color blind mode
+        </label>
       </div>
     </div>
 
@@ -377,19 +460,29 @@ input[type="range"]::-moz-range-thumb{width:16px;height:16px;background:#3b82f6;
       <!-- Claims Forecast Chart -->
       <div class="card">
         <div class="card-title" id="forecastChartTitle">Claims Forecast Over 12 Weeks</div>
-        <div class="chart-container">
-          <canvas id="forecastChart" height="300"></canvas>
+        <div class="chart-container" style="position:relative">
+          <canvas id="forecastChart" height="300" role="img" aria-label="Claims forecast chart showing new claims per period over time"></canvas>
+          <div class="chart-tooltip" id="forecastTooltip"></div>
+          <div class="sr-only" id="forecastChartSR" aria-live="polite"></div>
         </div>
         <div class="chart-legend" id="forecastLegend"></div>
+        <div style="margin-top:8px;text-align:right">
+          <button class="btn btn-secondary" style="width:auto;padding:4px 10px;font-size:11px" onclick="exportChartAsImage('forecastChart','claims-forecast')" aria-label="Save forecast chart as image">Save as Image</button>
+        </div>
       </div>
 
       <!-- Capacity Chart -->
       <div class="card">
         <div class="card-title">Capacity Utilisation</div>
-        <div class="chart-container">
-          <canvas id="capacityChart" height="250"></canvas>
+        <div class="chart-container" style="position:relative">
+          <canvas id="capacityChart" height="250" role="img" aria-label="Capacity utilisation chart showing processing load versus capacity"></canvas>
+          <div class="chart-tooltip" id="capacityTooltip"></div>
+          <div class="sr-only" id="capacityChartSR" aria-live="polite"></div>
         </div>
         <div class="chart-legend" id="capacityLegend"></div>
+        <div style="margin-top:8px;text-align:right">
+          <button class="btn btn-secondary" style="width:auto;padding:4px 10px;font-size:11px" onclick="exportChartAsImage('capacityChart','capacity-utilisation')" aria-label="Save capacity chart as image">Save as Image</button>
+        </div>
       </div>
 
       <!-- Weekly Breakdown Table -->
@@ -530,7 +623,7 @@ input[type="range"]::-moz-range-thumb{width:16px;height:16px;background:#3b82f6;
         </p>
       </div>
     </div>
-  </div>
+  </main>
 </div>
 
 <script>
@@ -538,6 +631,584 @@ input[type="range"]::-moz-range-thumb{width:16px;height:16px;background:#3b82f6;
 // ║  CLAIMS RESILIENCE TESTING TOOL                             ║
 // ║  Configuration Data → State → Helpers → UI → Charts → Init ║
 // ╚══════════════════════════════════════════════════════════════╝
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SECTION 0: UTILITY INFRASTRUCTURE
+// Security, validation, browser compat, UX utilities
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// ===== EXTRACTED CONSTANTS (Code Quality - Issue 12) =====
+const CHART_PAD = { top: 20, right: 20, bottom: 40, left: 60 };
+const CHART_CAPACITY_PAD = { top: 20, right: 20, bottom: 40, left: 60 };
+const MAX_DISPLAY_PERIODS = 48;
+const SAMPLING_THRESHOLD_HIGH = 60;
+const SAMPLING_THRESHOLD_LOW = 30;
+const SAMPLING_TARGET = 40;
+const MC_BATCH_SIZE = 500;
+const DEBOUNCE_DELAY = 250;
+const RESIZE_DEBOUNCE = 150;
+const CONFIG_SCHEMA_VERSION = 2;
+
+// ===== BROWSER COMPATIBILITY (Issue 14) =====
+const supportsLocalStorage = (() => {
+  try {
+    const t = '__test__';
+    localStorage.setItem(t, t);
+    localStorage.removeItem(t);
+    return true;
+  } catch(e) { return false; }
+})();
+
+const memoryStorage = {};
+function safeStorageGet(key) {
+  if (supportsLocalStorage) {
+    try { return localStorage.getItem(key); } catch(e) { return memoryStorage[key] || null; }
+  }
+  return memoryStorage[key] || null;
+}
+function safeStorageSet(key, value) {
+  if (supportsLocalStorage) {
+    try { localStorage.setItem(key, value); } catch(e) { memoryStorage[key] = value; }
+  } else {
+    memoryStorage[key] = value;
+  }
+}
+
+// Canvas API check
+const supportsCanvas = (() => {
+  try { return !!document.createElement('canvas').getContext('2d'); } catch(e) { return false; }
+})();
+
+// ===== SECURITY: INPUT SANITIZATION (Issue 13) =====
+function sanitizeHTML(str) {
+  if (typeof str !== 'string') return String(str);
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function sanitizeNumberInput(value, min, max, fallback) {
+  const num = parseFloat(value);
+  if (isNaN(num) || !isFinite(num)) return fallback;
+  if (min !== undefined && num < min) return min;
+  if (max !== undefined && num > max) return max;
+  return num;
+}
+
+function sanitizeIntInput(value, min, max, fallback) {
+  return Math.round(sanitizeNumberInput(value, min, max, fallback));
+}
+
+// ===== LOCALSTORAGE INTEGRITY (Issue 13) =====
+function computeChecksum(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const chr = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + chr;
+    hash |= 0;
+  }
+  return hash.toString(36);
+}
+
+function saveWithIntegrity(key, obj) {
+  try {
+    const json = JSON.stringify(obj);
+    const checksum = computeChecksum(json);
+    safeStorageSet(key, json);
+    safeStorageSet(key + '_checksum', checksum);
+  } catch(e) {
+    showToast('Failed to save: ' + e.message, 'error');
+  }
+}
+
+function loadWithIntegrity(key) {
+  try {
+    const json = safeStorageGet(key);
+    if (!json) return null;
+    const savedChecksum = safeStorageGet(key + '_checksum');
+    if (savedChecksum) {
+      const actualChecksum = computeChecksum(json);
+      if (savedChecksum !== actualChecksum) {
+        showToast('Config data integrity check failed for ' + key + '. Using defaults.', 'warning');
+        return null;
+      }
+    }
+    return JSON.parse(json);
+  } catch(e) {
+    showToast('Failed to load config: ' + e.message, 'error');
+    return null;
+  }
+}
+
+// ===== VALIDATION UTILITIES (Issue 1) =====
+function validatePositiveNumber(value, fieldName) {
+  if (typeof value !== 'number' || isNaN(value) || value < 0) {
+    return { valid: false, message: fieldName + ' must be a positive number' };
+  }
+  return { valid: true };
+}
+
+function validatePopulation(value) {
+  if (typeof value !== 'number' || isNaN(value) || value <= 0) {
+    return { valid: false, message: 'Population must be greater than zero' };
+  }
+  return { valid: true };
+}
+
+function validatePercentage(value, fieldName) {
+  if (typeof value !== 'number' || isNaN(value) || value < 0 || value > 100) {
+    return { valid: false, message: fieldName + ' must be between 0 and 100' };
+  }
+  return { valid: true };
+}
+
+// Config import schema validation (Issue 4)
+const CONFIG_REQUIRED_FIELDS = ['organisation', 'sites'];
+const CONFIG_SCHEMA = {
+  organisation: { staffCount: 'number', workDaysPerWeek: 'number' },
+  sites: 'array'
+};
+
+function validateConfigSchema(obj) {
+  const errors = [];
+
+  if (!obj || typeof obj !== 'object') {
+    return { valid: false, errors: ['Config must be a JSON object'] };
+  }
+
+  CONFIG_REQUIRED_FIELDS.forEach(field => {
+    if (!(field in obj)) errors.push('Missing required field: ' + field);
+  });
+
+  if (obj.organisation) {
+    if (typeof obj.organisation.staffCount !== 'number' && typeof obj.organisation.staffCount !== 'undefined') {
+      if (typeof obj.organisation.staffCount === 'string') obj.organisation.staffCount = parseInt(obj.organisation.staffCount) || 8;
+      else errors.push('organisation.staffCount must be a number');
+    }
+    if (obj.organisation.staffCount !== undefined && obj.organisation.staffCount <= 0) {
+      errors.push('organisation.staffCount must be positive');
+    }
+    if (obj.organisation.workDaysPerWeek !== undefined) {
+      if (obj.organisation.workDaysPerWeek <= 0 || obj.organisation.workDaysPerWeek > 7) {
+        errors.push('organisation.workDaysPerWeek must be between 1 and 7');
+      }
+    }
+  }
+
+  if (obj.sites) {
+    if (!Array.isArray(obj.sites)) {
+      errors.push('sites must be an array');
+    } else if (obj.sites.length === 0) {
+      errors.push('sites must contain at least one site');
+    } else {
+      obj.sites.forEach((site, i) => {
+        if (!site.id && !site.name) errors.push('Site ' + i + ' must have an id or name');
+        if (site.population !== undefined && site.population < 0) errors.push('Site ' + i + ' population cannot be negative');
+      });
+    }
+  }
+
+  if (obj.severityRates) {
+    Object.entries(obj.severityRates).forEach(([key, val]) => {
+      if (typeof val !== 'number' || val < 0 || val > 1) {
+        errors.push('severityRates.' + key + ' must be a number between 0 and 1');
+      }
+    });
+  }
+
+  return { valid: errors.length === 0, errors };
+}
+
+// ===== DEBOUNCING (Issue 7) =====
+function debounce(func, wait) {
+  let timeout;
+  return function(...args) {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func.apply(this, args), wait);
+  };
+}
+const debouncedRunScenario = debounce(() => runScenario(), DEBOUNCE_DELAY);
+
+// ===== UX: TOAST NOTIFICATIONS =====
+function showToast(message, type) {
+  type = type || 'info';
+  const container = document.getElementById('toastContainer');
+  if (!container) return;
+  const toast = document.createElement('div');
+  toast.className = 'toast toast-' + type;
+  toast.textContent = message;
+  toast.setAttribute('role', 'alert');
+  container.appendChild(toast);
+  requestAnimationFrame(() => { toast.classList.add('show'); });
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => { if (toast.parentNode) toast.parentNode.removeChild(toast); }, 300);
+  }, 4000);
+}
+
+// ===== UX: LOADING OVERLAY =====
+function showLoading(message) {
+  const overlay = document.getElementById('loadingOverlay');
+  const text = document.getElementById('loadingText');
+  if (overlay) { overlay.classList.add('active'); }
+  if (text) { text.textContent = message || 'Loading...'; }
+}
+function hideLoading() {
+  const overlay = document.getElementById('loadingOverlay');
+  if (overlay) { overlay.classList.remove('active'); }
+}
+
+// ===== UX: CONFIRMATION DIALOG (Issue 3) =====
+let confirmCallback = null;
+function confirmAction(title, message, onConfirm) {
+  document.getElementById('confirmTitle').textContent = title;
+  document.getElementById('confirmMessage').textContent = message;
+  document.getElementById('confirmDialog').classList.add('active');
+  confirmCallback = onConfirm;
+  document.getElementById('confirmOkBtn').focus();
+}
+function closeConfirmDialog(confirmed) {
+  document.getElementById('confirmDialog').classList.remove('active');
+  if (confirmed && typeof confirmCallback === 'function') {
+    confirmCallback();
+  }
+  confirmCallback = null;
+}
+
+// ===== UNSAVED CHANGES WARNING (Issue 3) =====
+let hasUnsavedChanges = false;
+function markUnsaved() {
+  hasUnsavedChanges = true;
+  const indicator = document.getElementById('unsavedIndicator');
+  if (indicator) indicator.classList.add('visible');
+}
+function clearUnsaved() {
+  hasUnsavedChanges = false;
+  const indicator = document.getElementById('unsavedIndicator');
+  if (indicator) indicator.classList.remove('visible');
+}
+window.addEventListener('beforeunload', function(e) {
+  if (hasUnsavedChanges) {
+    e.preventDefault();
+    e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+    return e.returnValue;
+  }
+});
+
+// ===== COLOR BLIND MODE (Issue 6) =====
+let colorBlindMode = false;
+const CB_COLORS = {
+  green: '#0072B2',
+  red: '#D55E00',
+  yellow: '#E69F00',
+  blue: '#56B4E9',
+  purple: '#CC79A7',
+  orange: '#E69F00'
+};
+const NORMAL_COLORS = {
+  green: '#22c55e',
+  red: '#ef4444',
+  yellow: '#eab308',
+  blue: '#3b82f6',
+  purple: '#8b5cf6',
+  orange: '#f97316'
+};
+function getChartColor(name) {
+  return colorBlindMode ? (CB_COLORS[name] || NORMAL_COLORS[name]) : (NORMAL_COLORS[name] || name);
+}
+function toggleColorBlindMode() {
+  colorBlindMode = document.getElementById('colorBlindToggle').checked;
+  document.body.classList.toggle('color-blind', colorBlindMode);
+  safeStorageSet('claimsToolColorBlind', colorBlindMode ? '1' : '0');
+  if (lastScenario) { showResults(lastScenario); }
+  showToast('Color blind mode ' + (colorBlindMode ? 'enabled' : 'disabled'), 'info');
+}
+
+// ===== CHART EXPORT (Issue 6) =====
+function exportChartAsImage(canvasId, filename) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) { showToast('Chart not found', 'error'); return; }
+  try {
+    const link = document.createElement('a');
+    link.download = (filename || 'chart') + '.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    showToast('Chart exported as ' + link.download, 'success');
+  } catch(e) {
+    showToast('Failed to export chart: ' + e.message, 'error');
+  }
+}
+
+// ===== CHART TOOLTIPS (Issue 6) =====
+function setupChartTooltip(canvasId, tooltipId, getDataAtPoint) {
+  const canvas = document.getElementById(canvasId);
+  const tooltip = document.getElementById(tooltipId);
+  if (!canvas || !tooltip) return;
+
+  canvas.addEventListener('mousemove', function(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const data = getDataAtPoint(x, y, rect.width, rect.height);
+    if (data) {
+      tooltip.innerHTML = data;
+      tooltip.style.display = 'block';
+      tooltip.style.left = Math.min(x + 10, rect.width - 150) + 'px';
+      tooltip.style.top = (y - 40) + 'px';
+    } else {
+      tooltip.style.display = 'none';
+    }
+  });
+
+  canvas.addEventListener('mouseleave', function() {
+    tooltip.style.display = 'none';
+  });
+
+  // Touch support for mobile (Issue 15)
+  canvas.addEventListener('touchstart', function(e) {
+    const touch = e.touches[0];
+    const rect = canvas.getBoundingClientRect();
+    const x = touch.clientX - rect.left;
+    const y = touch.clientY - rect.top;
+    const data = getDataAtPoint(x, y, rect.width, rect.height);
+    if (data) {
+      tooltip.innerHTML = data;
+      tooltip.style.display = 'block';
+      tooltip.style.left = Math.min(x + 10, rect.width - 150) + 'px';
+      tooltip.style.top = (y - 40) + 'px';
+    }
+  }, { passive: true });
+
+  canvas.addEventListener('touchend', function() {
+    setTimeout(() => { tooltip.style.display = 'none'; }, 2000);
+  }, { passive: true });
+}
+
+// ===== CSV EXPORT (Issue 4) =====
+function exportCSV() {
+  if (!lastScenario) { showToast('Run a scenario first', 'warning'); return; }
+  const s = lastScenario;
+  const { displayPeriods, periodLabel, useMonthlyDisplay } = getDisplayPeriods(s);
+  const hasBreakdown = s.claimType === 'both';
+
+  let csv = 'Period';
+  if (hasBreakdown) csv += ',Injury Claims,Property Claims';
+  csv += ',New Claims,Cumulative,Capacity,Processed,Backlog,Surge Staff,Utilisation %\n';
+
+  displayPeriods.forEach(w => {
+    const periodNum = useMonthlyDisplay ? w.month : (w.week || w.period);
+    let row = periodLabel + ' ' + periodNum;
+    if (hasBreakdown) row += ',' + w.newInjury + ',' + w.newProperty;
+    row += ',' + w.newClaims + ',' + w.cumulative + ',' + w.effectiveCapacity + ',' + w.processed + ',' + w.backlog + ',' + (w.surgeStaff || 0) + ',' + w.utilisation.toFixed(1);
+    csv += row + '\n';
+  });
+
+  // Summary section
+  csv += '\nSummary\n';
+  csv += 'Site,' + sanitizeHTML(s.site.name) + '\n';
+  csv += 'Incident,' + s.incident + '\n';
+  csv += 'Severity,' + s.severity + '\n';
+  csv += 'Total Claims,' + s.totalClaims + '\n';
+  csv += 'Peak Claims,' + s.peakClaims + '\n';
+  csv += 'Weeks to Clear,' + s.weeksToClear + '\n';
+  csv += 'Additional Staff,' + s.additionalStaff + '\n';
+  csv += 'Max Backlog,' + s.maxBacklog + '\n';
+  csv += 'Ultimate Claims (Mid),' + s.ultimateClaimsMid + '\n';
+  csv += 'Estimated Value,' + s.estimatedTotalValue + '\n';
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'claims-scenario-' + s.site.id + '-' + s.incident + '-' + s.severity + '.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast('CSV exported successfully', 'success');
+}
+
+// ===== MC RESULTS EXPORT (Issue 4) =====
+function exportMCResults() {
+  if (!lastMCResults) { showToast('Run Monte Carlo simulation first', 'warning'); return; }
+  const mc = lastMCResults;
+  const st = mc.stats;
+
+  let csv = 'Monte Carlo Results Summary\n';
+  csv += 'Iterations,' + mc.iterations + '\n';
+  csv += 'Converged,' + (mc.converged ? 'Yes' : 'No') + '\n\n';
+
+  csv += 'Metric,Deterministic,P5,P10,P25,P50,P75,P90,P95,Mean,StdDev\n';
+  const s = mc.baseScenario;
+  const rows = [
+    ['Total Claims', s.totalClaims, st.totalClaims],
+    ['Injury Claims', s.injuryClaims, st.injuryClaims],
+    ['Property Claims', s.propertyClaims, st.propertyClaims],
+    ['Peak Claims', s.peakClaims, st.peakClaims],
+    ['Weeks to Clear', s.weeksToClear, st.weeksToClear],
+    ['Max Backlog', s.maxBacklog, st.maxBacklog],
+    ['Additional Staff', s.additionalStaff, st.additionalStaff],
+    ['Ultimate Claims', s.ultimateClaimsMid || 0, st.ultimateClaims],
+    ['Estimated Value', s.estimatedTotalValue || 0, st.estimatedValue]
+  ];
+
+  rows.forEach(([label, det, stats]) => {
+    csv += label + ',' + det + ',' + Math.round(stats.P5) + ',' + Math.round(stats.P10) + ',' + Math.round(stats.P25) + ',' + Math.round(stats.P50) + ',' + Math.round(stats.P75) + ',' + Math.round(stats.P90) + ',' + Math.round(stats.P95) + ',' + Math.round(stats.mean) + ',' + Math.round(stats.std) + '\n';
+  });
+
+  csv += '\nSensitivity Analysis (Spearman Rank Correlation)\n';
+  csv += 'Parameter,Total Claims,Estimated Value,Weeks to Clear,Additional Staff\n';
+  mc.sensitivity.totalClaims.forEach(item => {
+    const val = mc.sensitivity.estimatedValue.find(v => v.key === item.key);
+    const wk = mc.sensitivity.weeksToClear.find(v => v.key === item.key);
+    const st = mc.sensitivity.additionalStaff.find(v => v.key === item.key);
+    csv += item.param + ',' + item.correlation.toFixed(4) + ',' + (val ? val.correlation.toFixed(4) : '') + ',' + (wk ? wk.correlation.toFixed(4) : '') + ',' + (st ? st.correlation.toFixed(4) : '') + '\n';
+  });
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'monte-carlo-results.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast('Monte Carlo results exported', 'success');
+}
+
+// ===== SEEDED RANDOM NUMBER GENERATOR (Issue 5) =====
+// Mulberry32 PRNG for reproducible simulations
+function mulberry32(seed) {
+  return function() {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+let mcRandomSeed = null;
+let seededRandom = null;
+
+function getMCRandom() {
+  if (seededRandom) return seededRandom();
+  return Math.random();
+}
+
+// ===== DATA MIGRATION (Issue 8) =====
+function migrateConfig(config) {
+  if (!config) return config;
+
+  // v1 -> v2: Add claimComplexity if missing
+  if (!config.claimComplexity) {
+    config.claimComplexity = JSON.parse(JSON.stringify(DEFAULT_CONFIG.claimComplexity));
+  }
+
+  // Ensure sites have required fields
+  if (config.sites) {
+    config.sites.forEach(site => {
+      if (!site.id && site.name) site.id = site.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      if (site.population === undefined) site.population = 10000;
+      if (site.staffOnSite === undefined) site.staffOnSite = 500;
+      if (site.active === undefined) site.active = true;
+    });
+  }
+
+  // Ensure incidentMultipliers has all types
+  if (config.incidentMultipliers) {
+    if (!config.incidentMultipliers.fertiliser) config.incidentMultipliers.fertiliser = 1.2;
+  }
+
+  // Stamp version
+  config._schemaVersion = CONFIG_SCHEMA_VERSION;
+
+  return config;
+}
+
+// ===== CORRELATION MATRIX VALIDATION (Issue 5, 10) =====
+function isPositiveSemiDefinite(matrix) {
+  const n = matrix.length;
+  // Check dimensions
+  for (let i = 0; i < n; i++) {
+    if (!matrix[i] || matrix[i].length !== n) return { valid: false, reason: 'Matrix is not square' };
+  }
+  // Check symmetry
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      if (Math.abs(matrix[i][j] - matrix[j][i]) > 1e-10) {
+        return { valid: false, reason: 'Matrix is not symmetric at (' + i + ',' + j + ')' };
+      }
+    }
+  }
+  // Check diagonal is 1
+  for (let i = 0; i < n; i++) {
+    if (Math.abs(matrix[i][i] - 1.0) > 1e-10) {
+      return { valid: false, reason: 'Diagonal element [' + i + '] is not 1.0' };
+    }
+  }
+  // Try Cholesky decomposition - will fail if not PSD
+  try {
+    const L = choleskyDecompose(matrix);
+    for (let i = 0; i < n; i++) {
+      if (L[i][i] <= 0) return { valid: false, reason: 'Cholesky decomposition failed: non-positive diagonal at [' + i + ']' };
+    }
+    return { valid: true };
+  } catch(e) {
+    return { valid: false, reason: 'Cholesky decomposition failed: ' + e.message };
+  }
+}
+
+function validateCorrelationMatrix(matrix, paramDefs) {
+  const errors = [];
+  if (!matrix || !Array.isArray(matrix)) {
+    errors.push('Correlation matrix is missing or not an array');
+    return { valid: false, errors };
+  }
+  if (matrix.length !== paramDefs.length) {
+    errors.push('Correlation matrix size (' + matrix.length + ') does not match parameter count (' + paramDefs.length + ')');
+    return { valid: false, errors };
+  }
+  const psd = isPositiveSemiDefinite(matrix);
+  if (!psd.valid) {
+    errors.push('Correlation matrix is not positive semi-definite: ' + psd.reason);
+  }
+  return { valid: errors.length === 0, errors };
+}
+
+// ===== SCENARIO COMPARISON (Issue 11) =====
+let savedScenarios = [];
+function saveCurrentScenario(name) {
+  if (!lastScenario) { showToast('Run a scenario first', 'warning'); return; }
+  const saved = {
+    name: name || ('Scenario ' + (savedScenarios.length + 1)),
+    timestamp: new Date().toISOString(),
+    scenario: JSON.parse(JSON.stringify(lastScenario)),
+    mcResults: lastMCResults ? {
+      iterations: lastMCResults.iterations,
+      converged: lastMCResults.converged,
+      stats: JSON.parse(JSON.stringify(lastMCResults.stats))
+    } : null
+  };
+  // Remove periods array to save space
+  delete saved.scenario.periods;
+  savedScenarios.push(saved);
+  showToast('Scenario saved as "' + saved.name + '"', 'success');
+}
+
+// ===== SURGE COST CALCULATION (Issue 11) =====
+const SURGE_COST_RATES = {
+  internal: { dailyRate: 250, mobilisationCost: 500 },
+  contractor: { dailyRate: 450, mobilisationCost: 2000 },
+  outsource: { dailyRate: 350, mobilisationCost: 5000 }
+};
+
+function calculateSurgeCosts(surgeEntries, totalWeeks, workDaysPerWeek) {
+  if (!surgeEntries || surgeEntries.length === 0) return null;
+  let totalCost = 0;
+  const breakdown = [];
+  surgeEntries.forEach(entry => {
+    const weeksActive = Math.max(0, totalWeeks - entry.startWeek + 1);
+    const rate = SURGE_COST_RATES.contractor;
+    const cost = (entry.extraStaff * weeksActive * workDaysPerWeek * rate.dailyRate) + (entry.extraStaff * rate.mobilisationCost);
+    totalCost += cost;
+    breakdown.push({ staff: entry.extraStaff, startWeek: entry.startWeek, weeksActive, cost });
+  });
+  return { totalCost, breakdown };
+}
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 1: CONFIGURATION DATA
@@ -1192,16 +1863,17 @@ const CLAIM_PATTERNS = {
 // Load config from localStorage or use defaults
 let config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
 try {
-  const saved = localStorage.getItem('claimsToolConfig');
+  const saved = loadWithIntegrity('claimsToolConfig');
   if (saved) {
-    config = JSON.parse(saved);
-    // Migrate old configs missing claimComplexity
-    if (!config.claimComplexity) config.claimComplexity = JSON.parse(JSON.stringify(DEFAULT_CONFIG.claimComplexity));
+    config = migrateConfig(saved);
   }
-} catch(e) {}
+} catch(e) {
+  console.warn('Failed to load config, using defaults:', e);
+}
 
 function saveConfig() {
-  try { localStorage.setItem('claimsToolConfig', JSON.stringify(config)); } catch(e) {}
+  saveWithIntegrity('claimsToolConfig', config);
+  clearUnsaved();
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1213,21 +1885,23 @@ function saveConfig() {
 // Calculate weighted average days per claim based on complexity mix
 function getWeightedDaysPerClaim() {
   const cc = config.claimComplexity || DEFAULT_CONFIG.claimComplexity;
-  const autoPct = cc.autoProcessedPct / 100;
-  const twoDayPct = cc.twoDayPct / 100;
-  const customPct = cc.customDayPct / 100;
+  const autoPct = sanitizeNumberInput(cc.autoProcessedPct, 0, 100, 10) / 100;
+  const twoDayPct = sanitizeNumberInput(cc.twoDayPct, 0, 100, 20) / 100;
+  const customPct = sanitizeNumberInput(cc.customDayPct, 0, 100, 30) / 100;
   const standardPct = Math.max(0, 1 - autoPct - twoDayPct - customPct);
-  const customDays = cc.customDays || 3;
-  const standardDays = cc.standardDays || 4;
+  const customDays = sanitizeNumberInput(cc.customDays, 0.5, 20, 3);
+  const standardDays = sanitizeNumberInput(cc.standardDays, 0.5, 30, 4);
   // weighted average: auto=0 days, twoDay=2 days, custom=customDays, standard=standardDays
   return (autoPct * 0) + (twoDayPct * 2) + (customPct * customDays) + (standardPct * standardDays);
 }
 
 // Calculate weekly capacity from staff, working days, and weighted processing time
 function getWeeklyCapacity() {
+  const staffCount = sanitizeNumberInput(config.organisation.staffCount, 1, 10000, 8);
+  const workDays = sanitizeNumberInput(config.organisation.workDaysPerWeek, 1, 7, 5);
   const weightedDays = getWeightedDaysPerClaim();
-  if (weightedDays <= 0) return config.organisation.staffCount * config.organisation.workDaysPerWeek;
-  return Math.round(config.organisation.staffCount * config.organisation.workDaysPerWeek / weightedDays);
+  if (weightedDays <= 0) return staffCount * workDays;
+  return Math.max(1, Math.round(staffCount * workDays / weightedDays));
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1237,15 +1911,22 @@ function getWeeklyCapacity() {
 
 // ===== VIEW SWITCHING =====
 function switchView(view) {
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  const scenarioTab = document.getElementById('scenarioTab');
+  const adminTab = document.getElementById('adminTab');
+  document.querySelectorAll('.nav-tab').forEach(t => {
+    t.classList.remove('active');
+    t.setAttribute('aria-selected', 'false');
+  });
   if (view === 'scenario') {
     document.getElementById('scenarioPanel').style.display = '';
     document.getElementById('adminPanel').style.display = 'none';
-    document.querySelectorAll('.nav-tab')[0].classList.add('active');
+    scenarioTab.classList.add('active');
+    scenarioTab.setAttribute('aria-selected', 'true');
   } else {
     document.getElementById('scenarioPanel').style.display = 'none';
     document.getElementById('adminPanel').style.display = '';
-    document.querySelectorAll('.nav-tab')[1].classList.add('active');
+    adminTab.classList.add('active');
+    adminTab.setAttribute('aria-selected', 'true');
     loadAdmin();
   }
 }
@@ -1286,27 +1967,27 @@ function loadAdmin() {
 }
 
 function saveAdmin() {
-  config.organisation.staffCount = parseInt(document.getElementById('adminStaff').value) || 8;
-  config.organisation.workDaysPerWeek = parseInt(document.getElementById('adminWorkDays').value) || 5;
-  config.incidentMultipliers.fire = parseFloat(document.getElementById('multFire').value) || 1.0;
-  config.incidentMultipliers.explosion = parseFloat(document.getElementById('multExplosion').value) || 1.3;
-  config.incidentMultipliers.chemical = parseFloat(document.getElementById('multChemical').value) || 1.5;
-  config.incidentMultipliers.nuclear = parseFloat(document.getElementById('multNuclear').value) || 2.0;
-  config.severityRates.minor = (parseFloat(document.getElementById('rateMinor').value) || 2) / 100;
-  config.severityRates.moderate = (parseFloat(document.getElementById('rateModerate').value) || 8) / 100;
-  config.severityRates.major = (parseFloat(document.getElementById('rateMajor').value) || 20) / 100;
-  config.severityRates.catastrophic = (parseFloat(document.getElementById('rateCatastrophic').value) || 45) / 100;
+  config.organisation.staffCount = sanitizeIntInput(document.getElementById('adminStaff').value, 1, 1000, 8);
+  config.organisation.workDaysPerWeek = sanitizeIntInput(document.getElementById('adminWorkDays').value, 1, 7, 5);
+  config.incidentMultipliers.fire = sanitizeNumberInput(document.getElementById('multFire').value, 0.1, 10, 1.0);
+  config.incidentMultipliers.explosion = sanitizeNumberInput(document.getElementById('multExplosion').value, 0.1, 10, 1.3);
+  config.incidentMultipliers.chemical = sanitizeNumberInput(document.getElementById('multChemical').value, 0.1, 10, 1.5);
+  config.incidentMultipliers.nuclear = sanitizeNumberInput(document.getElementById('multNuclear').value, 0.1, 10, 2.0);
+  config.severityRates.minor = sanitizeNumberInput(document.getElementById('rateMinor').value, 0, 100, 2) / 100;
+  config.severityRates.moderate = sanitizeNumberInput(document.getElementById('rateModerate').value, 0, 100, 8) / 100;
+  config.severityRates.major = sanitizeNumberInput(document.getElementById('rateMajor').value, 0, 100, 20) / 100;
+  config.severityRates.catastrophic = sanitizeNumberInput(document.getElementById('rateCatastrophic').value, 0, 100, 45) / 100;
   updateComplexityDisplay();
   saveConfig();
   populateSites();
 }
 
 function updateComplexitySlider() {
-  let autoPct = parseInt(document.getElementById('autoProcessedSlider').value) || 0;
-  let twoDayPct = parseInt(document.getElementById('twoDaySlider').value) || 0;
-  let customPct = parseInt(document.getElementById('customDaySlider').value) || 0;
-  const customDays = parseFloat(document.getElementById('customDaysInput').value) || 3;
-  const standardDays = parseFloat(document.getElementById('standardDaysInput').value) || 4;
+  let autoPct = sanitizeIntInput(document.getElementById('autoProcessedSlider').value, 0, 100, 0);
+  let twoDayPct = sanitizeIntInput(document.getElementById('twoDaySlider').value, 0, 100, 0);
+  let customPct = sanitizeIntInput(document.getElementById('customDaySlider').value, 0, 100, 0);
+  const customDays = sanitizeNumberInput(document.getElementById('customDaysInput').value, 0.5, 20, 3);
+  const standardDays = sanitizeNumberInput(document.getElementById('standardDaysInput').value, 0.5, 30, 4);
 
   // Clamp so total doesn't exceed 100
   if (autoPct + twoDayPct + customPct > 100) {
@@ -1362,32 +2043,34 @@ function renderSitesAdmin() {
   config.sites.forEach((site, idx) => {
     const div = document.createElement('div');
     div.className = 'site-card';
+    const safeName = sanitizeHTML(site.name);
+    const safeLocation = sanitizeHTML(site.location);
     div.innerHTML = `
       <div class="site-card-header">
-        <h4>${site.name}</h4>
+        <h4>${safeName}</h4>
         <span class="tag ${site.active ? 'tag-active' : ''}">${site.active ? 'Active' : 'Inactive'}</span>
       </div>
       <div class="admin-grid">
         <div class="form-group">
-          <label>Name</label>
-          <input type="text" value="${site.name}" onchange="updateSite(${idx},'name',this.value)">
+          <label for="siteName${idx}">Name</label>
+          <input type="text" id="siteName${idx}" value="${safeName}" maxlength="100" onchange="updateSite(${idx},'name',this.value)" aria-label="Site name">
         </div>
         <div class="form-group">
-          <label>Location</label>
-          <input type="text" value="${site.location}" onchange="updateSite(${idx},'location',this.value)">
+          <label for="siteLoc${idx}">Location</label>
+          <input type="text" id="siteLoc${idx}" value="${safeLocation}" maxlength="200" onchange="updateSite(${idx},'location',this.value)" aria-label="Site location">
         </div>
         <div class="form-group">
-          <label>Local Population</label>
-          <input type="number" value="${site.population}" onchange="updateSite(${idx},'population',parseInt(this.value))">
+          <label for="sitePop${idx}">Local Population</label>
+          <input type="number" id="sitePop${idx}" value="${site.population}" min="1" max="10000000" onchange="updateSite(${idx},'population',parseInt(this.value))" aria-label="Local population" inputmode="numeric">
         </div>
         <div class="form-group">
-          <label>Staff on Site</label>
-          <input type="number" value="${site.staffOnSite}" onchange="updateSite(${idx},'staffOnSite',parseInt(this.value))">
+          <label for="siteStaff${idx}">Staff on Site</label>
+          <input type="number" id="siteStaff${idx}" value="${site.staffOnSite}" min="0" max="100000" onchange="updateSite(${idx},'staffOnSite',parseInt(this.value))" aria-label="Staff on site" inputmode="numeric">
         </div>
       </div>
       <div style="margin-top:8px;display:flex;gap:8px">
-        <button class="btn btn-secondary" style="width:auto;padding:6px 12px;font-size:12px" onclick="toggleSiteActive(${idx})">${site.active ? 'Deactivate' : 'Activate'}</button>
-        <button class="btn btn-danger" style="width:auto;padding:6px 12px;font-size:12px" onclick="removeSite(${idx})">Remove</button>
+        <button class="btn btn-secondary" style="width:auto;padding:6px 12px;font-size:12px" onclick="toggleSiteActive(${idx})" aria-label="${site.active ? 'Deactivate' : 'Activate'} ${safeName}">${site.active ? 'Deactivate' : 'Activate'}</button>
+        <button class="btn btn-danger" style="width:auto;padding:6px 12px;font-size:12px" onclick="removeSite(${idx})" aria-label="Remove ${safeName}">Remove</button>
       </div>
     `;
     container.appendChild(div);
@@ -1395,6 +2078,17 @@ function renderSitesAdmin() {
 }
 
 function updateSite(idx, field, value) {
+  // Validate input based on field type
+  if (field === 'population' || field === 'staffOnSite') {
+    value = sanitizeIntInput(value, 0, 10000000, config.sites[idx][field]);
+    if (field === 'population' && value <= 0) {
+      showToast('Population must be greater than zero', 'warning');
+      value = 1;
+    }
+  }
+  if (field === 'name' || field === 'location') {
+    value = String(value).substring(0, field === 'name' ? 100 : 200);
+  }
   config.sites[idx][field] = value;
   if (field === 'name') {
     config.sites[idx].id = value.toLowerCase().replace(/[^a-z0-9]/g, '_');
@@ -1412,22 +2106,29 @@ function toggleSiteActive(idx) {
 }
 
 function removeSite(idx) {
-  if (config.sites.length <= 1) { alert('You must have at least one site.'); return; }
-  config.sites.splice(idx, 1);
-  saveConfig();
-  populateSites();
-  renderSitesAdmin();
+  if (config.sites.length <= 1) { showToast('You must have at least one site.', 'warning'); return; }
+  const siteName = sanitizeHTML(config.sites[idx].name);
+  confirmAction('Remove Site', 'Are you sure you want to remove "' + siteName + '"? This cannot be undone.', function() {
+    config.sites.splice(idx, 1);
+    saveConfig();
+    populateSites();
+    renderSitesAdmin();
+    showToast('Site removed', 'info');
+  });
 }
 
 function addSitePrompt() {
   const name = prompt('Enter site name:');
-  if (!name) return;
-  const location = prompt('Enter location:') || '';
-  const population = parseInt(prompt('Enter local population estimate:')) || 10000;
-  const staff = parseInt(prompt('Enter staff on site:')) || 500;
+  if (!name || !name.trim()) return;
+  const safeName = name.trim().substring(0, 100);
+  const location = (prompt('Enter location:') || '').trim().substring(0, 200);
+  const populationInput = prompt('Enter local population estimate:');
+  const population = sanitizeIntInput(populationInput, 1, 10000000, 10000);
+  const staffInput = prompt('Enter staff on site:');
+  const staff = sanitizeIntInput(staffInput, 0, 100000, 500);
   config.sites.push({
-    id: name.toLowerCase().replace(/[^a-z0-9]/g, '_'),
-    name: name,
+    id: safeName.toLowerCase().replace(/[^a-z0-9]/g, '_'),
+    name: safeName,
     location: location,
     population: population,
     staffOnSite: staff,
@@ -1436,6 +2137,7 @@ function addSitePrompt() {
   saveConfig();
   populateSites();
   renderSitesAdmin();
+  showToast('Site "' + sanitizeHTML(safeName) + '" added', 'success');
 }
 
 function exportConfig() {
@@ -1449,17 +2151,38 @@ function exportConfig() {
 function importConfig(event) {
   const file = event.target.files[0];
   if (!file) return;
+
+  // Validate file size (max 1MB)
+  if (file.size > 1024 * 1024) {
+    showToast('Config file too large (max 1MB)', 'error');
+    event.target.value = '';
+    return;
+  }
+
   const reader = new FileReader();
   reader.onload = function(e) {
     try {
-      config = JSON.parse(e.target.result);
+      const parsed = JSON.parse(e.target.result);
+
+      // Validate schema before applying
+      const validation = validateConfigSchema(parsed);
+      if (!validation.valid) {
+        showToast('Invalid config: ' + validation.errors.join('; '), 'error');
+        return;
+      }
+
+      // Migrate and apply
+      config = migrateConfig(parsed);
       saveConfig();
       populateSites();
       loadAdmin();
-      alert('Configuration imported successfully.');
+      showToast('Configuration imported successfully', 'success');
     } catch(err) {
-      alert('Invalid config file.');
+      showToast('Invalid config file: ' + err.message, 'error');
     }
+  };
+  reader.onerror = function() {
+    showToast('Failed to read config file', 'error');
   };
   reader.readAsText(file);
   event.target.value = '';
@@ -2039,7 +2762,15 @@ function runScenario() {
   const site = config.sites.find(s => s.id === siteId);
   if (!site) return;
 
-  const totalAffected = site.population + site.staffOnSite;
+  // Validate site data (Issue 1: edge case validation)
+  const population = sanitizeIntInput(site.population, 0, 10000000, 10000);
+  const staffOnSite = sanitizeIntInput(site.staffOnSite, 0, 100000, 500);
+  if (population <= 0 && staffOnSite <= 0) {
+    showToast('Site has zero population and staff. Please update site configuration.', 'warning');
+    return;
+  }
+
+  const totalAffected = population + staffOnSite;
   const claimRate = config.severityRates[severity];
   const multiplier = config.incidentMultipliers[incident] || 1.0;
   // Apply claim multiplier per person (accounts for multiple claims per affected individual)
@@ -2277,7 +3008,7 @@ function showResults(scenario) {
   const viewLabel = `${horizonNames[s.timeHorizon]} (0-${s.viewHorizonConfig.label})`;
   const fullLabel = s.fullHorizonConfig.label;
 
-  document.getElementById('mainTitle').textContent = s.site.name + ' - Scenario Analysis';
+  document.getElementById('mainTitle').textContent = sanitizeHTML(s.site.name) + ' - Scenario Analysis';
   document.getElementById('mainSub').textContent =
     incidentLabels[s.incident] + ' | ' + severityLabels[s.severity] + ' | ' + claimTypeLabels[s.claimType] + ' | ' + viewLabel;
 
@@ -2596,8 +3327,47 @@ function showResults(scenario) {
   document.getElementById('forecastChartTitle').textContent = chartTitle;
   // Pass display config to chart functions
   const displayScenario = Object.assign({}, s, { isLongTerm: useMonthlyDisplay, periodLabel });
-  drawForecastChart(displayPeriods, displayScenario);
-  drawCapacityChart(displayPeriods, displayScenario);
+
+  if (supportsCanvas) {
+    drawForecastChart(displayPeriods, displayScenario);
+    drawCapacityChart(displayPeriods, displayScenario);
+  } else {
+    document.getElementById('forecastChart').parentElement.innerHTML = '<p style="color:#94a3b8;padding:20px">Canvas not supported in this browser. Please use a modern browser to view charts.</p>';
+    document.getElementById('capacityChart').parentElement.innerHTML = '<p style="color:#94a3b8;padding:20px">Canvas not supported in this browser.</p>';
+  }
+
+  // Screen reader accessible chart summary (Issue 2)
+  const srForecast = document.getElementById('forecastChartSR');
+  if (srForecast) {
+    srForecast.textContent = 'Claims forecast: ' + s.totalClaims.toLocaleString() + ' total claims. ' +
+      'Peak of ' + viewPeakClaims + ' claims at ' + peakPeriodLabel + '. ' +
+      'Current capacity is ' + s.periodCapacity + ' claims per week. ' +
+      (s.canMeetTarget ? 'Claims can be cleared within target.' : 'Claims will NOT be cleared within target.');
+  }
+  const srCapacity = document.getElementById('capacityChartSR');
+  if (srCapacity) {
+    srCapacity.textContent = 'Capacity utilisation: ' + s.overCapacityPeriods + ' periods over capacity. ' +
+      'Maximum backlog of ' + s.maxBacklog.toLocaleString() + ' claims. ' +
+      (s.additionalStaff > 0 ? s.additionalStaff + ' additional staff required.' : 'No additional staff required.');
+  }
+
+  // Surge cost estimate (Issue 11)
+  if (s.surgeEntries && s.surgeEntries.length > 0) {
+    const surgeCosts = calculateSurgeCosts(s.surgeEntries, s.weeksToClear > 0 ? s.weeksToClear : 52, config.organisation.workDaysPerWeek);
+    if (surgeCosts) {
+      const resContent = document.getElementById('resourceContent');
+      if (resContent) {
+        resContent.innerHTML += `
+          <div style="margin-top:16px;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:12px">
+            <h4 style="font-size:13px;font-weight:700;color:#eab308;margin-bottom:8px">Estimated Surge Costs (Contractor Rates)</h4>
+            <div style="font-size:13px;color:#e2e8f0">
+              Total estimated cost: <strong style="color:#eab308">£${(surgeCosts.totalCost / 1000).toFixed(0)}K</strong>
+            </div>
+            <div style="font-size:11px;color:#64748b;margin-top:4px">Based on £450/day contractor rate + £2,000 mobilisation per person</div>
+          </div>`;
+      }
+    }
+  }
 }
 
 // Build recommendations based on incident type and claim patterns
@@ -2720,21 +3490,48 @@ function buildRecommendations(s) {
 // Pure canvas chart drawing, no external dependencies
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-function drawForecastChart(periods, scenario) {
-  const canvas = document.getElementById('forecastChart');
+// Shared chart setup function (Issue 12: reduce duplication)
+function setupCanvas(canvasId, height) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return null;
   const ctx = canvas.getContext('2d');
   const dpr = window.devicePixelRatio || 1;
   const rect = canvas.parentElement.getBoundingClientRect();
   canvas.width = rect.width * dpr;
-  canvas.height = 300 * dpr;
-  canvas.style.height = '300px';
+  canvas.height = height * dpr;
+  canvas.style.height = height + 'px';
   ctx.scale(dpr, dpr);
-  const W = rect.width;
-  const H = 300;
+  return { canvas, ctx, W: rect.width, H: height, dpr };
+}
+
+function drawChartGrid(ctx, pad, chartW, chartH, maxVal, numLines) {
+  numLines = numLines || 4;
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= numLines; i++) {
+    const y = pad.top + (chartH / numLines) * i;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + chartW, y); ctx.stroke();
+    ctx.fillStyle = '#64748b';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(Math.round(maxVal - (maxVal / numLines) * i).toLocaleString(), pad.left - 8, y + 4);
+  }
+}
+
+// Store display periods for tooltip lookup
+let _forecastDisplayPeriods = [];
+let _forecastScenario = null;
+
+function drawForecastChart(periods, scenario) {
+  const setup = setupCanvas('forecastChart', 300);
+  if (!setup) return;
+  const { canvas, ctx, W, H } = setup;
 
   ctx.clearRect(0, 0, W, H);
 
   const pad = { top: 20, right: 20, bottom: 40, left: 60 };
+  _forecastDisplayPeriods = periods;
+  _forecastScenario = scenario;
   const chartW = W - pad.left - pad.right;
   const chartH = H - pad.top - pad.bottom;
 
@@ -2771,7 +3568,7 @@ function drawForecastChart(periods, scenario) {
 
   // Capacity line
   const capY = pad.top + chartH - (s.periodCapacity / maxVal) * chartH;
-  ctx.strokeStyle = '#ef4444';
+  ctx.strokeStyle = getChartColor('red');
   ctx.lineWidth = 2;
   ctx.setLineDash([6, 4]);
   ctx.beginPath(); ctx.moveTo(pad.left, capY); ctx.lineTo(pad.left + chartW, capY); ctx.stroke();
@@ -2932,16 +3729,9 @@ function drawForecastChart(periods, scenario) {
 }
 
 function drawCapacityChart(periods, scenario) {
-  const canvas = document.getElementById('capacityChart');
-  const ctx = canvas.getContext('2d');
-  const dpr = window.devicePixelRatio || 1;
-  const rect = canvas.parentElement.getBoundingClientRect();
-  canvas.width = rect.width * dpr;
-  canvas.height = 250 * dpr;
-  canvas.style.height = '250px';
-  ctx.scale(dpr, dpr);
-  const W = rect.width;
-  const H = 250;
+  const setup = setupCanvas('capacityChart', 250);
+  if (!setup) return;
+  const { canvas, ctx, W, H } = setup;
 
   ctx.clearRect(0, 0, W, H);
 
@@ -2986,9 +3776,9 @@ function drawCapacityChart(periods, scenario) {
     const y = pad.top + chartH - barH;
 
     let color;
-    if (w.utilisation <= 70) color = '#22c55e';
-    else if (w.utilisation <= 100) color = '#eab308';
-    else color = '#ef4444';
+    if (w.utilisation <= 70) color = getChartColor('green');
+    else if (w.utilisation <= 100) color = getChartColor('yellow');
+    else color = getChartColor('red');
 
     ctx.fillStyle = color;
     ctx.beginPath();
@@ -3027,7 +3817,7 @@ function drawCapacityChart(periods, scenario) {
 // PDF report creation (opens in new window for print)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function generateReport() {
-  if (!lastScenario) { alert('Run a scenario first.'); return; }
+  if (!lastScenario) { showToast('Run a scenario first.', 'warning'); return; }
   const s = lastScenario;
   const incidentLabels = { fire: 'Fire', explosion: 'Explosion', chemical: 'Chemical (Toxic Release)', nuclear: 'Nuclear (Radiological)', fertiliser: 'Fertiliser (Ammonium Nitrate)' };
   const severityLabels = { minor: 'Minor', moderate: 'Moderate', major: 'Major', catastrophic: 'Catastrophic' };
@@ -3102,7 +3892,7 @@ function generateReport() {
   const targetLabel = s.targetWeeks + ' Weeks';
 
   const html = `<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><title>Claims Resilience Report - ${s.site.name}</title>
+<html lang="en"><head><meta charset="UTF-8"><title>Claims Resilience Report - ${sanitizeHTML(s.site.name)}</title>
 <style>
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 1000px; margin: 0 auto; padding: 40px 20px; color: #1e293b; line-height: 1.6; }
   h1 { font-size: 24px; border-bottom: 2px solid #3b82f6; padding-bottom: 8px; }
@@ -3125,7 +3915,7 @@ function generateReport() {
 
 <h2>Scenario Parameters</h2>
 <table>
-  <tr><td style="font-weight:600;width:200px">Site</td><td>${s.site.name} - ${s.site.location}</td></tr>
+  <tr><td style="font-weight:600;width:200px">Site</td><td>${sanitizeHTML(s.site.name)} - ${sanitizeHTML(s.site.location)}</td></tr>
   <tr><td style="font-weight:600">Incident Type</td><td>${incidentLabels[s.incident]}</td></tr>
   <tr><td style="font-weight:600">Claim Type</td><td>${claimTypeLabels[s.claimType]}</td></tr>
   <tr><td style="font-weight:600">Severity</td><td>${severityLabels[s.severity]}</td></tr>
@@ -3321,12 +4111,23 @@ const MC_DEFAULT_CONFIG = {
 
 let mcConfig = JSON.parse(JSON.stringify(MC_DEFAULT_CONFIG));
 try {
-  const savedMC = localStorage.getItem('claimsToolMCConfig');
-  if (savedMC) { const parsed = JSON.parse(savedMC); if (parsed.paramDefs) mcConfig = parsed; }
-} catch(e) {}
+  const savedMC = loadWithIntegrity('claimsToolMCConfig');
+  if (savedMC && savedMC.paramDefs) {
+    // Validate correlation matrix matches paramDefs (Issue 10)
+    if (savedMC.correlationMatrix && savedMC.paramDefs &&
+        savedMC.correlationMatrix.length === savedMC.paramDefs.length) {
+      mcConfig = savedMC;
+    } else {
+      console.warn('MC config correlation matrix size mismatch. Using defaults.');
+      showToast('MC config had mismatched matrix size. Reset to defaults.', 'warning');
+    }
+  }
+} catch(e) {
+  console.warn('Failed to load MC config:', e);
+}
 
 function saveMCConfig() {
-  try { localStorage.setItem('claimsToolMCConfig', JSON.stringify(mcConfig)); } catch(e) {}
+  saveWithIntegrity('claimsToolMCConfig', mcConfig);
 }
 
 let mcMode = 'simple';
@@ -3345,8 +4146,8 @@ function normalCDF(x) {
 }
 
 function boxMuller() {
-  let u1; do { u1 = Math.random(); } while (u1 === 0);
-  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * Math.random());
+  let u1; do { u1 = getMCRandom(); } while (u1 === 0);
+  return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * getMCRandom());
 }
 
 function choleskyDecompose(A) {
@@ -3571,10 +4372,27 @@ const HISTORICAL_VALIDATION = {
 // ===== MAIN MC RUNNER =====
 function runMonteCarlo() {
   if (mcRunning) return;
-  if (!lastScenario) { alert('Run a scenario first to establish baseline.'); return; }
+  if (!lastScenario) { showToast('Run a scenario first to establish baseline.', 'warning'); return; }
+
+  // Validate correlation matrix (Issue 5, 10)
+  const matrixValidation = validateCorrelationMatrix(mcConfig.correlationMatrix, mcConfig.paramDefs);
+  if (!matrixValidation.valid) {
+    showToast('Correlation matrix error: ' + matrixValidation.errors.join('; '), 'error');
+    return;
+  }
 
   mcRunning = true;
   const s = lastScenario;
+
+  // Initialize seeded RNG if seed is set (Issue 5)
+  const seedInput = document.getElementById('mcSeedInput');
+  if (seedInput && seedInput.value.trim() !== '') {
+    mcRandomSeed = parseInt(seedInput.value) || 42;
+    seededRandom = mulberry32(mcRandomSeed);
+  } else {
+    mcRandomSeed = null;
+    seededRandom = null;
+  }
 
   document.getElementById('mcSidebarControls').style.display = '';
   document.getElementById('mcResultsArea').style.display = '';
@@ -3706,6 +4524,7 @@ function runMonteCarlo() {
 
       displayMCResults(lastMCResults);
       mcRunning = false;
+      showToast('Monte Carlo simulation complete (' + completed.toLocaleString() + ' iterations' + (converged ? ', converged' : '') + ')', 'success');
       setTimeout(() => { document.getElementById('mcProgressContainer').style.display = 'none'; }, 1500);
     }
   }
@@ -3808,9 +4627,9 @@ function drawMCHistogram(canvasId, data, title, deterministicValue, legendId, fo
     const barH = maxPct > 0 ? (bin.pct / maxPct) * chartH : 0;
     const y = pad.top + chartH - barH;
     const midVal = (bin.low + bin.high) / 2;
-    if (midVal < p5 || midVal > p95) ctx.fillStyle = 'rgba(239,68,68,0.6)';
-    else if (midVal < p25 || midVal > p75) ctx.fillStyle = 'rgba(234,179,8,0.6)';
-    else ctx.fillStyle = 'rgba(59,130,246,0.6)';
+    if (midVal < p5 || midVal > p95) ctx.fillStyle = colorBlindMode ? 'rgba(213,94,0,0.6)' : 'rgba(239,68,68,0.6)';
+    else if (midVal < p25 || midVal > p75) ctx.fillStyle = colorBlindMode ? 'rgba(230,159,0,0.6)' : 'rgba(234,179,8,0.6)';
+    else ctx.fillStyle = colorBlindMode ? 'rgba(86,180,233,0.6)' : 'rgba(59,130,246,0.6)';
     ctx.fillRect(x + 1, y, Math.max(1, barW - 2), barH);
   });
 
@@ -4085,16 +4904,70 @@ function resetMCDefaults() {
   mcConfig = JSON.parse(JSON.stringify(MC_DEFAULT_CONFIG));
   saveMCConfig();
   loadMCAdmin();
+  showToast('Monte Carlo parameters reset to defaults', 'info');
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 8: INITIALIZATION
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// Restore color blind mode preference
+try {
+  const cbPref = safeStorageGet('claimsToolColorBlind');
+  if (cbPref === '1') {
+    colorBlindMode = true;
+    document.body.classList.add('color-blind');
+    const cbToggle = document.getElementById('colorBlindToggle');
+    if (cbToggle) cbToggle.checked = true;
+  }
+} catch(e) {}
+
 populateSites();
 updateTimeHorizonLabels();
 runScenario();
 
-// Debounced resize handler
+// Setup chart tooltips (Issue 6)
+setupChartTooltip('forecastChart', 'forecastTooltip', function(x, y, w, h) {
+  if (!_forecastDisplayPeriods || !_forecastDisplayPeriods.length) return null;
+  const pad = { left: 60, right: 20, top: 20, bottom: 40 };
+  const chartW = w - pad.left - pad.right;
+  const idx = Math.round((x - pad.left) / chartW * (_forecastDisplayPeriods.length - 1));
+  if (idx < 0 || idx >= _forecastDisplayPeriods.length) return null;
+  const p = _forecastDisplayPeriods[idx];
+  const label = _forecastScenario && _forecastScenario.isLongTerm ? 'Month ' + p.month : 'Week ' + (p.week || p.period);
+  let html = '<strong>' + label + '</strong><br>';
+  html += 'New claims: ' + p.newClaims.toLocaleString() + '<br>';
+  if (p.newInjury !== undefined && p.newProperty !== undefined && p.newInjury > 0) {
+    html += 'Injury: ' + p.newInjury.toLocaleString() + ' / Property: ' + p.newProperty.toLocaleString() + '<br>';
+  }
+  html += 'Cumulative: ' + p.cumulative.toLocaleString() + '<br>';
+  html += 'Backlog: ' + p.backlog.toLocaleString();
+  return html;
+});
+
+// Keyboard navigation (Issue 2)
+document.addEventListener('keydown', function(e) {
+  // Escape closes dialogs
+  if (e.key === 'Escape') {
+    const confirm = document.getElementById('confirmDialog');
+    if (confirm && confirm.classList.contains('active')) {
+      closeConfirmDialog(false);
+      return;
+    }
+  }
+  // Ctrl+Enter runs scenario
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    runScenario();
+  }
+  // Ctrl+Shift+M runs Monte Carlo
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'M') {
+    e.preventDefault();
+    runMonteCarlo();
+  }
+});
+
+// Debounced resize handler (Issue 7: performance)
 let resizeTimer;
 window.addEventListener('resize', () => {
   clearTimeout(resizeTimer);
@@ -4102,8 +4975,35 @@ window.addEventListener('resize', () => {
     if (document.getElementById('resultsArea').style.display !== 'none') {
       runScenario();
     }
-  }, 150);
+  }, RESIZE_DEBOUNCE);
 });
+
+// ===== INLINE DOCUMENTATION TOOLTIPS (Issue 9) =====
+const STAT_TERMS = {
+  'P10': 'The 10th percentile — 10% of simulated outcomes fall below this value. Represents a favourable/optimistic scenario.',
+  'P50': 'The 50th percentile (median) — the middle value where half of outcomes are above and half below. More robust than the mean for skewed distributions.',
+  'P90': 'The 90th percentile — 90% of simulated outcomes fall below this value. Represents a conservative/adverse scenario commonly used for reserving.',
+  'P95': 'The 95th percentile — only 5% of outcomes exceed this. Often used as a regulatory confidence level.',
+  'Spearman correlation': 'Spearman rank correlation measures how strongly two variables move together, accounting for non-linear relationships. Values range from -1 (perfect inverse) to +1 (perfect positive). Used here to identify which input parameters most influence outputs.',
+  'Gaussian copula': 'A statistical method for modelling dependencies between multiple random variables. Allows parameters to be correlated (e.g., higher claim rates tend to coincide with higher claim values) while each parameter maintains its own distribution shape.',
+  'Cholesky decomposition': 'A matrix factorisation used to generate correlated random samples from a correlation matrix. Ensures the mathematical validity of the correlation structure.',
+  'Triangular distribution': 'A probability distribution defined by three points: minimum, most likely (mode), and maximum. Used when limited data is available but expert judgement can estimate reasonable bounds.',
+  'Convergence': 'Monte Carlo results stabilise (converge) when adding more iterations no longer significantly changes the output statistics. Early convergence saves computation time.',
+  'Reserve development': 'Insurance reserves typically increase over time as more claims emerge and existing claims develop. The development factor (e.g., 1.5x) estimates the ratio of ultimate claims to initial estimates.',
+  'IBNR': 'Incurred But Not Reported — claims that have occurred but not yet been filed. Common in long-tail lines like chemical exposure or nuclear incidents.'
+};
+
+// Validate correlation matrix on init
+try {
+  const initValidation = validateCorrelationMatrix(mcConfig.correlationMatrix, mcConfig.paramDefs);
+  if (!initValidation.valid) {
+    console.warn('MC correlation matrix validation warnings:', initValidation.errors);
+  }
+} catch(e) {}
+
+// Log browser compatibility info
+if (!supportsCanvas) { console.warn('Canvas API not supported. Charts will not render.'); }
+if (!supportsLocalStorage) { console.warn('localStorage not available. Using in-memory storage.'); }
 </script>
 </body>
 </html>
