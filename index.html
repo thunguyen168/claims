@@ -4430,7 +4430,10 @@ function runMonteCarlo() {
   const inputSamples = {};
   mcConfig.paramDefs.forEach(pd => { inputSamples[pd.key] = []; });
 
-  let completed = 0, converged = false, prevMedian = null;
+  let completed = 0, converged = false, prevMedian = null, prevP10 = null, prevP90 = null;
+  let consecutiveStableChecks = 0;
+  const MIN_ITERS_BEFORE_CONVERGENCE = Math.max(2000, Math.floor(iterations * 0.2));
+  const REQUIRED_STABLE_CHECKS = 3;
 
   function processBatch() {
     const batchEnd = Math.min(completed + mcConfig.batchSize, iterations);
@@ -4475,18 +4478,35 @@ function runMonteCarlo() {
     bar.style.width = pct + '%';
     bar.textContent = pct + '% (' + completed.toLocaleString() + '/' + iterations.toLocaleString() + ')';
 
-    if (completed % mcConfig.convergenceCheckInterval === 0 && completed > mcConfig.convergenceCheckInterval) {
+    // Convergence check: only after minimum iterations, requires multiple consecutive stable checks,
+    // and checks P10/P50/P90 stability (not just median)
+    if (completed % mcConfig.convergenceCheckInterval === 0 && completed >= MIN_ITERS_BEFORE_CONVERGENCE) {
       const sorted = [...results.totalClaims].sort((a, b) => a - b);
-      const currentMedian = sorted[Math.floor(sorted.length / 2)];
-      if (prevMedian !== null) {
-        const change = Math.abs(currentMedian - prevMedian) / Math.max(1, prevMedian);
-        if (change < tolerance) {
-          converged = true;
-          document.getElementById('mcConvergenceStatus').innerHTML =
-            '<span class="dot converged"></span> Converged at ' + completed.toLocaleString() + ' iterations (median stable within ' + (tolerance * 100).toFixed(1) + '%)';
+      const n = sorted.length;
+      const currentMedian = sorted[Math.floor(n * 0.5)];
+      const currentP10 = sorted[Math.floor(n * 0.1)];
+      const currentP90 = sorted[Math.floor(n * 0.9)];
+
+      if (prevMedian !== null && prevP10 !== null && prevP90 !== null) {
+        const medianChange = Math.abs(currentMedian - prevMedian) / Math.max(1, prevMedian);
+        const p10Change = Math.abs(currentP10 - prevP10) / Math.max(1, prevP10);
+        const p90Change = Math.abs(currentP90 - prevP90) / Math.max(1, prevP90);
+        const allStable = medianChange < tolerance && p10Change < tolerance && p90Change < tolerance;
+
+        if (allStable) {
+          consecutiveStableChecks++;
+          if (consecutiveStableChecks >= REQUIRED_STABLE_CHECKS) {
+            converged = true;
+            document.getElementById('mcConvergenceStatus').innerHTML =
+              '<span class="dot converged"></span> Converged at ' + completed.toLocaleString() + ' iterations (P10/P50/P90 stable within ' + (tolerance * 100).toFixed(1) + '% for ' + REQUIRED_STABLE_CHECKS + ' consecutive checks)';
+          }
+        } else {
+          consecutiveStableChecks = 0;
         }
       }
       prevMedian = currentMedian;
+      prevP10 = currentP10;
+      prevP90 = currentP90;
     }
 
     if (completed < iterations && !converged) {
