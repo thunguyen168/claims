@@ -4080,17 +4080,28 @@ const MC_DEFAULT_CONFIG = {
   convergenceCheckInterval: 500,
   batchSize: 500,
   paramDefs: [
-    { key: 'claimRate',       label: 'Claim Rate',              minFactor: 0.4, maxFactor: 2.0, note: '% of affected population filing' },
-    { key: 'incidentMult',    label: 'Incident Multiplier',     minFactor: 0.6, maxFactor: 1.8, note: 'Severity scaling factor' },
-    { key: 'claimMultPP',     label: 'Claims Per Person',       minFactor: 0.7, maxFactor: 1.5, note: 'Multiple filings per individual' },
-    { key: 'injuryRatio',     label: 'Injury/Property Split',   minFactor: 0.6, maxFactor: 1.4, note: 'Injury proportion vs property' },
-    { key: 'peakWeekShift',   label: 'Peak Timing Shift',       minFactor: -2,  maxFactor: 2,   note: 'Weeks earlier/later than expected', isAbsolute: true },
-    { key: 'tailWeight',      label: 'Tail Weight',             minFactor: 0.7, maxFactor: 1.4, note: 'Long-tail claim emergence' },
-    { key: 'processingTime',  label: 'Processing Time',         minFactor: 0.7, maxFactor: 1.5, note: 'Days per claim variability' },
-    { key: 'population',      label: 'Affected Population',     minFactor: 0.5, maxFactor: 2.0, note: 'Actual vs estimated exposure' },
-    { key: 'claimValue',      label: 'Avg Claim Value',         minFactor: 0.4, maxFactor: 2.5, note: 'Per-claim financial amount' },
-    { key: 'reserveDev',      label: 'Reserve Development',     minFactor: 0.8, maxFactor: 1.3, note: 'Ultimate claims multiplier' },
-    { key: 'staffAvail',      label: 'Staff Availability',      minFactor: 0.6, maxFactor: 1.0, note: 'Attrition under stress' }
+    { key: 'claimRate',       label: 'Claim Rate',              minFactor: 0.4, maxFactor: 2.0, note: '% of affected population filing',
+      definition: 'The proportion of the affected population that files claims. A factor of 1.0 uses the base severity rate (e.g. 45% for catastrophic). Values below 1.0 model lower take-up; values above 1.0 model situations where more people claim than initially estimated, as seen in Bhopal where claim rates exceeded expectations.' },
+    { key: 'incidentMult',    label: 'Incident Multiplier',     minFactor: 0.6, maxFactor: 1.8, note: 'Severity scaling factor',
+      definition: 'Scales the base claim count by incident severity. Different incident types (fire, explosion, chemical, nuclear) have different base multipliers. This parameter adds uncertainty around that multiplier — a value of 1.3 means 30% more claims than the base estimate. Reflects the inherent unpredictability of incident impact.' },
+    { key: 'claimMultPP',     label: 'Claims Per Person',       minFactor: 0.7, maxFactor: 1.5, note: 'Multiple filings per individual',
+      definition: 'The average number of separate claims filed per affected individual. In many incidents, one person may file for both personal injury and property damage, or file multiple claims as new symptoms or losses emerge. Chemical incidents historically show the highest values (e.g. Bhopal: 1.8 claims per person).' },
+    { key: 'injuryRatio',     label: 'Injury/Property Split',   minFactor: 0.6, maxFactor: 1.4, note: 'Injury proportion vs property',
+      definition: 'Scales the proportion of claims that are bodily injury versus property damage. A factor of 1.0 uses the base split for the incident type (e.g. explosions are 60% property, 40% injury). Higher values shift towards more injury claims; lower values shift towards more property claims.' },
+    { key: 'peakWeekShift',   label: 'Peak Timing Shift',       minFactor: -2,  maxFactor: 2,   note: 'Weeks earlier/later than expected', isAbsolute: true,
+      definition: 'Shifts the peak claim arrival week earlier or later than the base estimate. A value of -2 means claims peak 2 weeks earlier; +2 means 2 weeks later. This is an absolute shift in weeks, not a multiplicative factor. Reflects uncertainty in how quickly claims are filed after an incident.' },
+    { key: 'tailWeight',      label: 'Tail Weight',             minFactor: 0.7, maxFactor: 1.4, note: 'Long-tail claim emergence',
+      definition: 'Controls how many claims emerge in the long tail after the initial peak. Higher values mean more late-emerging claims (latent injuries, delayed property discovery, litigation). Chemical and nuclear incidents typically have heavy tails — Bhopal saw claims emerging 40+ years later. Correlated with reserve development.' },
+    { key: 'processingTime',  label: 'Processing Time',         minFactor: 0.7, maxFactor: 1.5, note: 'Days per claim variability',
+      definition: 'Scales the average number of days required to process each claim. A factor of 1.0 uses the base weighted processing time from the complexity mix. Values above 1.0 model slower processing (e.g. more complex claims, inexperienced staff, system failures). Inversely affects weekly processing capacity.' },
+    { key: 'population',      label: 'Affected Population',     minFactor: 0.5, maxFactor: 2.0, note: 'Actual vs estimated exposure',
+      definition: 'Scales the total affected population (local residents + on-site staff). In real incidents, the actual number of people exposed often differs significantly from initial estimates. Fukushima affected 200,000+ evacuees; chemical plumes can spread further than expected. A factor of 2.0 means double the estimated population is affected.' },
+    { key: 'claimValue',      label: 'Avg Claim Value',         minFactor: 0.4, maxFactor: 2.5, note: 'Per-claim financial amount',
+      definition: 'Scales the average financial value per claim. A factor of 1.0 uses the base average for the incident type and severity. Values above 1.0 model scenarios with more severe injuries, higher property values, or more successful litigation. Strongly correlated with claim rate — larger incidents tend to produce both more and costlier claims.' },
+    { key: 'reserveDev',      label: 'Reserve Development',     minFactor: 0.8, maxFactor: 1.3, note: 'Ultimate claims multiplier',
+      definition: 'Scales the reserve development factor that converts initial claim estimates to ultimate (final) claim counts. Insurance reserves almost always develop upward — initial estimates typically undercount eventual claims. A factor of 1.0 uses the base development factor; higher values model greater reserve deterioration. Strongly correlated with tail weight.' },
+    { key: 'staffAvail',      label: 'Staff Availability',      minFactor: 0.6, maxFactor: 1.0, note: 'Attrition under stress',
+      definition: 'The proportion of claims staff actually available for work during the incident response. Major incidents cause staff burnout, sick leave, and turnover. A factor of 1.0 means full availability; 0.6 means 40% of staff are unavailable. Negatively correlated with processing time — when fewer staff are available, remaining staff are often slower due to overwork.' }
   ],
   // Correlation matrix (Gaussian copula) - order matches paramDefs
   correlationMatrix: [
@@ -4560,7 +4571,18 @@ function displayMCResults(mc) {
     mc.iterations.toLocaleString() + ' iterations' + (mc.converged ? ' (converged)' : '') +
     '. Inter-parameter correlations modelled via Cholesky-decomposed correlation matrix. ' +
     'All ' + mcConfig.paramDefs.length + ' stochastic parameters varied simultaneously.' +
-    '<br><strong>Parameters varied:</strong> ' + mcConfig.paramDefs.map(p => p.label).join(', ');
+    '<br><br><strong>Parameter Definitions:</strong>' +
+    '<table class="capacity-table" style="font-size:11px;margin-top:8px"><thead><tr>' +
+    '<th>Parameter</th><th>Range</th><th>Description</th></tr></thead><tbody>' +
+    mcConfig.paramDefs.map(p => {
+      const rangeLabel = p.isAbsolute
+        ? (p.minFactor + ' to ' + p.maxFactor + ' (absolute)')
+        : (p.minFactor + 'x to ' + p.maxFactor + 'x');
+      return '<tr><td style="font-weight:600;white-space:nowrap">' + p.label + '</td>' +
+        '<td style="white-space:nowrap;color:#3b82f6">' + rangeLabel + '</td>' +
+        '<td style="color:#94a3b8">' + (p.definition || p.note) + '</td></tr>';
+    }).join('') +
+    '</tbody></table>';
 
   const grid = document.getElementById('mcMetricsGrid');
   const metrics = [
@@ -4594,8 +4616,9 @@ function displayMCResults(mc) {
   }).join('');
 
   drawMCHistogram('mcClaimsHistogram', mc.results.totalClaims, 'Total Claims', s.totalClaims, 'mcClaimsHistLegend');
-  drawMCHistogram('mcValueHistogram', mc.results.estimatedValue, 'Estimated Value', null, 'mcValueHistLegend', v => '\u00A3' + (v / 1e6).toFixed(1) + 'M');
-  drawMCHistogram('mcClearTimeHistogram', mc.results.weeksToClear.filter(v => v > 0), 'Weeks to Clear', s.weeksToClear > 0 ? s.weeksToClear : null, 'mcClearTimeLegend');
+  drawMCHistogram('mcValueHistogram', mc.results.estimatedValue, 'Estimated Value', s.estimatedTotalValue || null, 'mcValueHistLegend', v => '\u00A3' + (v / 1e6).toFixed(1) + 'M');
+  const detWeeksToClear = (s.weeksToClear !== undefined && s.weeksToClear !== null && s.weeksToClear > 0) ? s.weeksToClear : null;
+  drawMCHistogram('mcClearTimeHistogram', mc.results.weeksToClear.filter(v => v > 0), 'Weeks to Clear', detWeeksToClear, 'mcClearTimeLegend');
 
   drawExceedanceChart('mcClaimsExceedance', mc.results.totalClaims, 'Claims');
   drawExceedanceChart('mcValueExceedance', mc.results.estimatedValue, 'Value', v => '\u00A3' + (v / 1e6).toFixed(0) + 'M');
@@ -4900,9 +4923,12 @@ function loadMCAdmin() {
   const body = document.getElementById('mcParamBody');
   if (!body) return;
   body.innerHTML = mcConfig.paramDefs.map((pd, i) =>
-    '<tr><td style="font-weight:600">' + pd.label + '</td>' +
-    '<td><input type="number" value="' + pd.minFactor + '" step="0.1" onchange="updateMCParam(' + i + ',\'minFactor\',parseFloat(this.value))"></td>' +
-    '<td><input type="number" value="' + pd.maxFactor + '" step="0.1" onchange="updateMCParam(' + i + ',\'maxFactor\',parseFloat(this.value))"></td>' +
+    '<tr><td style="font-weight:600">' + pd.label +
+    '<div class="help-tooltip" tabindex="0" style="display:inline-block;vertical-align:middle" aria-label="Definition: ' + pd.label + '">' +
+    '<span class="tooltip-icon">?</span>' +
+    '<span class="tooltip-content" style="width:280px;left:0;transform:none">' + (pd.definition || pd.note) + '</span></div></td>' +
+    '<td><input type="number" value="' + pd.minFactor + '" step="0.1" onchange="updateMCParam(' + i + ',\'minFactor\',parseFloat(this.value))" aria-label="' + pd.label + ' minimum"></td>' +
+    '<td><input type="number" value="' + pd.maxFactor + '" step="0.1" onchange="updateMCParam(' + i + ',\'maxFactor\',parseFloat(this.value))" aria-label="' + pd.label + ' maximum"></td>' +
     '<td style="font-size:10px;color:#64748b">' + pd.note + (pd.isAbsolute ? ' (absolute)' : ' (factor)') + '</td></tr>'
   ).join('');
   document.getElementById('adminMCIterations').value = mcConfig.iterations;
