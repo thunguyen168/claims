@@ -139,26 +139,26 @@ input[type="range"]::-moz-range-thumb{width:16px;height:16px;background:#3b82f6;
 .mc-results-area{margin-top:20px}
 .mc-card{background:#1e293b;border:1px solid #f59e0b33;border-radius:12px;padding:24px;margin-bottom:24px}
 .mc-card .card-title{color:#f59e0b;border-bottom-color:#f59e0b33;font-size:17px;padding-bottom:14px}
-.mc-section-label{font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin:20px 0 12px;padding-bottom:8px;border-bottom:1px solid #334155}
-.mc-section-label:first-child{margin-top:0}
-.mc-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-bottom:8px}
-.mc-metric-card{background:#0f172a;border:1px solid #334155;border-radius:12px;padding:18px 20px;transition:border-color .15s}
+.mc-section-label{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin:18px 0 8px;padding-bottom:6px;border-bottom:1px solid #1e293b}
+.mc-section-label:first-child{margin-top:4px}
+.mc-metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-bottom:4px}
+.mc-metric-card{background:#0f172a;border:1px solid #334155;border-radius:10px;padding:14px 16px;transition:border-color .15s}
 .mc-metric-card:hover{border-color:#475569}
-.mc-metric-card .metric-label{font-size:12px;font-weight:600;color:#94a3b8;letter-spacing:.3px;margin-bottom:10px}
-.mc-metric-card .mc-p50{font-size:26px;font-weight:800;color:#f59e0b;line-height:1.1}
-.mc-metric-card .mc-p50-note{font-size:11px;color:#64748b;margin-top:2px}
-.mc-metric-card .mc-range-row{display:flex;gap:16px;margin-top:12px;padding-top:10px;border-top:1px solid #1e293b}
+.mc-metric-card .metric-label{font-size:11px;font-weight:600;color:#94a3b8;letter-spacing:.3px;margin-bottom:6px}
+.mc-metric-card .mc-p50{font-size:22px;font-weight:800;color:#f59e0b;line-height:1.1}
+.mc-metric-card .mc-p50-note{font-size:10px;color:#64748b;margin-top:1px}
+.mc-metric-card .mc-range-row{display:flex;gap:12px;margin-top:8px;padding-top:8px;border-top:1px solid #1e293b}
 .mc-metric-card .mc-range-item{flex:1}
-.mc-metric-card .mc-range-item .mc-range-label{font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.5px}
-.mc-metric-card .mc-range-item .mc-range-value{font-size:14px;font-weight:600;color:#e2e8f0;margin-top:2px}
+.mc-metric-card .mc-range-item .mc-range-label{font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.5px}
+.mc-metric-card .mc-range-item .mc-range-value{font-size:13px;font-weight:600;color:#e2e8f0;margin-top:1px}
 .mc-metric-card .mc-range-item.low .mc-range-value{color:#3b82f6}
 .mc-metric-card .mc-range-item.high .mc-range-value{color:#ef4444}
-.mc-metric-card .mc-det{font-size:11px;color:#64748b;margin-top:10px;padding-top:8px;border-top:1px solid #1e293b}
+.mc-metric-card .mc-det{font-size:10px;color:#64748b;margin-top:6px;padding-top:6px;border-top:1px solid #1e293b}
 .mc-metric-card .mc-det strong{color:#94a3b8}
-.mc-metric-card .mc-ci{font-size:11px;color:#64748b;margin-top:4px}
-.mc-metric-card.card-bool{display:flex;flex-direction:column;align-items:center;text-align:center;justify-content:center}
-.mc-metric-card.card-bool .mc-p50{font-size:32px}
-.mc-warning-banner{border-radius:10px;padding:16px 20px;margin-top:16px;display:flex;gap:14px;align-items:flex-start}
+.mc-metric-card .mc-ci{font-size:10px;color:#64748b;margin-top:2px}
+.mc-metric-card.card-bool{display:flex;flex-direction:column;align-items:center;text-align:center;justify-content:center;padding:14px 16px}
+.mc-metric-card.card-bool .mc-p50{font-size:28px}
+.mc-warning-banner{border-radius:10px;padding:14px 18px;margin-top:14px;display:flex;gap:12px;align-items:flex-start}
 .mc-warning-banner .mc-warn-icon{font-size:20px;flex-shrink:0;line-height:1}
 .mc-warning-banner .mc-warn-body{flex:1}
 .mc-warning-banner .mc-warn-title{font-size:13px;font-weight:700;margin-bottom:4px}
@@ -579,7 +579,7 @@ input[type="range"]::-moz-range-thumb{width:16px;height:16px;background:#3b82f6;
       <div class="mc-card">
         <div class="card-title">Monte Carlo Analysis <span class="mc-badge">Probabilistic</span></div>
         <div id="mcMethodNote" class="mc-method"></div>
-        <div class="mc-metrics" id="mcMetricsGrid"></div>
+        <div id="mcMetricsGrid"></div>
       </div>
 
       <!-- MC Distribution Charts -->
