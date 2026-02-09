@@ -55,7 +55,12 @@ button:focus-visible{outline:2px solid #3b82f6;outline-offset:2px}
 /* Unsaved changes indicator */
 .unsaved-indicator{display:none;font-size:10px;color:#eab308;margin-top:4px}
 .unsaved-indicator.visible{display:block}
-.sidebar{width:280px;min-width:220px;max-width:600px;background:#1e293b;border-right:1px solid #334155;padding:20px;flex-shrink:0;overflow-y:auto;position:sticky;top:0;height:100vh;overflow-x:visible}
+.sidebar{width:280px;min-width:220px;max-width:600px;background:#1e293b;border-right:1px solid #334155;padding:20px;flex-shrink:0;overflow-y:auto;position:sticky;top:0;height:100vh;overflow-x:visible;transition:width .25s ease,min-width .25s ease,padding .25s ease}
+.sidebar.collapsed{width:48px;min-width:48px;padding:20px 8px;overflow:hidden}
+.sidebar.collapsed .sidebar-resize-handle,.sidebar.collapsed .nav-title,.sidebar.collapsed .nav-tabs,.sidebar.collapsed #scenarioPanel,.sidebar.collapsed #adminPanel{display:none}
+.sidebar-collapse-btn{position:absolute;top:12px;right:8px;width:24px;height:24px;border:1px solid #475569;border-radius:6px;background:#1e293b;color:#94a3b8;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;z-index:51;transition:all .15s;line-height:1;padding:0}
+.sidebar-collapse-btn:hover{background:#334155;color:#e2e8f0;border-color:#64748b}
+.sidebar.collapsed .sidebar-collapse-btn{position:static;width:32px;height:32px;margin:0 auto}
 .sidebar-resize-handle{position:absolute;top:0;right:-4px;width:8px;height:100%;cursor:col-resize;z-index:50;background:transparent;transition:background .15s}
 .sidebar-resize-handle:hover,.sidebar-resize-handle.active{background:rgba(59,130,246,0.4)}
 .sidebar-resize-handle::after{content:'';position:absolute;top:50%;right:2px;width:4px;height:40px;transform:translateY(-50%);border-radius:2px;background:#475569;opacity:0;transition:opacity .15s}
@@ -110,7 +115,7 @@ canvas{width:100%;display:block}
 .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px}
 .header h1{font-size:22px;font-weight:800}
 .header-sub{font-size:13px;color:#94a3b8}
-@media(max-width:900px){.app{flex-direction:column}.sidebar{width:100%;border-right:none;border-bottom:1px solid #334155;position:static;height:auto}.metrics{grid-template-columns:1fr 1fr}canvas{min-height:200px}.mc-metrics{grid-template-columns:1fr 1fr}.mc-metric-card .mc-range-row{gap:10px}}
+@media(max-width:900px){.app{flex-direction:column}.sidebar{width:100%;border-right:none;border-bottom:1px solid #334155;position:static;height:auto}.sidebar.collapsed{width:100%;padding:8px}.sidebar-collapse-btn{position:static;margin:0 auto}.metrics{grid-template-columns:1fr 1fr}canvas{min-height:200px}.mc-metrics{grid-template-columns:1fr 1fr}.mc-metric-card .mc-range-row{gap:10px}}
 @media(max-width:500px){.metrics{grid-template-columns:1fr}.admin-grid{grid-template-columns:1fr}.mc-metrics{grid-template-columns:1fr}.header{flex-direction:column}.confirm-dialog{padding:16px}canvas{min-height:180px}select,input[type="number"],input[type="text"]{font-size:16px}.mc-metric-card .mc-p50{font-size:22px}}
 .chart-legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:12px}
 .legend-item{display:flex;align-items:center;gap:6px}
@@ -215,6 +220,7 @@ input[type="range"]::-moz-range-thumb{width:16px;height:16px;background:#3b82f6;
   <!-- Sidebar -->
   <nav class="sidebar" id="sidebarNav" aria-label="Scenario configuration">
     <div class="sidebar-resize-handle" id="sidebarResizeHandle" title="Drag to resize sidebar"></div>
+    <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" onclick="toggleSidebar()" title="Toggle sidebar" aria-label="Toggle sidebar">&#x276E;</button>
     <div class="nav-title" id="navTitle">Claims Resilience Tool</div>
     <div class="nav-tabs" role="tablist" aria-label="View selection">
       <button class="nav-tab active" role="tab" aria-selected="true" aria-controls="scenarioPanel" id="scenarioTab" onclick="switchView('scenario')">Scenario</button>
@@ -5219,9 +5225,9 @@ function displayMCResults(mc) {
         '<div class="mc-range-row">' +
           '<div class="mc-range-item low"><div class="mc-range-label">P10</div><div class="mc-range-value">' + m.fmt(m.stats.P10) + '</div></div>' +
           '<div class="mc-range-item"><div class="mc-range-label">Mean</div><div class="mc-range-value">' + m.fmt(m.stats.mean) + '</div></div>' +
-        '<div class="mc-range-item"><div class="mc-range-label">Mean\u00B1SE</div><div class="mc-range-value" style="font-size:10px">' + m.fmt(m.stats.mean - 1.96 * m.stats.se) + ' \u2013 ' + m.fmt(m.stats.mean + 1.96 * m.stats.se) + '</div></div>' +
           '<div class="mc-range-item high"><div class="mc-range-label">P90</div><div class="mc-range-value">' + m.fmt(m.stats.P90) + '</div></div>' +
         '</div>' +
+        '<div class="mc-ci">Mean \u00B1 1.96\u00D7SE: ' + m.fmt(m.stats.mean - 1.96 * m.stats.se) + ' \u2013 ' + m.fmt(m.stats.mean + 1.96 * m.stats.se) + '</div>' +
         '<div class="mc-ci">95% CI: ' + m.fmt(m.stats.P5) + ' \u2013 ' + m.fmt(m.stats.P95) + '</div>' +
         '<div class="mc-det">Deterministic: <strong>' + detVal + '</strong></div>' +
         '</div>';
@@ -5705,6 +5711,33 @@ function toggleMCParamDefs() {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 8: INITIALIZATION
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// ===== SIDEBAR COLLAPSE =====
+function toggleSidebar() {
+  const sidebar = document.getElementById('sidebarNav');
+  const btn = document.getElementById('sidebarCollapseBtn');
+  const collapsed = sidebar.classList.toggle('collapsed');
+  btn.innerHTML = collapsed ? '&#x276F;' : '&#x276E;';
+  safeStorageSet('claimsToolSidebarCollapsed', collapsed ? '1' : '0');
+  // Redraw charts since main area width changed
+  setTimeout(function() {
+    if (lastScenario && document.getElementById('resultsArea').style.display !== 'none') {
+      showResults(lastScenario);
+    }
+  }, 300);
+}
+// Restore collapsed state
+(function() {
+  const pref = safeStorageGet('claimsToolSidebarCollapsed');
+  if (pref === '1') {
+    const sidebar = document.getElementById('sidebarNav');
+    const btn = document.getElementById('sidebarCollapseBtn');
+    if (sidebar && btn) {
+      sidebar.classList.add('collapsed');
+      btn.innerHTML = '&#x276F;';
+    }
+  }
+})();
 
 // ===== SIDEBAR RESIZE =====
 (function() {
