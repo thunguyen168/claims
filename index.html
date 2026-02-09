@@ -1187,12 +1187,9 @@ function isPositiveSemiDefinite(matrix) {
       return { valid: false, reason: 'Diagonal element [' + i + '] is not 1.0' };
     }
   }
-  // Try Cholesky decomposition - will fail if not PSD
+  // Try Cholesky decomposition - will throw if not PSD
   try {
-    const L = choleskyDecompose(matrix);
-    for (let i = 0; i < n; i++) {
-      if (L[i][i] <= 0) return { valid: false, reason: 'Cholesky decomposition failed: non-positive diagonal at [' + i + ']' };
-    }
+    choleskyDecompose(matrix);
     return { valid: true };
   } catch(e) {
     return { valid: false, reason: 'Cholesky decomposition failed: ' + e.message };
@@ -4427,8 +4424,15 @@ function choleskyDecompose(A) {
     for (let j = 0; j <= i; j++) {
       let sum = 0;
       for (let k = 0; k < j; k++) sum += L[i][k] * L[j][k];
-      if (i === j) { const d = A[i][i] - sum; L[i][j] = d > 0 ? Math.sqrt(d) : 0; }
-      else { L[i][j] = L[j][j] > 0 ? (A[i][j] - sum) / L[j][j] : 0; }
+      if (i === j) {
+        const d = A[i][i] - sum;
+        if (d <= 0) {
+          throw new Error('Correlation matrix not positive definite (failed at diagonal [' + i + '], d=' + d.toFixed(6) + ')');
+        }
+        L[i][j] = Math.sqrt(d);
+      } else {
+        L[i][j] = L[j][j] > 0 ? (A[i][j] - sum) / L[j][j] : 0;
+      }
     }
   }
   return L;
@@ -4448,7 +4452,7 @@ function generateCorrelatedUniforms(choleskyL, n) {
   for (let i = 0; i < n; i++) {
     let sum = 0;
     for (let j = 0; j <= i; j++) sum += choleskyL[i][j] * z[j];
-    u[i] = Math.max(0.001, Math.min(0.999, normalCDF(sum)));
+    u[i] = Math.max(0.000001, Math.min(0.999999, normalCDF(sum)));
   }
   return u;
 }
@@ -4695,16 +4699,29 @@ function sampleMCParameters(choleskyL) {
 }
 
 // ===== STATISTICS =====
+// Type 7 linear interpolation quantile (Excel/R default)
+function quantile(sorted, p) {
+  const n = sorted.length;
+  const pos = (n - 1) * p;
+  const base = Math.floor(pos);
+  const rest = pos - base;
+  if (sorted[base + 1] !== undefined) {
+    return sorted[base] + rest * (sorted[base + 1] - sorted[base]);
+  } else {
+    return sorted[base];
+  }
+}
+
 function computePercentiles(arr, pcts) {
   const sorted = [...arr].sort((a, b) => a - b);
   const n = sorted.length;
   const result = {};
   pcts.forEach(p => {
-    const idx = Math.min(n - 1, Math.max(0, Math.floor(p / 100 * n)));
-    result['P' + p] = sorted[idx];
+    result['P' + p] = quantile(sorted, p / 100);
   });
   result.mean = arr.reduce((s, v) => s + v, 0) / n;
   result.std = Math.sqrt(arr.reduce((s, v) => s + (v - result.mean) ** 2, 0) / n);
+  result.se = result.std / Math.sqrt(n);
   result.min = sorted[0]; result.max = sorted[n - 1];
   return result;
 }
@@ -4889,7 +4906,7 @@ function runMonteCarlo() {
         severity: s.severity,
         peakWeekShift: sampled.peakWeekShift,
         tailWeightFactor: sampled.tailWeight,
-        processingTimeFactor: 1 / sampled.processingTime,
+        processingTimeFactor: 1 / Math.max(1e-6, sampled.processingTime),
         staffAvailFactor: sampled.staffAvail,
         basePeriodCapacity: baseWeeklyCapacity,
         useBlastConcentration: useBlast,
@@ -4920,10 +4937,9 @@ function runMonteCarlo() {
     // and checks P10/P50/P90 stability (not just median)
     if (completed % mcConfig.convergenceCheckInterval === 0 && completed >= MIN_ITERS_BEFORE_CONVERGENCE) {
       const sorted = [...results.totalClaims].sort((a, b) => a - b);
-      const n = sorted.length;
-      const currentMedian = sorted[Math.floor(n * 0.5)];
-      const currentP10 = sorted[Math.floor(n * 0.1)];
-      const currentP90 = sorted[Math.floor(n * 0.9)];
+      const currentMedian = quantile(sorted, 0.5);
+      const currentP10 = quantile(sorted, 0.1);
+      const currentP90 = quantile(sorted, 0.9);
 
       if (prevMedian !== null && prevP10 !== null && prevP90 !== null) {
         const medianChange = Math.abs(currentMedian - prevMedian) / Math.max(1, prevMedian);
@@ -5041,12 +5057,10 @@ function scaleCorrelationMatrix(matrix, scaleFactor) {
     }
   }
   // Ensure PSD: try Cholesky, if it fails, apply nearest PSD correction
-  const testL = choleskyDecompose(scaled);
-  let valid = true;
-  for (let i = 0; i < n; i++) {
-    if (testL[i][i] <= 0) { valid = false; break; }
-  }
-  if (!valid) {
+  try {
+    choleskyDecompose(scaled);
+    return scaled;
+  } catch(e) {
     // Shrink toward identity until PSD
     for (let shrink = 0.9; shrink >= 0.1; shrink -= 0.1) {
       const shrunk = matrix.map(row => [...row]);
@@ -5055,14 +5069,13 @@ function scaleCorrelationMatrix(matrix, scaleFactor) {
           if (i !== j) shrunk[i][j] = matrix[i][j] * scaleFactor * shrink;
         }
       }
-      const tL = choleskyDecompose(shrunk);
-      let ok = true;
-      for (let i = 0; i < n; i++) { if (tL[i][i] <= 0) { ok = false; break; } }
-      if (ok) return shrunk;
+      try {
+        choleskyDecompose(shrunk);
+        return shrunk;
+      } catch(e2) { /* continue shrinking */ }
     }
     return matrix.map((row, i) => row.map((v, j) => i === j ? 1 : 0)); // fallback: identity
   }
-  return scaled;
 }
 
 // Run mini MC with different correlation assumptions and return summary stats
@@ -5092,7 +5105,7 @@ function runCorrelationSensitivity(s, site, totalAffected, claimRate, incidentMu
         severity: s.severity,
         peakWeekShift: sampled.peakWeekShift,
         tailWeightFactor: sampled.tailWeight,
-        processingTimeFactor: 1 / sampled.processingTime,
+        processingTimeFactor: 1 / Math.max(1e-6, sampled.processingTime),
         staffAvailFactor: sampled.staffAvail,
         basePeriodCapacity: baseWeeklyCapacity,
         useBlastConcentration: useBlast,
@@ -5206,6 +5219,7 @@ function displayMCResults(mc) {
         '<div class="mc-range-row">' +
           '<div class="mc-range-item low"><div class="mc-range-label">P10</div><div class="mc-range-value">' + m.fmt(m.stats.P10) + '</div></div>' +
           '<div class="mc-range-item"><div class="mc-range-label">Mean</div><div class="mc-range-value">' + m.fmt(m.stats.mean) + '</div></div>' +
+        '<div class="mc-range-item"><div class="mc-range-label">Mean\u00B1SE</div><div class="mc-range-value" style="font-size:10px">' + m.fmt(m.stats.mean - 1.96 * m.stats.se) + ' \u2013 ' + m.fmt(m.stats.mean + 1.96 * m.stats.se) + '</div></div>' +
           '<div class="mc-range-item high"><div class="mc-range-label">P90</div><div class="mc-range-value">' + m.fmt(m.stats.P90) + '</div></div>' +
         '</div>' +
         '<div class="mc-ci">95% CI: ' + m.fmt(m.stats.P5) + ' \u2013 ' + m.fmt(m.stats.P95) + '</div>' +
