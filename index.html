@@ -413,7 +413,7 @@ input[type="range"]::-moz-range-thumb{width:16px;height:16px;background:#3b82f6;
         <p style="font-size:11px;color:#64748b;margin-bottom:10px">Triangular distribution parameters (min / mode / max) for each stochastic variable. Mode uses current config value.</p>
         <div style="overflow-x:auto">
           <table class="mc-param-table" id="mcParamTable">
-            <thead><tr><th>Parameter</th><th>Min Factor</th><th>Max Factor</th><th>Notes</th></tr></thead>
+            <thead><tr><th>Parameter</th><th>Min Factor</th><th>Mode</th><th>Max Factor</th><th>Notes</th></tr></thead>
             <tbody id="mcParamBody"></tbody>
           </table>
         </div>
@@ -594,11 +594,19 @@ input[type="range"]::-moz-range-thumb{width:16px;height:16px;background:#3b82f6;
         </div>
       </div>
 
-      <!-- Tornado / Sensitivity Chart -->
+      <!-- Tornado / Sensitivity Chart with Bootstrap CIs -->
       <div class="mc-card">
         <div class="card-title">Sensitivity Analysis (Tornado Chart)</div>
-        <p style="font-size:11px;color:#94a3b8;margin-bottom:12px">Shows which input parameters contribute most to output uncertainty (Spearman rank correlation)</p>
+        <p style="font-size:11px;color:#94a3b8;margin-bottom:12px">Shows which input parameters contribute most to output uncertainty (Spearman rank correlation with bootstrap 95% CI). Parameters where the CI crosses zero are flagged as unreliable drivers.</p>
         <div class="chart-container"><canvas id="mcTornadoChart" height="320"></canvas></div>
+        <div id="mcBootstrapCIContent" style="margin-top:12px"></div>
+      </div>
+
+      <!-- Correlation Sensitivity Analysis -->
+      <div class="mc-card">
+        <div class="card-title">Correlation Sensitivity Analysis</div>
+        <p style="font-size:11px;color:#94a3b8;margin-bottom:12px">Shows how outputs change under three correlation assumptions: base, +50% (stronger dependencies), and zero (fully independent parameters). Large differences indicate the correlation matrix is a key driver of results.</p>
+        <div id="mcCorrelationSensContent"></div>
       </div>
 
       <!-- Deterministic vs MC Comparison -->
@@ -4305,29 +4313,31 @@ const MC_DEFAULT_CONFIG = {
   convergenceTolerance: 0.02,
   convergenceCheckInterval: 500,
   batchSize: 500,
+  inflationRate: 0.035,    // 3.5% annual UK claims inflation (above general inflation)
+  discountRate: 0.02,       // 2% annual discount rate for present value calculations
   paramDefs: [
-    { key: 'claimRate',       label: 'Claim Rate',              minFactor: 0.4, maxFactor: 2.0, note: '% of affected population filing',
-      definition: 'The proportion of the affected population that files claims. A factor of 1.0 uses the base severity rate (e.g. 45% for catastrophic). Values below 1.0 model lower take-up; values above 1.0 model situations where more people claim than initially estimated, as seen in Bhopal where claim rates exceeded expectations.' },
-    { key: 'incidentMult',    label: 'Incident Multiplier',     minFactor: 0.6, maxFactor: 1.8, note: 'Severity scaling factor',
-      definition: 'Scales the base claim count by incident severity. Different incident types (fire, explosion, chemical, nuclear) have different base multipliers. This parameter adds uncertainty around that multiplier — a value of 1.3 means 30% more claims than the base estimate. Reflects the inherent unpredictability of incident impact.' },
-    { key: 'claimMultPP',     label: 'Claims Per Person',       minFactor: 0.7, maxFactor: 1.5, note: 'Multiple filings per individual',
-      definition: 'The average number of separate claims filed per affected individual. In many incidents, one person may file for both personal injury and property damage, or file multiple claims as new symptoms or losses emerge. Chemical incidents historically show the highest values (e.g. Bhopal: 1.8 claims per person).' },
-    { key: 'injuryRatio',     label: 'Injury/Property Split',   minFactor: 0.6, maxFactor: 1.4, note: 'Injury proportion vs property',
-      definition: 'Scales the proportion of claims that are bodily injury versus property damage. A factor of 1.0 uses the base split for the incident type (e.g. explosions are 60% property, 40% injury). Higher values shift towards more injury claims; lower values shift towards more property claims.' },
-    { key: 'peakWeekShift',   label: 'Peak Timing Shift',       minFactor: -2,  maxFactor: 2,   note: 'Weeks earlier/later than expected', isAbsolute: true,
+    { key: 'claimRate',       label: 'Claim Rate',              minFactor: 0.4, maxFactor: 2.0, modeFactor: 1.15, note: '% of affected population filing',
+      definition: 'The proportion of the affected population that files claims. Mode set above 1.0 reflecting actuarial evidence that initial claim rate estimates are typically optimistic (Bhopal, Fukushima). Values below 1.0 model lower take-up; values above 1.0 model situations where more people claim than initially estimated.' },
+    { key: 'incidentMult',    label: 'Incident Multiplier',     minFactor: 0.6, maxFactor: 1.8, modeFactor: 1.10, note: 'Severity scaling factor',
+      definition: 'Scales the base claim count by incident severity. Mode above 1.0 reflects tendency for incident impact to exceed initial assessments. Different incident types have different base multipliers; this parameter adds uncertainty around that multiplier.' },
+    { key: 'claimMultPP',     label: 'Claims Per Person',       minFactor: 0.7, maxFactor: 1.5, modeFactor: 1.08, note: 'Multiple filings per individual',
+      definition: 'The average number of separate claims filed per affected individual. Mode slightly above 1.0 reflecting evidence that multiple filings per person are more common than initially estimated. Chemical incidents historically show the highest values (e.g. Bhopal: 1.8 claims per person).' },
+    { key: 'injuryRatio',     label: 'Injury/Property Split',   minFactor: 0.6, maxFactor: 1.4, modeFactor: 1.0, note: 'Injury proportion vs property',
+      definition: 'Scales the proportion of claims that are bodily injury versus property damage. Mode at 1.0 (symmetric) as there is no systematic bias in injury/property split estimates.' },
+    { key: 'peakWeekShift',   label: 'Peak Timing Shift',       minFactor: -2,  maxFactor: 2,   modeFactor: 0, note: 'Weeks earlier/later than expected', isAbsolute: true,
       definition: 'Shifts the peak claim arrival week earlier or later than the base estimate. A value of -2 means claims peak 2 weeks earlier; +2 means 2 weeks later. This is an absolute shift in weeks, not a multiplicative factor. Reflects uncertainty in how quickly claims are filed after an incident.' },
-    { key: 'tailWeight',      label: 'Tail Weight',             minFactor: 0.7, maxFactor: 1.4, note: 'Long-tail claim emergence',
-      definition: 'Controls how many claims emerge in the long tail after the initial peak. Higher values mean more late-emerging claims (latent injuries, delayed property discovery, litigation). Chemical and nuclear incidents typically have heavy tails — Bhopal saw claims emerging 40+ years later. Correlated with reserve development.' },
-    { key: 'processingTime',  label: 'Processing Time',         minFactor: 0.7, maxFactor: 1.5, note: 'Days per claim variability',
-      definition: 'Scales the average number of days required to process each claim. A factor of 1.0 uses the base weighted processing time from the complexity mix. Values above 1.0 model slower processing (e.g. more complex claims, inexperienced staff, system failures). Inversely affects weekly processing capacity.' },
-    { key: 'population',      label: 'Affected Population',     minFactor: 0.5, maxFactor: 2.0, note: 'Actual vs estimated exposure',
-      definition: 'Scales the total affected population (local residents + on-site staff). In real incidents, the actual number of people exposed often differs significantly from initial estimates. Fukushima affected 200,000+ evacuees; chemical plumes can spread further than expected. A factor of 2.0 means double the estimated population is affected.' },
-    { key: 'claimValue',      label: 'Avg Claim Value',         minFactor: 0.4, maxFactor: 2.5, note: 'Per-claim financial amount',
-      definition: 'Scales the average financial value per claim. A factor of 1.0 uses the base average for the incident type and severity. Values above 1.0 model scenarios with more severe injuries, higher property values, or more successful litigation. Strongly correlated with claim rate — larger incidents tend to produce both more and costlier claims.' },
-    { key: 'reserveDev',      label: 'Reserve Development',     minFactor: 0.8, maxFactor: 1.3, note: 'Ultimate claims multiplier',
-      definition: 'Scales the reserve development factor that converts initial claim estimates to ultimate (final) claim counts. Insurance reserves almost always develop upward — initial estimates typically undercount eventual claims. A factor of 1.0 uses the base development factor; higher values model greater reserve deterioration. Strongly correlated with tail weight.' },
-    { key: 'staffAvail',      label: 'Staff Availability',      minFactor: 0.6, maxFactor: 1.0, note: 'Attrition under stress',
-      definition: 'The proportion of claims staff actually available for work during the incident response. Major incidents cause staff burnout, sick leave, and turnover. A factor of 1.0 means full availability; 0.6 means 40% of staff are unavailable. Negatively correlated with processing time — when fewer staff are available, remaining staff are often slower due to overwork.' }
+    { key: 'tailWeight',      label: 'Tail Weight',             minFactor: 0.7, maxFactor: 1.4, modeFactor: 1.12, note: 'Long-tail claim emergence',
+      definition: 'Controls how many claims emerge in the long tail after the initial peak. Mode above 1.0 reflecting actuarial evidence that tail claims are routinely underestimated. Chemical and nuclear incidents typically have heavy tails — Bhopal saw claims emerging 40+ years later.' },
+    { key: 'processingTime',  label: 'Processing Time',         minFactor: 0.7, maxFactor: 1.5, modeFactor: 1.10, note: 'Days per claim variability',
+      definition: 'Scales the average number of days required to process each claim. Mode above 1.0 reflecting that processing typically takes longer than planned under incident stress. Inversely affects weekly processing capacity.' },
+    { key: 'population',      label: 'Affected Population',     minFactor: 0.5, maxFactor: 2.0, modeFactor: 1.10, note: 'Actual vs estimated exposure',
+      definition: 'Scales the total affected population. Mode above 1.0 reflecting evidence that actual exposure typically exceeds initial estimates (Fukushima 200K+ evacuees vs initial projections). A factor of 2.0 means double the estimated population is affected.' },
+    { key: 'claimValue',      label: 'Avg Claim Value',         minFactor: 0.4, maxFactor: 2.5, modeFactor: 1.15, note: 'Per-claim financial amount',
+      definition: 'Scales the average financial value per claim. Mode above 1.0 reflecting actuarial evidence that claim costs are systematically underestimated in initial reserves. Strongly correlated with claim rate — larger incidents tend to produce both more and costlier claims.' },
+    { key: 'reserveDev',      label: 'Reserve Development',     minFactor: 0.8, maxFactor: 1.3, modeFactor: 1.08, note: 'Ultimate claims multiplier',
+      definition: 'Scales the reserve development factor. Mode above 1.0 reflecting actuarial evidence that reserves almost always develop upward — initial estimates typically undercount eventual claims. Strongly correlated with tail weight.' },
+    { key: 'staffAvail',      label: 'Staff Availability',      minFactor: 0.6, maxFactor: 1.0, modeFactor: 0.85, note: 'Attrition under stress',
+      definition: 'The proportion of claims staff actually available during incident response. Mode below 1.0 reflecting evidence that staff availability is typically over-estimated due to burnout, sick leave, and turnover. Negatively correlated with processing time.' }
   ],
   // Correlation matrix (Gaussian copula) - order matches paramDefs
   correlationMatrix: [
@@ -4420,6 +4430,35 @@ function generateCorrelatedUniforms(choleskyL, n) {
   return u;
 }
 
+// ===== SHAPE UNCERTAINTY: plausible alternative shapes per base shape =====
+const SHAPE_VARIANTS = {
+  sharp_spike:       ['sharp_spike', 'spike', 'fast_decay'],
+  spike:             ['spike', 'sharp_spike', 'moderate_spike'],
+  moderate_spike:    ['moderate_spike', 'spike', 'extended_plateau'],
+  spike_rescope:     ['spike_rescope', 'spike_bi_tail', 'spike'],
+  spike_bi_tail:     ['spike_bi_tail', 'spike_rescope', 'spike_long_tail'],
+  fast_decay:        ['fast_decay', 'sharp_spike', 'spike'],
+  spike_long_tail:   ['spike_long_tail', 'very_long_tail', 'spike_bi_tail'],
+  very_long_tail:    ['very_long_tail', 'spike_long_tail', 'contamination_tail'],
+  low_early:         ['low_early', 'delayed_rise', 'spike'],
+  delayed_rise:      ['delayed_rise', 'low_early', 'latency_driven'],
+  latency_driven:    ['latency_driven', 'delayed_rise', 'very_long_tail'],
+  rapid_rise:        ['rapid_rise', 'spike', 'sharp_spike'],
+  evacuation_plateau:['evacuation_plateau', 'extended_plateau', 'stigma_tail'],
+  extended_plateau:  ['extended_plateau', 'evacuation_plateau', 'moderate_spike'],
+  gradual_decay:     ['gradual_decay', 'moderate_spike', 'spike'],
+  contamination_tail:['contamination_tail', 'very_long_tail', 'spike_long_tail'],
+  stigma_tail:       ['stigma_tail', 'evacuation_plateau', 'very_long_tail']
+};
+
+function selectShapeVariant(baseShape, randomValue) {
+  const variants = SHAPE_VARIANTS[baseShape] || [baseShape];
+  // randomValue 0-1 selects among variants: 60% base, 25% variant 1, 15% variant 2
+  if (randomValue < 0.60 || variants.length < 2) return variants[0];
+  if (randomValue < 0.85 || variants.length < 3) return variants[1];
+  return variants[2];
+}
+
 // ===== PURE SCENARIO CALCULATOR (no DOM) =====
 function calculateScenarioCore(params) {
   const {
@@ -4431,7 +4470,9 @@ function calculateScenarioCore(params) {
     basePeriodCapacity,
     useBlastConcentration, site,
     claimValuePerClaim, reserveDevMidpoint,
-    surgeEntries, targetWeeks
+    surgeEntries, targetWeeks,
+    shapeUncertaintyRandom, complexityMixOverride,
+    inflationRate, discountRate, claimSizeSigma
   } = params;
 
   const baseTotalClaims = Math.round(totalAffected * claimRate * incidentMult * claimMultPP);
@@ -4468,18 +4509,44 @@ function calculateScenarioCore(params) {
   const injTail = Math.max(0.01, (injP.tailWeight || 0.15) * tailWeightFactor);
   const propTail = Math.max(0.01, (propP.tailWeight || 0.15) * tailWeightFactor);
 
-  const injDist = injuryClaims > 0 ? generateShapedDistribution(simWeeks, injPeak, injP.shape, injTail) : [];
-  const propDist = propertyClaims > 0 ? generateShapedDistribution(simWeeks, propPeak, propP.shape, propTail) : [];
+  // Shape uncertainty: select variant shapes when shapeUncertaintyRandom is provided
+  const injShape = shapeUncertaintyRandom !== undefined
+    ? selectShapeVariant(injP.shape, shapeUncertaintyRandom)
+    : injP.shape;
+  const propShape = shapeUncertaintyRandom !== undefined
+    ? selectShapeVariant(propP.shape, shapeUncertaintyRandom * 1.37 % 1) // offset for independence
+    : propP.shape;
+
+  const injDist = injuryClaims > 0 ? generateShapedDistribution(simWeeks, injPeak, injShape, injTail) : [];
+  const propDist = propertyClaims > 0 ? generateShapedDistribution(simWeeks, propPeak, propShape, propTail) : [];
 
   const injPerWeek = injDist.map(d => Math.round(injuryClaims * d));
   const propPerWeek = propDist.map(d => Math.round(propertyClaims * d));
 
-  const effectiveBaseCapacity = Math.max(1, Math.round(basePeriodCapacity * staffAvailFactor * processingTimeFactor));
-  const wdpc = getWeightedDaysPerClaim();
-  const claimsPerStaff = wdpc > 0 ? config.organisation.workDaysPerWeek / wdpc : config.organisation.workDaysPerWeek;
+  // Stochastic complexity mix: recalculate weighted days per claim if override provided
+  let effectiveWdpc;
+  if (complexityMixOverride) {
+    const cm = complexityMixOverride;
+    const autoPct = Math.max(0, Math.min(1, cm.autoProcessedPct / 100));
+    const twoDayPct = Math.max(0, Math.min(1, cm.twoDayPct / 100));
+    const customPct = Math.max(0, Math.min(1, cm.customDayPct / 100));
+    const standardPct = Math.max(0, 1 - autoPct - twoDayPct - customPct);
+    effectiveWdpc = (autoPct * 0) + (twoDayPct * 2) + (customPct * (cm.customDays || 3)) + (standardPct * (cm.standardDays || 4));
+  } else {
+    effectiveWdpc = getWeightedDaysPerClaim();
+  }
+  const staffCount = config.organisation.staffCount || 8;
+  const workDays = config.organisation.workDaysPerWeek || 5;
+  const adjustedBaseCapacity = effectiveWdpc > 0
+    ? Math.max(1, Math.round(staffCount * workDays / effectiveWdpc))
+    : basePeriodCapacity;
+  const effectiveBaseCapacity = Math.max(1, Math.round(adjustedBaseCapacity * staffAvailFactor * processingTimeFactor));
+  const wdpc = effectiveWdpc;
+  const claimsPerStaff = wdpc > 0 ? workDays / wdpc : workDays;
 
   let cumulative = 0, backlog = 0, peakClaims = 0, peakWeek = 0, maxBacklog = 0, overCapacityWeeks = 0;
-  let weeksToClear = -1;
+  let weeksToClear95 = -1;
+  let weeksToClear100 = -1;
 
   for (let i = 0; i < simWeeks; i++) {
     const weekNum = i + 1;
@@ -4498,10 +4565,21 @@ function calculateScenarioCore(params) {
     if (backlog > maxBacklog) maxBacklog = backlog;
     if (newClaims > weeklyCapacity) overCapacityWeeks++;
 
-    if (weeksToClear === -1 && backlog === 0 && cumulative >= totalClaims * 0.95) {
-      weeksToClear = weekNum;
+    // Track 95% clearance (legacy threshold)
+    if (weeksToClear95 === -1 && backlog === 0 && cumulative >= totalClaims * 0.95) {
+      weeksToClear95 = weekNum;
+    }
+    // Track 100% clearance (actual backlog reaching zero after all claims received)
+    if (weeksToClear100 === -1 && backlog === 0 && cumulative >= totalClaims * 0.99) {
+      weeksToClear100 = weekNum;
     }
   }
+
+  // Report the legacy weeksToClear as 95% for backwards compatibility
+  const weeksToClear = weeksToClear95;
+  const clearanceGapWeeks = (weeksToClear100 !== -1 && weeksToClear95 !== -1)
+    ? weeksToClear100 - weeksToClear95 : -1;
+  const outstandingAtClear95 = (weeksToClear95 !== -1) ? Math.round(totalClaims * 0.05) : -1;
 
   const staffNeededAtPeak = peakClaims > 0
     ? Math.ceil(peakClaims / Math.max(1, effectiveBaseCapacity / Math.max(1, Math.round(config.organisation.staffCount * staffAvailFactor))))
@@ -4509,14 +4587,70 @@ function calculateScenarioCore(params) {
   const additionalStaff = Math.max(0, staffNeededAtPeak - Math.round(config.organisation.staffCount * staffAvailFactor));
   const canMeetTarget = weeksToClear !== -1 && weeksToClear <= targetWeeks;
   const ultimateClaims = Math.round(totalClaims * reserveDevMidpoint);
-  const estimatedValue = ultimateClaims * claimValuePerClaim;
+
+  // Improvement 7: Claim size distribution (lognormal severity uncertainty)
+  // Instead of every claim at average, sample a severity multiplier from lognormal
+  let estimatedValue;
+  if (claimSizeSigma && claimSizeSigma > 0) {
+    // Lognormal mean adjustment: E[X] = exp(mu + sigma^2/2), so mu = -sigma^2/2 for E[X]=1
+    const mu = -(claimSizeSigma * claimSizeSigma) / 2;
+    // Apply severity multiplier to the total value (aggregated lognormal effect)
+    // For aggregated claims, the variance of total = n * var(individual) which fattens the tail
+    const severityMultiplier = Math.exp(mu + claimSizeSigma * (typeof boxMuller === 'function' ? boxMuller() : 0));
+    estimatedValue = ultimateClaims * claimValuePerClaim * Math.max(0.1, severityMultiplier);
+  } else {
+    estimatedValue = ultimateClaims * claimValuePerClaim;
+  }
+
+  // Improvement 6: Inflation and discounting for long-horizon scenarios
+  let inflationAdjustedValue = estimatedValue;
+  let presentValue = estimatedValue;
+  if (inflationRate && inflationRate > 0) {
+    // Apply compound inflation over the scenario horizon (midpoint of claim emergence)
+    const halfHorizonYears = (simWeeks / 52) / 2;
+    inflationAdjustedValue = estimatedValue * Math.pow(1 + inflationRate, halfHorizonYears);
+  }
+  if (discountRate && discountRate > 0) {
+    const halfHorizonYears = (simWeeks / 52) / 2;
+    presentValue = inflationAdjustedValue / Math.pow(1 + discountRate, halfHorizonYears);
+  } else {
+    presentValue = inflationAdjustedValue;
+  }
+
+  // Improvement 8: IBNR explicit modeling using claim distribution templates
+  // Estimate incurred-but-not-reported claims at midpoint of scenario
+  const midpointWeek = Math.round(simWeeks / 2);
+  let ibnrAtMidpoint = 0;
+  let reportedAtMidpoint = 0;
+  for (let i = 0; i < simWeeks; i++) {
+    const weekClaims = (injPerWeek[i] || 0) + (propPerWeek[i] || 0);
+    if (i < midpointWeek) {
+      reportedAtMidpoint += weekClaims;
+    } else {
+      ibnrAtMidpoint += weekClaims;
+    }
+  }
+
+  // Improvement 9: Parameter validation - cap total claims at population
+  let iterationCapped = false;
+  const maxPlausibleClaims = totalAffected * 3; // generous bound: 3x affected population
+  let cappedTotalClaims = totalClaims;
+  if (totalClaims > maxPlausibleClaims && maxPlausibleClaims > 0) {
+    cappedTotalClaims = maxPlausibleClaims;
+    iterationCapped = true;
+  }
 
   return {
-    totalClaims, injuryClaims, propertyClaims,
+    totalClaims: cappedTotalClaims, injuryClaims, propertyClaims,
     peakClaims, peakWeek, weeksToClear,
+    weeksToClear95, weeksToClear100,
+    clearanceGapWeeks, outstandingAtClear95,
     maxBacklog, overCapacityWeeks,
     additionalStaff, staffNeededAtPeak, canMeetTarget,
-    ultimateClaims, estimatedValue
+    ultimateClaims, estimatedValue,
+    inflationAdjustedValue, presentValue,
+    ibnrAtMidpoint, reportedAtMidpoint,
+    iterationCapped
   };
 }
 
@@ -4527,9 +4661,11 @@ function sampleMCParameters(choleskyL) {
   mcConfig.paramDefs.forEach((pd, i) => {
     const u = uniforms[i];
     if (pd.isAbsolute) {
-      sampled[pd.key] = triangularQuantile(u, pd.minFactor, 0, pd.maxFactor);
+      const mode = pd.modeFactor !== undefined ? pd.modeFactor : 0;
+      sampled[pd.key] = triangularQuantile(u, pd.minFactor, mode, pd.maxFactor);
     } else {
-      sampled[pd.key] = triangularQuantile(u, pd.minFactor, 1.0, pd.maxFactor);
+      const mode = pd.modeFactor !== undefined ? pd.modeFactor : 1.0;
+      sampled[pd.key] = triangularQuantile(u, pd.minFactor, mode, pd.maxFactor);
     }
   });
   return { sampled, uniforms };
@@ -4659,9 +4795,14 @@ function runMonteCarlo() {
   const results = {
     totalClaims: [], injuryClaims: [], propertyClaims: [],
     peakClaims: [], peakWeek: [], weeksToClear: [],
+    weeksToClear95: [], weeksToClear100: [],
+    clearanceGapWeeks: [], outstandingAtClear95: [],
     maxBacklog: [], overCapacityWeeks: [],
     additionalStaff: [], staffNeededAtPeak: [],
     ultimateClaims: [], estimatedValue: [],
+    inflationAdjustedValue: [], presentValue: [],
+    ibnrAtMidpoint: [], reportedAtMidpoint: [],
+    iterationCapped: [],
     canMeetTarget: []
   };
   const inputSamples = {};
@@ -4680,6 +4821,37 @@ function runMonteCarlo() {
       const mcInjuryRatio = Math.max(0.05, Math.min(0.95, splits.injury * sampled.injuryRatio));
 
       mcConfig.paramDefs.forEach(pd => { inputSamples[pd.key].push(sampled[pd.key]); });
+
+      // Shape uncertainty: random value for selecting shape variants each iteration
+      const shapeRandom = getMCRandom();
+
+      // Complexity mix stochasticity: shift proportions toward complex claims
+      const complexityShift = (getMCRandom() - 0.3) * 0.4; // range ~-0.12 to +0.28, biased toward complex
+      const baseCC = config.claimComplexity || DEFAULT_CONFIG.claimComplexity;
+      const complexityMixOverride = {
+        autoProcessedPct: Math.max(0, Math.min(100, baseCC.autoProcessedPct * (1 - complexityShift))),
+        twoDayPct: Math.max(0, Math.min(100, baseCC.twoDayPct * (1 - complexityShift * 0.5))),
+        customDayPct: baseCC.customDayPct,
+        customDays: baseCC.customDays,
+        standardDays: baseCC.standardDays
+      };
+      // Ensure total doesn't exceed 100
+      const cmTotal = complexityMixOverride.autoProcessedPct + complexityMixOverride.twoDayPct + complexityMixOverride.customDayPct;
+      if (cmTotal > 100) {
+        const scale = 100 / cmTotal;
+        complexityMixOverride.autoProcessedPct *= scale;
+        complexityMixOverride.twoDayPct *= scale;
+        complexityMixOverride.customDayPct *= scale;
+      }
+
+      // Inflation and discounting for long-horizon scenarios
+      const horizonWeeks = resolveHorizonConfig(s.incident, s.severity, s.timeHorizon || 'medium').weeks;
+      const horizonYears = horizonWeeks / 52;
+      const inflationRate = horizonYears > 5 ? (mcConfig.inflationRate || 0.035) : 0;
+      const discountRate = horizonYears > 5 ? (mcConfig.discountRate || 0.02) : 0;
+
+      // Claim size distribution: lognormal sigma for severity uncertainty
+      const claimSizeSigma = 0.5 + getMCRandom() * 0.8; // sigma 0.5-1.3
 
       const result = calculateScenarioCore({
         totalAffected: Math.round(totalAffected * sampled.population),
@@ -4701,7 +4873,12 @@ function runMonteCarlo() {
         claimValuePerClaim: avgClaimValue * sampled.claimValue,
         reserveDevMidpoint: reserveFactor.midpoint * sampled.reserveDev,
         surgeEntries: s.surgeEntries || surgeEntries,
-        targetWeeks: s.targetWeeks
+        targetWeeks: s.targetWeeks,
+        shapeUncertaintyRandom: shapeRandom,
+        complexityMixOverride,
+        inflationRate,
+        discountRate,
+        claimSizeSigma
       });
 
       for (const key in results) {
@@ -4762,22 +4939,54 @@ function runMonteCarlo() {
       for (const key in results) {
         if (key === 'canMeetTarget') {
           lastMCResults.stats[key] = { probabilityYes: results[key].filter(v => v).length / completed };
+        } else if (key === 'iterationCapped') {
+          // Boolean array, keep as-is for display
         } else {
           lastMCResults.stats[key] = computePercentiles(results[key], pctiles);
         }
       }
 
+      // Improvement 10: Bootstrap confidence intervals around sensitivity correlations
       const outputKeys = ['totalClaims', 'estimatedValue', 'weeksToClear', 'additionalStaff'];
+      const BOOTSTRAP_RESAMPLES = 1000;
       outputKeys.forEach(outKey => {
         lastMCResults.sensitivity[outKey] = [];
         mcConfig.paramDefs.forEach(pd => {
           if (inputSamples[pd.key] && results[outKey]) {
             const corr = spearmanCorrelation(inputSamples[pd.key], results[outKey]);
-            lastMCResults.sensitivity[outKey].push({ param: pd.label, correlation: corr, key: pd.key });
+            // Bootstrap 95% CI around the Spearman correlation
+            const bootstrapCorrs = [];
+            const xArr = inputSamples[pd.key];
+            const yArr = results[outKey];
+            const n = Math.min(xArr.length, yArr.length);
+            for (let b = 0; b < BOOTSTRAP_RESAMPLES; b++) {
+              const bx = new Array(n), by = new Array(n);
+              for (let j = 0; j < n; j++) {
+                const idx = Math.floor(getMCRandom() * n);
+                bx[j] = xArr[idx];
+                by[j] = yArr[idx];
+              }
+              bootstrapCorrs.push(spearmanCorrelation(bx, by));
+            }
+            bootstrapCorrs.sort((a, b) => a - b);
+            const ciLow = bootstrapCorrs[Math.floor(BOOTSTRAP_RESAMPLES * 0.025)];
+            const ciHigh = bootstrapCorrs[Math.floor(BOOTSTRAP_RESAMPLES * 0.975)];
+            const ciCrossesZero = ciLow <= 0 && ciHigh >= 0;
+            lastMCResults.sensitivity[outKey].push({
+              param: pd.label, correlation: corr, key: pd.key,
+              ciLow, ciHigh, ciCrossesZero
+            });
           }
         });
         lastMCResults.sensitivity[outKey].sort((a, b) => Math.abs(b.correlation) - Math.abs(a.correlation));
       });
+
+      // Improvement 5: Correlation sensitivity analysis (3 runs: base, +50%, zero)
+      lastMCResults.correlationSensitivity = runCorrelationSensitivity(
+        s, site, totalAffected, claimRate, incidentMult, claimMultPP,
+        splits, useBlast, reserveFactor, avgClaimValue, baseWeeklyCapacity,
+        Math.min(completed, 2000) // use fewer iterations for speed
+      );
 
       displayMCResults(lastMCResults);
       mcRunning = false;
@@ -4788,28 +4997,122 @@ function runMonteCarlo() {
   processBatch();
 }
 
+// ===== CORRELATION SENSITIVITY ANALYSIS =====
+// Scale off-diagonal elements of correlation matrix; clamp to valid PSD
+function scaleCorrelationMatrix(matrix, scaleFactor) {
+  const n = matrix.length;
+  const scaled = matrix.map(row => [...row]);
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      if (i !== j) {
+        scaled[i][j] = Math.max(-0.99, Math.min(0.99, matrix[i][j] * scaleFactor));
+      }
+    }
+  }
+  // Ensure PSD: try Cholesky, if it fails, apply nearest PSD correction
+  const testL = choleskyDecompose(scaled);
+  let valid = true;
+  for (let i = 0; i < n; i++) {
+    if (testL[i][i] <= 0) { valid = false; break; }
+  }
+  if (!valid) {
+    // Shrink toward identity until PSD
+    for (let shrink = 0.9; shrink >= 0.1; shrink -= 0.1) {
+      const shrunk = matrix.map(row => [...row]);
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+          if (i !== j) shrunk[i][j] = matrix[i][j] * scaleFactor * shrink;
+        }
+      }
+      const tL = choleskyDecompose(shrunk);
+      let ok = true;
+      for (let i = 0; i < n; i++) { if (tL[i][i] <= 0) { ok = false; break; } }
+      if (ok) return shrunk;
+    }
+    return matrix.map((row, i) => row.map((v, j) => i === j ? 1 : 0)); // fallback: identity
+  }
+  return scaled;
+}
+
+// Run mini MC with different correlation assumptions and return summary stats
+function runCorrelationSensitivity(s, site, totalAffected, claimRate, incidentMult, claimMultPP,
+    splits, useBlast, reserveFactor, avgClaimValue, baseWeeklyCapacity, miniIters) {
+  const scenarios = [
+    { label: 'Base Correlations', matrix: mcConfig.correlationMatrix },
+    { label: 'Correlations +50%', matrix: scaleCorrelationMatrix(mcConfig.correlationMatrix, 1.5) },
+    { label: 'Zero Correlations (Independent)', matrix: mcConfig.correlationMatrix.map((row, i) => row.map((v, j) => i === j ? 1 : 0)) }
+  ];
+  const summaries = [];
+  for (const scenario of scenarios) {
+    const cL = choleskyDecompose(scenario.matrix);
+    const totalClaimsArr = [], estimatedValueArr = [];
+    for (let i = 0; i < miniIters; i++) {
+      const { sampled } = sampleMCParameters(cL);
+      const mcInjuryRatio = Math.max(0.05, Math.min(0.95, splits.injury * sampled.injuryRatio));
+      const result = calculateScenarioCore({
+        totalAffected: Math.round(totalAffected * sampled.population),
+        claimRate: claimRate * sampled.claimRate,
+        incidentMult: incidentMult * sampled.incidentMult,
+        claimMultPP: claimMultPP * sampled.claimMultPP,
+        injuryRatio: mcInjuryRatio,
+        propertyRatio: 1 - mcInjuryRatio,
+        claimType: s.claimType,
+        incident: s.incident,
+        severity: s.severity,
+        peakWeekShift: sampled.peakWeekShift,
+        tailWeightFactor: sampled.tailWeight,
+        processingTimeFactor: 1 / sampled.processingTime,
+        staffAvailFactor: sampled.staffAvail,
+        basePeriodCapacity: baseWeeklyCapacity,
+        useBlastConcentration: useBlast,
+        site,
+        claimValuePerClaim: avgClaimValue * sampled.claimValue,
+        reserveDevMidpoint: reserveFactor.midpoint * sampled.reserveDev,
+        surgeEntries: s.surgeEntries || [],
+        targetWeeks: s.targetWeeks
+      });
+      totalClaimsArr.push(result.totalClaims);
+      estimatedValueArr.push(result.estimatedValue);
+    }
+    const claimStats = computePercentiles(totalClaimsArr, [10, 50, 90]);
+    const valueStats = computePercentiles(estimatedValueArr, [10, 50, 90]);
+    summaries.push({
+      label: scenario.label,
+      claims: claimStats,
+      value: valueStats
+    });
+  }
+  return summaries;
+}
+
 // ===== MC RESULTS DISPLAY =====
 function displayMCResults(mc) {
   const s = mc.baseScenario, st = mc.stats;
 
   document.getElementById('mcMethodNote').innerHTML =
-    '<strong>Methodology:</strong> Gaussian copula Monte Carlo simulation with triangular marginal distributions. ' +
+    '<strong>Methodology:</strong> Gaussian copula Monte Carlo simulation with asymmetric triangular marginal distributions (mode factors reflect actuarial optimism bias). ' +
     mc.iterations.toLocaleString() + ' iterations' + (mc.converged ? ' (converged)' : '') +
     '. Inter-parameter correlations modelled via Cholesky-decomposed correlation matrix. ' +
-    'All ' + mcConfig.paramDefs.length + ' stochastic parameters varied simultaneously.' +
+    'All ' + mcConfig.paramDefs.length + ' stochastic parameters varied simultaneously. ' +
+    'Distribution shape uncertainty, stochastic complexity mix, lognormal claim severity, and IBNR modelling applied per iteration.' +
+    (mc.correlationSensitivity ? ' Correlation sensitivity analysis across 3 correlation assumptions.' : '') +
     '<br><strong>Parameters varied:</strong> ' + mcConfig.paramDefs.map(p => p.label).join(', ');
 
   // Populate collapsible parameter definitions section
   document.getElementById('mcParamDefsContent').innerHTML =
-    '<p style="font-size:12px;color:#94a3b8;margin-bottom:12px">Each parameter is sampled from a triangular distribution (min, mode=1.0, max) and correlated via a Gaussian copula. Click a row to expand its full definition.</p>' +
+    '<p style="font-size:12px;color:#94a3b8;margin-bottom:12px">Each parameter is sampled from a triangular distribution (min, mode, max) with asymmetric modes reflecting actuarial optimism bias, correlated via a Gaussian copula.</p>' +
     '<table class="capacity-table" style="font-size:11px"><thead><tr>' +
-    '<th>Parameter</th><th>Range</th><th>Description</th></tr></thead><tbody>' +
+    '<th>Parameter</th><th>Range</th><th>Mode</th><th>Description</th></tr></thead><tbody>' +
     mcConfig.paramDefs.map(p => {
       const rangeLabel = p.isAbsolute
         ? (p.minFactor + ' to ' + p.maxFactor + ' (absolute)')
         : (p.minFactor + 'x to ' + p.maxFactor + 'x');
+      const modeLabel = p.isAbsolute
+        ? (p.modeFactor !== undefined ? p.modeFactor : '0')
+        : ((p.modeFactor !== undefined ? p.modeFactor : 1.0) + 'x');
       return '<tr><td style="font-weight:600;white-space:nowrap">' + p.label + '</td>' +
         '<td style="white-space:nowrap;color:#3b82f6">' + rangeLabel + '</td>' +
+        '<td style="white-space:nowrap;color:#f59e0b">' + modeLabel + '</td>' +
         '<td style="color:#94a3b8">' + (p.definition || p.note) + '</td></tr>';
     }).join('') +
     '</tbody></table>';
@@ -4820,15 +5123,19 @@ function displayMCResults(mc) {
     { label: 'Injury Claims', det: s.injuryClaims, stats: st.injuryClaims, fmt: v => Math.round(v).toLocaleString() },
     { label: 'Property Claims', det: s.propertyClaims, stats: st.propertyClaims, fmt: v => Math.round(v).toLocaleString() },
     { label: 'Peak Weekly Claims', det: s.peakClaims, stats: st.peakClaims, fmt: v => Math.round(v).toLocaleString() },
-    { label: 'Time to Clear (wks)', det: s.weeksToClear, stats: st.weeksToClear, fmt: v => v === -1 ? 'N/A' : Math.round(v).toLocaleString() },
+    { label: '95% Clear (wks)', det: s.weeksToClear, stats: st.weeksToClear95 || st.weeksToClear, fmt: v => v === -1 ? 'N/A' : Math.round(v).toLocaleString() },
+    { label: '100% Clear (wks)', det: s.weeksToClear, stats: st.weeksToClear100, fmt: v => (!v || v === -1) ? 'N/A' : Math.round(v).toLocaleString() },
     { label: 'Max Backlog', det: s.maxBacklog, stats: st.maxBacklog, fmt: v => Math.round(v).toLocaleString() },
     { label: 'Addl Staff Needed', det: s.additionalStaff, stats: st.additionalStaff, fmt: v => '+' + Math.round(v).toLocaleString() },
     { label: 'Ultimate Claims', det: s.ultimateClaimsMid || s.ultimateClaims || 0, stats: st.ultimateClaims, fmt: v => Math.round(v).toLocaleString() },
     { label: 'Estimated Value', det: s.estimatedTotalValue || 0, stats: st.estimatedValue, fmt: v => '\u00A3' + (v / 1e6).toFixed(1) + 'M' },
+    { label: 'Inflation-Adj Value', det: s.estimatedTotalValue || 0, stats: st.inflationAdjustedValue, fmt: v => '\u00A3' + (v / 1e6).toFixed(1) + 'M' },
+    { label: 'Present Value', det: s.estimatedTotalValue || 0, stats: st.presentValue, fmt: v => '\u00A3' + (v / 1e6).toFixed(1) + 'M' },
+    { label: 'IBNR at Midpoint', det: 0, stats: st.ibnrAtMidpoint, fmt: v => Math.round(v).toLocaleString() },
     { label: 'Can Meet Target', det: s.canMeetTarget, stats: st.canMeetTarget, isBool: true }
   ];
 
-  grid.innerHTML = metrics.map(m => {
+  grid.innerHTML = metrics.filter(m => m.stats).map(m => {
     if (m.isBool) {
       const prob = (m.stats.probabilityYes * 100).toFixed(1);
       const color = m.stats.probabilityYes > 0.7 ? '#22c55e' : m.stats.probabilityYes > 0.3 ? '#eab308' : '#ef4444';
@@ -4845,6 +5152,36 @@ function displayMCResults(mc) {
       '<div class="metric-label">' + m.label + '</div></div>';
   }).join('');
 
+  // Clearance gap warning: flag difference between 95% and 100% clearance
+  if (st.weeksToClear95 && st.weeksToClear100 && st.clearanceGapWeeks) {
+    const gapP50 = st.clearanceGapWeeks.P50 || 0;
+    const outstanding = st.outstandingAtClear95 ? Math.round(st.outstandingAtClear95.P50 || 0) : 0;
+    if (gapP50 > 4) {
+      grid.innerHTML += '<div class="mc-metric-card" style="border:1px solid #eab308;grid-column:1/-1">' +
+        '<div style="color:#eab308;font-weight:700;font-size:13px">Clearance Gap Warning</div>' +
+        '<div style="font-size:12px;color:#94a3b8;margin-top:4px">Median gap between 95% and 100% clearance: <strong style="color:#f59e0b">' +
+        Math.round(gapP50) + ' weeks</strong>. Approximately <strong style="color:#f59e0b">' +
+        outstanding.toLocaleString() + ' claims</strong> remain outstanding after the 95% threshold. ' +
+        'For long-tail incidents (chemical/nuclear), this gap can span years.</div></div>';
+    }
+  }
+
+  // Iteration cap warning: flag if many iterations hit plausibility bounds
+  if (mc.results.iterationCapped) {
+    const cappedCount = mc.results.iterationCapped.filter(v => v === true).length;
+    const cappedPct = ((cappedCount / mc.iterations) * 100).toFixed(1);
+    if (cappedCount > 0) {
+      grid.innerHTML += '<div class="mc-metric-card" style="border:1px solid ' +
+        (parseFloat(cappedPct) > 10 ? '#ef4444' : '#eab308') + ';grid-column:1/-1">' +
+        '<div style="color:' + (parseFloat(cappedPct) > 10 ? '#ef4444' : '#eab308') + ';font-weight:700;font-size:13px">Parameter Validation Warning</div>' +
+        '<div style="font-size:12px;color:#94a3b8;margin-top:4px"><strong style="color:#f59e0b">' +
+        cappedPct + '%</strong> of iterations (' + cappedCount.toLocaleString() + '/' + mc.iterations.toLocaleString() +
+        ') produced claims exceeding 3x the affected population and were capped. ' +
+        (parseFloat(cappedPct) > 10 ? 'This is high — the parameter ranges may be unrealistically wide.' : 'This is within acceptable bounds.') +
+        '</div></div>';
+    }
+  }
+
   drawMCHistogram('mcClaimsHistogram', mc.results.totalClaims, 'Total Claims', s.totalClaims, 'mcClaimsHistLegend');
   drawMCHistogram('mcValueHistogram', mc.results.estimatedValue, 'Estimated Value', s.estimatedTotalValue || null, 'mcValueHistLegend', v => '\u00A3' + (v / 1e6).toFixed(1) + 'M');
   const detWeeksToClear = (s.weeksToClear !== undefined && s.weeksToClear !== null && s.weeksToClear > 0) ? s.weeksToClear : null;
@@ -4854,6 +5191,60 @@ function displayMCResults(mc) {
   drawExceedanceChart('mcValueExceedance', mc.results.estimatedValue, 'Value', v => '\u00A3' + (v / 1e6).toFixed(0) + 'M');
 
   drawTornadoChart('mcTornadoChart', mc.sensitivity.totalClaims, 'Total Claims');
+
+  // Bootstrap CI display for sensitivity analysis
+  const ciContent = document.getElementById('mcBootstrapCIContent');
+  if (ciContent && mc.sensitivity.totalClaims) {
+    const ciRows = mc.sensitivity.totalClaims.slice(0, 10).map(d => {
+      const ciStr = d.ciLow !== undefined
+        ? '[' + d.ciLow.toFixed(3) + ', ' + d.ciHigh.toFixed(3) + ']'
+        : 'N/A';
+      const crossesZero = d.ciCrossesZero
+        ? '<span style="color:#eab308"> (CI crosses zero — unreliable)</span>'
+        : '';
+      return '<tr><td style="font-weight:600">' + d.param + '</td>' +
+        '<td style="color:#3b82f6">' + d.correlation.toFixed(3) + '</td>' +
+        '<td>' + ciStr + crossesZero + '</td></tr>';
+    }).join('');
+    ciContent.innerHTML = '<table class="capacity-table" style="font-size:11px"><thead><tr>' +
+      '<th>Parameter</th><th>Spearman Corr</th><th>Bootstrap 95% CI</th></tr></thead><tbody>' +
+      ciRows + '</tbody></table>';
+  }
+
+  // Correlation sensitivity analysis display
+  const corrSensContent = document.getElementById('mcCorrelationSensContent');
+  if (corrSensContent && mc.correlationSensitivity) {
+    const fmtN = v => Math.round(v).toLocaleString();
+    const fmtM = v => '\u00A3' + (v / 1e6).toFixed(1) + 'M';
+    let html = '<table class="capacity-table" style="font-size:12px"><thead><tr>' +
+      '<th>Correlation Assumption</th><th>Claims P10</th><th>Claims P50</th><th>Claims P90</th>' +
+      '<th>Value P10</th><th>Value P50</th><th>Value P90</th></tr></thead><tbody>';
+    mc.correlationSensitivity.forEach(cs => {
+      html += '<tr><td style="font-weight:600">' + cs.label + '</td>' +
+        '<td>' + fmtN(cs.claims.P10) + '</td>' +
+        '<td style="font-weight:700">' + fmtN(cs.claims.P50) + '</td>' +
+        '<td style="color:#ef4444">' + fmtN(cs.claims.P90) + '</td>' +
+        '<td>' + fmtM(cs.value.P10) + '</td>' +
+        '<td style="font-weight:700">' + fmtM(cs.value.P50) + '</td>' +
+        '<td style="color:#ef4444">' + fmtM(cs.value.P90) + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    // Compute and display the range
+    if (mc.correlationSensitivity.length >= 3) {
+      const allP90Claims = mc.correlationSensitivity.map(cs => cs.claims.P90);
+      const allP90Values = mc.correlationSensitivity.map(cs => cs.value.P90);
+      const claimsRange = Math.max(...allP90Claims) - Math.min(...allP90Claims);
+      const valueRange = Math.max(...allP90Values) - Math.min(...allP90Values);
+      const claimsPctRange = Math.min(...allP90Claims) > 0 ? ((claimsRange / Math.min(...allP90Claims)) * 100).toFixed(0) : 'N/A';
+      html += '<div style="margin-top:8px;font-size:11px;color:#94a3b8">' +
+        '<strong>Impact of correlation assumptions:</strong> P90 claims range spans ' + claimsPctRange + '% (' +
+        fmtN(Math.min(...allP90Claims)) + ' to ' + fmtN(Math.max(...allP90Claims)) + '); ' +
+        'P90 value range spans ' + fmtM(Math.min(...allP90Values)) + ' to ' + fmtM(Math.max(...allP90Values)) + '. ' +
+        (parseFloat(claimsPctRange) > 30 ? '<span style="color:#eab308">Correlation assumptions are a significant driver — results should be interpreted with caution.</span>' : 'Correlation assumptions have moderate impact.') +
+        '</div>';
+    }
+    corrSensContent.innerHTML = html;
+  }
 
   displayComparison(mc);
   displayHistoricalValidation(mc);
@@ -5061,18 +5452,22 @@ function displayComparison(mc) {
     { label: 'Injury Claims', det: s.injuryClaims, mc: st.injuryClaims, fmt },
     { label: 'Property Claims', det: s.propertyClaims, mc: st.propertyClaims, fmt },
     { label: 'Peak Weekly Claims', det: s.peakClaims, mc: st.peakClaims, fmt },
-    { label: 'Weeks to Clear', det: s.weeksToClear, mc: st.weeksToClear, fmt },
+    { label: '95% Clearance (wks)', det: s.weeksToClear, mc: st.weeksToClear95 || st.weeksToClear, fmt },
+    { label: '100% Clearance (wks)', det: s.weeksToClear, mc: st.weeksToClear100, fmt },
     { label: 'Max Backlog', det: s.maxBacklog, mc: st.maxBacklog, fmt },
     { label: 'Additional Staff', det: s.additionalStaff, mc: st.additionalStaff, fmt },
     { label: 'Ultimate Claims', det: s.ultimateClaimsMid || s.ultimateClaims || 0, mc: st.ultimateClaims, fmt },
-    { label: 'Estimated Value', det: s.estimatedTotalValue || 0, mc: st.estimatedValue, fmt: fmtMoney }
+    { label: 'Estimated Value', det: s.estimatedTotalValue || 0, mc: st.estimatedValue, fmt: fmtMoney },
+    { label: 'Inflation-Adj Value', det: s.estimatedTotalValue || 0, mc: st.inflationAdjustedValue, fmt: fmtMoney },
+    { label: 'Present Value', det: s.estimatedTotalValue || 0, mc: st.presentValue, fmt: fmtMoney },
+    { label: 'IBNR at Midpoint', det: 0, mc: st.ibnrAtMidpoint, fmt }
   ];
 
   document.getElementById('mcComparisonContent').innerHTML =
     '<table class="capacity-table" style="font-size:12px"><thead><tr>' +
     '<th>Metric</th><th>Deterministic</th><th>MC P10</th><th>MC P50 (Median)</th><th>MC P90</th><th>MC Mean</th><th>Difference (P50 vs Det)</th>' +
     '</tr></thead><tbody>' +
-    rows.map(r => {
+    rows.filter(r => r.mc).map(r => {
       const diff = r.mc.P50 - r.det;
       const diffPct = r.det !== 0 ? ((diff / r.det) * 100).toFixed(1) : 'N/A';
       const diffColor = Math.abs(diff) / Math.max(1, Math.abs(r.det)) > 0.1 ? '#eab308' : '#22c55e';
@@ -5158,6 +5553,7 @@ function loadMCAdmin() {
     '<span class="tooltip-icon">?</span>' +
     '<span class="tooltip-content">' + (pd.definition || pd.note) + '</span></div></td>' +
     '<td><input type="number" value="' + pd.minFactor + '" step="0.1" onchange="updateMCParam(' + i + ',\'minFactor\',parseFloat(this.value))" aria-label="' + pd.label + ' minimum"></td>' +
+    '<td><input type="number" value="' + (pd.modeFactor !== undefined ? pd.modeFactor : (pd.isAbsolute ? 0 : 1.0)) + '" step="0.05" onchange="updateMCParam(' + i + ',\'modeFactor\',parseFloat(this.value))" aria-label="' + pd.label + ' mode"></td>' +
     '<td><input type="number" value="' + pd.maxFactor + '" step="0.1" onchange="updateMCParam(' + i + ',\'maxFactor\',parseFloat(this.value))" aria-label="' + pd.label + ' maximum"></td>' +
     '<td style="font-size:10px;color:#64748b">' + pd.note + (pd.isAbsolute ? ' (absolute)' : ' (factor)') + '</td></tr>'
   ).join('');
