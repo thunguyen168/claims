@@ -5716,10 +5716,22 @@ function toggleMCParamDefs() {
 function toggleSidebar() {
   const sidebar = document.getElementById('sidebarNav');
   const btn = document.getElementById('sidebarCollapseBtn');
-  const collapsed = sidebar.classList.toggle('collapsed');
-  btn.innerHTML = collapsed ? '&#x276F;' : '&#x276E;';
-  safeStorageSet('claimsToolSidebarCollapsed', collapsed ? '1' : '0');
-  // Redraw charts since main area width changed
+  const isCollapsing = !sidebar.classList.contains('collapsed');
+  if (isCollapsing) {
+    // Save current width before collapsing, then clear inline style so CSS class takes effect
+    sidebar._savedWidth = sidebar.style.width || '';
+    sidebar.style.width = '';
+    sidebar.classList.add('collapsed');
+  } else {
+    sidebar.classList.remove('collapsed');
+    // Restore previous inline width from resize handle (if any)
+    if (sidebar._savedWidth) {
+      sidebar.style.width = sidebar._savedWidth;
+    }
+  }
+  btn.innerHTML = isCollapsing ? '&#x276F;' : '&#x276E;';
+  safeStorageSet('claimsToolSidebarCollapsed', isCollapsing ? '1' : '0');
+  // Redraw charts after transition completes so they fill the new space
   setTimeout(function() {
     if (lastScenario && document.getElementById('resultsArea').style.display !== 'none') {
       showResults(lastScenario);
@@ -5745,12 +5757,14 @@ function toggleSidebar() {
   const handle = document.getElementById('sidebarResizeHandle');
   if (!sidebar || !handle) return;
 
-  // Restore saved width
+  // Restore saved width (but not if sidebar is collapsed — inline style would override the CSS class)
   const savedWidth = safeStorageGet('claimsToolSidebarWidth');
-  if (savedWidth) {
+  if (savedWidth && !sidebar.classList.contains('collapsed')) {
     const w = parseInt(savedWidth);
     if (w >= 220 && w <= 600) sidebar.style.width = w + 'px';
   }
+  // Stash saved width so expand can restore it
+  if (savedWidth) sidebar._savedWidth = savedWidth + 'px';
 
   let dragging = false;
   let startX = 0;
