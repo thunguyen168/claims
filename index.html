@@ -56,7 +56,7 @@ button:focus-visible{outline:2px solid #3b82f6;outline-offset:2px}
 .unsaved-indicator{display:none;font-size:10px;color:#eab308;margin-top:4px}
 .unsaved-indicator.visible{display:block}
 .sidebar{width:280px;min-width:220px;max-width:600px;background:#1e293b;border-right:1px solid #334155;padding:20px;flex-shrink:0;overflow-y:auto;position:sticky;top:0;height:100vh;overflow-x:visible;transition:width .25s ease,min-width .25s ease,padding .25s ease}
-.sidebar.collapsed{width:48px;min-width:48px;padding:20px 8px;overflow:hidden}
+.sidebar.collapsed{width:48px !important;min-width:48px !important;max-width:48px !important;padding:20px 8px !important;overflow:hidden}
 .sidebar.collapsed .sidebar-resize-handle,.sidebar.collapsed .nav-title,.sidebar.collapsed .nav-tabs,.sidebar.collapsed #scenarioPanel,.sidebar.collapsed #adminPanel{display:none}
 .sidebar-collapse-btn{position:absolute;top:12px;right:8px;width:24px;height:24px;border:1px solid #475569;border-radius:6px;background:#1e293b;color:#94a3b8;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;z-index:51;transition:all .15s;line-height:1;padding:0}
 .sidebar-collapse-btn:hover{background:#334155;color:#e2e8f0;border-color:#64748b}
@@ -5716,25 +5716,17 @@ function toggleMCParamDefs() {
 function toggleSidebar() {
   const sidebar = document.getElementById('sidebarNav');
   const btn = document.getElementById('sidebarCollapseBtn');
-  const isCollapsing = !sidebar.classList.contains('collapsed');
-  if (isCollapsing) {
-    // Save current width before collapsing, then clear inline style so CSS class takes effect
-    sidebar._savedWidth = sidebar.style.width || '';
-    sidebar.style.width = '';
-    sidebar.classList.add('collapsed');
-  } else {
-    sidebar.classList.remove('collapsed');
-    // Restore previous inline width from resize handle (if any)
-    if (sidebar._savedWidth) {
-      sidebar.style.width = sidebar._savedWidth;
-    }
-  }
-  btn.innerHTML = isCollapsing ? '&#x276F;' : '&#x276E;';
-  safeStorageSet('claimsToolSidebarCollapsed', isCollapsing ? '1' : '0');
+  const collapsed = sidebar.classList.toggle('collapsed');
+  btn.innerHTML = collapsed ? '&#x276F;' : '&#x276E;';
+  safeStorageSet('claimsToolSidebarCollapsed', collapsed ? '1' : '0');
   // Redraw charts after transition completes so they fill the new space
   setTimeout(function() {
     if (lastScenario && document.getElementById('resultsArea').style.display !== 'none') {
       showResults(lastScenario);
+    }
+    // Also redraw MC results if visible
+    if (typeof lastMCResults !== 'undefined' && lastMCResults && document.getElementById('mcResultsArea')) {
+      displayMCResults(lastMCResults);
     }
   }, 300);
 }
@@ -5757,14 +5749,12 @@ function toggleSidebar() {
   const handle = document.getElementById('sidebarResizeHandle');
   if (!sidebar || !handle) return;
 
-  // Restore saved width (but not if sidebar is collapsed — inline style would override the CSS class)
+  // Restore saved width (collapsed !important overrides inline style, so safe to always set)
   const savedWidth = safeStorageGet('claimsToolSidebarWidth');
-  if (savedWidth && !sidebar.classList.contains('collapsed')) {
+  if (savedWidth) {
     const w = parseInt(savedWidth);
     if (w >= 220 && w <= 600) sidebar.style.width = w + 'px';
   }
-  // Stash saved width so expand can restore it
-  if (savedWidth) sidebar._savedWidth = savedWidth + 'px';
 
   let dragging = false;
   let startX = 0;
