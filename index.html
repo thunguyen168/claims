@@ -110,8 +110,8 @@ canvas{width:100%;display:block}
 .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;flex-wrap:wrap;gap:12px}
 .header h1{font-size:22px;font-weight:800}
 .header-sub{font-size:13px;color:#94a3b8}
-@media(max-width:900px){.app{flex-direction:column}.sidebar{width:100%;border-right:none;border-bottom:1px solid #334155;position:static;height:auto}.metrics{grid-template-columns:1fr 1fr}canvas{min-height:200px}.mc-metrics{grid-template-columns:1fr 1fr}}
-@media(max-width:500px){.metrics{grid-template-columns:1fr}.admin-grid{grid-template-columns:1fr}.mc-metrics{grid-template-columns:1fr}.header{flex-direction:column}.confirm-dialog{padding:16px}canvas{min-height:180px}select,input[type="number"],input[type="text"]{font-size:16px}}
+@media(max-width:900px){.app{flex-direction:column}.sidebar{width:100%;border-right:none;border-bottom:1px solid #334155;position:static;height:auto}.metrics{grid-template-columns:1fr 1fr}canvas{min-height:200px}.mc-metrics{grid-template-columns:1fr 1fr}.mc-metric-card .mc-range-row{gap:10px}}
+@media(max-width:500px){.metrics{grid-template-columns:1fr}.admin-grid{grid-template-columns:1fr}.mc-metrics{grid-template-columns:1fr}.header{flex-direction:column}.confirm-dialog{padding:16px}canvas{min-height:180px}select,input[type="number"],input[type="text"]{font-size:16px}.mc-metric-card .mc-p50{font-size:22px}}
 .chart-legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:12px}
 .legend-item{display:flex;align-items:center;gap:6px}
 .legend-swatch{width:12px;height:12px;border-radius:3px}
@@ -137,18 +137,40 @@ input[type="range"]::-moz-range-thumb{width:16px;height:16px;background:#3b82f6;
 .mc-progress{background:#334155;border-radius:6px;height:24px;overflow:hidden;margin:12px 0;position:relative}
 .mc-progress-fill{height:100%;background:linear-gradient(90deg,#f59e0b,#eab308);border-radius:6px;transition:width .1s;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#1e293b}
 .mc-results-area{margin-top:20px}
-.mc-card{background:#1e293b;border:1px solid #f59e0b33;border-radius:12px;padding:20px;margin-bottom:20px}
-.mc-card .card-title{color:#f59e0b;border-bottom-color:#f59e0b33}
-.mc-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:20px}
-.mc-metric-card{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:16px}
-.mc-metric-card .det-value{font-size:20px;font-weight:800;color:#3b82f6}
-.mc-metric-card .mc-range{font-size:13px;color:#f59e0b;margin-top:4px}
-.mc-metric-card .mc-ci{font-size:11px;color:#94a3b8;margin-top:2px}
-.mc-metric-card .metric-label{font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px;margin-top:6px}
-.mc-badge{display:inline-block;background:#f59e0b22;color:#f59e0b;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;text-transform:uppercase;letter-spacing:.5px}
-.mc-method{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:12px;margin-top:12px;font-size:11px;color:#94a3b8}
+.mc-card{background:#1e293b;border:1px solid #f59e0b33;border-radius:12px;padding:24px;margin-bottom:24px}
+.mc-card .card-title{color:#f59e0b;border-bottom-color:#f59e0b33;font-size:17px;padding-bottom:14px}
+.mc-section-label{font-size:12px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin:20px 0 12px;padding-bottom:8px;border-bottom:1px solid #334155}
+.mc-section-label:first-child{margin-top:0}
+.mc-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-bottom:8px}
+.mc-metric-card{background:#0f172a;border:1px solid #334155;border-radius:12px;padding:18px 20px;transition:border-color .15s}
+.mc-metric-card:hover{border-color:#475569}
+.mc-metric-card .metric-label{font-size:12px;font-weight:600;color:#94a3b8;letter-spacing:.3px;margin-bottom:10px}
+.mc-metric-card .mc-p50{font-size:26px;font-weight:800;color:#f59e0b;line-height:1.1}
+.mc-metric-card .mc-p50-note{font-size:11px;color:#64748b;margin-top:2px}
+.mc-metric-card .mc-range-row{display:flex;gap:16px;margin-top:12px;padding-top:10px;border-top:1px solid #1e293b}
+.mc-metric-card .mc-range-item{flex:1}
+.mc-metric-card .mc-range-item .mc-range-label{font-size:10px;color:#64748b;text-transform:uppercase;letter-spacing:.5px}
+.mc-metric-card .mc-range-item .mc-range-value{font-size:14px;font-weight:600;color:#e2e8f0;margin-top:2px}
+.mc-metric-card .mc-range-item.low .mc-range-value{color:#3b82f6}
+.mc-metric-card .mc-range-item.high .mc-range-value{color:#ef4444}
+.mc-metric-card .mc-det{font-size:11px;color:#64748b;margin-top:10px;padding-top:8px;border-top:1px solid #1e293b}
+.mc-metric-card .mc-det strong{color:#94a3b8}
+.mc-metric-card .mc-ci{font-size:11px;color:#64748b;margin-top:4px}
+.mc-metric-card.card-bool{display:flex;flex-direction:column;align-items:center;text-align:center;justify-content:center}
+.mc-metric-card.card-bool .mc-p50{font-size:32px}
+.mc-warning-banner{border-radius:10px;padding:16px 20px;margin-top:16px;display:flex;gap:14px;align-items:flex-start}
+.mc-warning-banner .mc-warn-icon{font-size:20px;flex-shrink:0;line-height:1}
+.mc-warning-banner .mc-warn-body{flex:1}
+.mc-warning-banner .mc-warn-title{font-size:13px;font-weight:700;margin-bottom:4px}
+.mc-warning-banner .mc-warn-text{font-size:12px;color:#cbd5e1;line-height:1.5}
+.mc-warning-banner.warn-amber{background:#f59e0b0d;border:1px solid #f59e0b55}
+.mc-warning-banner.warn-amber .mc-warn-title{color:#f59e0b}
+.mc-warning-banner.warn-red{background:#ef44440d;border:1px solid #ef444455}
+.mc-warning-banner.warn-red .mc-warn-title{color:#ef4444}
+.mc-badge{display:inline-block;background:#f59e0b22;color:#f59e0b;font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.5px;vertical-align:middle}
+.mc-method{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:14px 16px;margin:16px 0 4px;font-size:12px;color:#94a3b8;line-height:1.6}
 .mc-param-table{width:100%;border-collapse:collapse;font-size:12px}
-.mc-param-table th,.mc-param-table td{padding:6px 8px;text-align:left;border-bottom:1px solid #334155}
+.mc-param-table th,.mc-param-table td{padding:8px 10px;text-align:left;border-bottom:1px solid #334155}
 .mc-param-table th{color:#94a3b8;font-weight:600;text-transform:uppercase;font-size:10px}
 .mc-param-table input{width:70px;padding:4px 6px;background:#0f172a;border:1px solid #334155;border-radius:4px;color:#e2e8f0;font-size:12px}
 .mc-convergence{display:flex;align-items:center;gap:8px;font-size:12px;color:#94a3b8;margin-top:8px}
@@ -596,29 +618,30 @@ input[type="range"]::-moz-range-thumb{width:16px;height:16px;background:#3b82f6;
 
       <!-- Tornado / Sensitivity Chart with Bootstrap CIs -->
       <div class="mc-card">
-        <div class="card-title">Sensitivity Analysis (Tornado Chart)</div>
-        <p style="font-size:11px;color:#94a3b8;margin-bottom:12px">Shows which input parameters contribute most to output uncertainty (Spearman rank correlation with bootstrap 95% CI). Parameters where the CI crosses zero are flagged as unreliable drivers.</p>
+        <div class="card-title">Sensitivity Analysis <span class="mc-badge">Tornado</span></div>
+        <p style="font-size:12px;color:#94a3b8;margin-bottom:16px;line-height:1.5">Which input parameters drive the most output uncertainty? Bars show Spearman rank correlation. The table below includes bootstrap 95% confidence intervals &mdash; parameters where the CI crosses zero are unreliable drivers.</p>
         <div class="chart-container"><canvas id="mcTornadoChart" height="320"></canvas></div>
-        <div id="mcBootstrapCIContent" style="margin-top:12px"></div>
+        <div id="mcBootstrapCIContent" style="margin-top:20px"></div>
       </div>
 
       <!-- Correlation Sensitivity Analysis -->
       <div class="mc-card">
-        <div class="card-title">Correlation Sensitivity Analysis</div>
-        <p style="font-size:11px;color:#94a3b8;margin-bottom:12px">Shows how outputs change under three correlation assumptions: base, +50% (stronger dependencies), and zero (fully independent parameters). Large differences indicate the correlation matrix is a key driver of results.</p>
+        <div class="card-title">Correlation Sensitivity <span class="mc-badge">3 Scenarios</span></div>
+        <p style="font-size:12px;color:#94a3b8;margin-bottom:16px;line-height:1.5">How much do results change under different correlation assumptions? Compares base correlations, stronger dependencies (+50%), and fully independent parameters.</p>
         <div id="mcCorrelationSensContent"></div>
       </div>
 
       <!-- Deterministic vs MC Comparison -->
       <div class="mc-card">
-        <div class="card-title">Deterministic vs Monte Carlo Comparison</div>
+        <div class="card-title">Deterministic vs Monte Carlo <span class="mc-badge">Side-by-Side</span></div>
+        <p style="font-size:12px;color:#94a3b8;margin-bottom:16px;line-height:1.5">How do single-point estimates compare with the probabilistic range?</p>
         <div id="mcComparisonContent"></div>
       </div>
 
       <!-- Historical Validation -->
       <div class="mc-card">
-        <div class="card-title">Historical Validation</div>
-        <p style="font-size:11px;color:#94a3b8;margin-bottom:12px">Back-testing: do known historical outcomes fall within the simulated confidence intervals?</p>
+        <div class="card-title">Historical Validation <span class="mc-badge">Back-Test</span></div>
+        <p style="font-size:12px;color:#94a3b8;margin-bottom:16px;line-height:1.5">Do known historical outcomes fall within the simulated confidence intervals? Claims are population-scaled to enable comparison.</p>
         <div id="mcValidationContent"></div>
       </div>
 
@@ -5126,67 +5149,105 @@ function displayMCResults(mc) {
     '</tbody></table>';
 
   const grid = document.getElementById('mcMetricsGrid');
-  const metrics = [
-    { label: 'Total Claims', det: s.totalClaims, stats: st.totalClaims, fmt: v => Math.round(v).toLocaleString() },
-    { label: 'Injury Claims', det: s.injuryClaims, stats: st.injuryClaims, fmt: v => Math.round(v).toLocaleString() },
-    { label: 'Property Claims', det: s.propertyClaims, stats: st.propertyClaims, fmt: v => Math.round(v).toLocaleString() },
-    { label: 'Peak Weekly Claims', det: s.peakClaims, stats: st.peakClaims, fmt: v => Math.round(v).toLocaleString() },
-    { label: '95% Clear (wks)', det: s.weeksToClear, stats: st.weeksToClear95 || st.weeksToClear, fmt: v => v === -1 ? 'N/A' : Math.round(v).toLocaleString() },
-    { label: '100% Clear (wks)', det: s.weeksToClear, stats: st.weeksToClear100, fmt: v => (!v || v === -1) ? 'N/A' : Math.round(v).toLocaleString() },
-    { label: 'Max Backlog', det: s.maxBacklog, stats: st.maxBacklog, fmt: v => Math.round(v).toLocaleString() },
-    { label: 'Addl Staff Needed', det: s.additionalStaff, stats: st.additionalStaff, fmt: v => '+' + Math.round(v).toLocaleString() },
-    { label: 'Ultimate Claims', det: s.ultimateClaimsMid || s.ultimateClaims || 0, stats: st.ultimateClaims, fmt: v => Math.round(v).toLocaleString() },
-    { label: 'Estimated Value', det: s.estimatedTotalValue || 0, stats: st.estimatedValue, fmt: v => '\u00A3' + (v / 1e6).toFixed(1) + 'M' },
-    { label: 'Inflation-Adj Value', det: s.estimatedTotalValue || 0, stats: st.inflationAdjustedValue, fmt: v => '\u00A3' + (v / 1e6).toFixed(1) + 'M' },
-    { label: 'Present Value', det: s.estimatedTotalValue || 0, stats: st.presentValue, fmt: v => '\u00A3' + (v / 1e6).toFixed(1) + 'M' },
-    { label: 'IBNR at Midpoint', det: 0, stats: st.ibnrAtMidpoint, fmt: v => Math.round(v).toLocaleString() },
-    { label: 'Can Meet Target', det: s.canMeetTarget, stats: st.canMeetTarget, isBool: true }
+  const fmt = v => Math.round(v).toLocaleString();
+  const fmtWk = v => (!v || v === -1) ? 'N/A' : Math.round(v).toLocaleString();
+  const fmtMon = v => '\u00A3' + (v / 1e6).toFixed(1) + 'M';
+  const fmtStaff = v => '+' + Math.round(v).toLocaleString();
+
+  // Group metrics into logical sections
+  const sections = [
+    { title: 'Claim Volumes', metrics: [
+      { label: 'Total Claims',       det: s.totalClaims,       stats: st.totalClaims,   fmt },
+      { label: 'Injury Claims',      det: s.injuryClaims,      stats: st.injuryClaims,  fmt },
+      { label: 'Property Claims',    det: s.propertyClaims,    stats: st.propertyClaims, fmt },
+      { label: 'Ultimate Claims',    det: s.ultimateClaimsMid || s.ultimateClaims || 0, stats: st.ultimateClaims, fmt },
+    ]},
+    { title: 'Operations', metrics: [
+      { label: 'Peak Weekly Claims', det: s.peakClaims,        stats: st.peakClaims,    fmt },
+      { label: 'Max Backlog',        det: s.maxBacklog,        stats: st.maxBacklog,    fmt },
+      { label: '95% Clearance (wks)',  det: s.weeksToClear,    stats: st.weeksToClear95 || st.weeksToClear, fmt: fmtWk },
+      { label: '100% Clearance (wks)', det: s.weeksToClear,    stats: st.weeksToClear100, fmt: fmtWk },
+      { label: 'Additional Staff',   det: s.additionalStaff,   stats: st.additionalStaff, fmt: fmtStaff },
+    ]},
+    { title: 'Financials', metrics: [
+      { label: 'Estimated Value',        det: s.estimatedTotalValue || 0, stats: st.estimatedValue,          fmt: fmtMon },
+      { label: 'Inflation-Adjusted',     det: s.estimatedTotalValue || 0, stats: st.inflationAdjustedValue,  fmt: fmtMon },
+      { label: 'Present Value',          det: s.estimatedTotalValue || 0, stats: st.presentValue,            fmt: fmtMon },
+    ]},
+    { title: 'Reserves', metrics: [
+      { label: 'IBNR at Midpoint',       det: 0,                        stats: st.ibnrAtMidpoint,           fmt },
+      { label: 'Can Meet Target',        det: s.canMeetTarget,           stats: st.canMeetTarget,            isBool: true },
+    ]},
   ];
 
-  grid.innerHTML = metrics.filter(m => m.stats).map(m => {
-    if (m.isBool) {
-      const prob = (m.stats.probabilityYes * 100).toFixed(1);
-      const color = m.stats.probabilityYes > 0.7 ? '#22c55e' : m.stats.probabilityYes > 0.3 ? '#eab308' : '#ef4444';
-      return '<div class="mc-metric-card">' +
-        '<div class="det-value" style="color:' + (m.det ? '#22c55e' : '#ef4444') + '">' + (m.det ? 'Yes' : 'No') + ' <span style="font-size:11px;color:#64748b">(det.)</span></div>' +
-        '<div class="mc-range" style="color:' + color + '">' + prob + '% probability</div>' +
-        '<div class="metric-label">' + m.label + '</div></div>';
-    }
-    const detVal = m.det !== null ? m.fmt(m.det) : 'N/A';
-    return '<div class="mc-metric-card">' +
-      '<div class="det-value">' + detVal + ' <span style="font-size:11px;color:#64748b">(deterministic)</span></div>' +
-      '<div class="mc-range">P10: ' + m.fmt(m.stats.P10) + ' \u2014 P50: ' + m.fmt(m.stats.P50) + ' \u2014 P90: ' + m.fmt(m.stats.P90) + '</div>' +
-      '<div class="mc-ci">95% CI: ' + m.fmt(m.stats.P5) + ' \u2013 ' + m.fmt(m.stats.P95) + ' | Mean: ' + m.fmt(m.stats.mean) + '</div>' +
-      '<div class="metric-label">' + m.label + '</div></div>';
-  }).join('');
+  let html = '';
+  sections.forEach(section => {
+    const validMetrics = section.metrics.filter(m => m.stats);
+    if (validMetrics.length === 0) return;
+    html += '<div class="mc-section-label">' + section.title + '</div>';
+    html += '<div class="mc-metrics">';
+    validMetrics.forEach(m => {
+      if (m.isBool) {
+        const prob = (m.stats.probabilityYes * 100).toFixed(1);
+        const probColor = m.stats.probabilityYes > 0.7 ? '#22c55e' : m.stats.probabilityYes > 0.3 ? '#f59e0b' : '#ef4444';
+        html += '<div class="mc-metric-card card-bool">' +
+          '<div class="metric-label">' + m.label + '</div>' +
+          '<div class="mc-p50" style="color:' + probColor + '">' + prob + '%</div>' +
+          '<div class="mc-p50-note">probability of meeting target</div>' +
+          '<div class="mc-det">Deterministic: <strong style="color:' + (m.det ? '#22c55e' : '#ef4444') + '">' + (m.det ? 'Yes' : 'No') + '</strong></div>' +
+          '</div>';
+        return;
+      }
+      const detVal = m.det !== null && m.det !== undefined ? m.fmt(m.det) : 'N/A';
+      html += '<div class="mc-metric-card">' +
+        '<div class="metric-label">' + m.label + '</div>' +
+        '<div class="mc-p50">' + m.fmt(m.stats.P50) + '</div>' +
+        '<div class="mc-p50-note">median (P50)</div>' +
+        '<div class="mc-range-row">' +
+          '<div class="mc-range-item low"><div class="mc-range-label">P10</div><div class="mc-range-value">' + m.fmt(m.stats.P10) + '</div></div>' +
+          '<div class="mc-range-item"><div class="mc-range-label">Mean</div><div class="mc-range-value">' + m.fmt(m.stats.mean) + '</div></div>' +
+          '<div class="mc-range-item high"><div class="mc-range-label">P90</div><div class="mc-range-value">' + m.fmt(m.stats.P90) + '</div></div>' +
+        '</div>' +
+        '<div class="mc-ci">95% CI: ' + m.fmt(m.stats.P5) + ' \u2013 ' + m.fmt(m.stats.P95) + '</div>' +
+        '<div class="mc-det">Deterministic: <strong>' + detVal + '</strong></div>' +
+        '</div>';
+    });
+    html += '</div>';
+  });
+  grid.innerHTML = html;
 
-  // Clearance gap warning: flag difference between 95% and 100% clearance
+  // Clearance gap warning
   if (st.weeksToClear95 && st.weeksToClear100 && st.clearanceGapWeeks) {
     const gapP50 = st.clearanceGapWeeks.P50 || 0;
     const outstanding = st.outstandingAtClear95 ? Math.round(st.outstandingAtClear95.P50 || 0) : 0;
     if (gapP50 > 4) {
-      grid.innerHTML += '<div class="mc-metric-card" style="border:1px solid #eab308;grid-column:1/-1">' +
-        '<div style="color:#eab308;font-weight:700;font-size:13px">Clearance Gap Warning</div>' +
-        '<div style="font-size:12px;color:#94a3b8;margin-top:4px">Median gap between 95% and 100% clearance: <strong style="color:#f59e0b">' +
+      grid.innerHTML += '<div class="mc-warning-banner warn-amber">' +
+        '<div class="mc-warn-icon">&#9888;</div>' +
+        '<div class="mc-warn-body">' +
+        '<div class="mc-warn-title">Clearance Gap</div>' +
+        '<div class="mc-warn-text">Median gap between 95% and 100% clearance: <strong style="color:#f59e0b">' +
         Math.round(gapP50) + ' weeks</strong>. Approximately <strong style="color:#f59e0b">' +
-        outstanding.toLocaleString() + ' claims</strong> remain outstanding after the 95% threshold. ' +
-        'For long-tail incidents (chemical/nuclear), this gap can span years.</div></div>';
+        outstanding.toLocaleString() + '</strong> claims remain outstanding after the 95% threshold. ' +
+        'For long-tail incidents (chemical/nuclear), this gap can span years.</div>' +
+        '</div></div>';
     }
   }
 
-  // Iteration cap warning: flag if many iterations hit plausibility bounds
+  // Iteration cap warning
   if (mc.results.iterationCapped) {
     const cappedCount = mc.results.iterationCapped.filter(v => v === true).length;
     const cappedPct = ((cappedCount / mc.iterations) * 100).toFixed(1);
     if (cappedCount > 0) {
-      grid.innerHTML += '<div class="mc-metric-card" style="border:1px solid ' +
-        (parseFloat(cappedPct) > 10 ? '#ef4444' : '#eab308') + ';grid-column:1/-1">' +
-        '<div style="color:' + (parseFloat(cappedPct) > 10 ? '#ef4444' : '#eab308') + ';font-weight:700;font-size:13px">Parameter Validation Warning</div>' +
-        '<div style="font-size:12px;color:#94a3b8;margin-top:4px"><strong style="color:#f59e0b">' +
-        cappedPct + '%</strong> of iterations (' + cappedCount.toLocaleString() + '/' + mc.iterations.toLocaleString() +
-        ') produced claims exceeding 3x the affected population and were capped. ' +
-        (parseFloat(cappedPct) > 10 ? 'This is high — the parameter ranges may be unrealistically wide.' : 'This is within acceptable bounds.') +
-        '</div></div>';
+      const isHigh = parseFloat(cappedPct) > 10;
+      grid.innerHTML += '<div class="mc-warning-banner ' + (isHigh ? 'warn-red' : 'warn-amber') + '">' +
+        '<div class="mc-warn-icon">' + (isHigh ? '&#9888;' : '&#9432;') + '</div>' +
+        '<div class="mc-warn-body">' +
+        '<div class="mc-warn-title">Parameter Validation</div>' +
+        '<div class="mc-warn-text"><strong style="color:#f59e0b">' +
+        cappedPct + '%</strong> of iterations (' + cappedCount.toLocaleString() + ' / ' + mc.iterations.toLocaleString() +
+        ') produced claims exceeding 3\u00D7 the affected population and were capped. ' +
+        (isHigh ? 'This is high \u2014 the parameter ranges may be unrealistically wide.' : 'This is within acceptable bounds.') +
+        '</div></div></div>';
     }
   }
 
@@ -5203,20 +5264,28 @@ function displayMCResults(mc) {
   // Bootstrap CI display for sensitivity analysis
   const ciContent = document.getElementById('mcBootstrapCIContent');
   if (ciContent && mc.sensitivity.totalClaims) {
-    const ciRows = mc.sensitivity.totalClaims.slice(0, 10).map(d => {
+    const top = mc.sensitivity.totalClaims.slice(0, 10);
+    let ciHTML = '<table class="capacity-table" style="font-size:13px">' +
+      '<thead><tr><th style="padding:10px 14px">Parameter</th>' +
+      '<th style="padding:10px 14px;text-align:right">Correlation</th>' +
+      '<th style="padding:10px 14px;text-align:center">95% CI</th>' +
+      '<th style="padding:10px 14px;text-align:center">Reliable?</th></tr></thead><tbody>';
+    top.forEach(d => {
+      const corrColor = d.correlation > 0 ? '#3b82f6' : '#ef4444';
       const ciStr = d.ciLow !== undefined
-        ? '[' + d.ciLow.toFixed(3) + ', ' + d.ciHigh.toFixed(3) + ']'
-        : 'N/A';
-      const crossesZero = d.ciCrossesZero
-        ? '<span style="color:#eab308"> (CI crosses zero — unreliable)</span>'
-        : '';
-      return '<tr><td style="font-weight:600">' + d.param + '</td>' +
-        '<td style="color:#3b82f6">' + d.correlation.toFixed(3) + '</td>' +
-        '<td>' + ciStr + crossesZero + '</td></tr>';
-    }).join('');
-    ciContent.innerHTML = '<table class="capacity-table" style="font-size:11px"><thead><tr>' +
-      '<th>Parameter</th><th>Spearman Corr</th><th>Bootstrap 95% CI</th></tr></thead><tbody>' +
-      ciRows + '</tbody></table>';
+        ? d.ciLow.toFixed(3) + ' to ' + d.ciHigh.toFixed(3)
+        : '\u2014';
+      const reliable = d.ciCrossesZero
+        ? '<span style="color:#eab308;font-weight:600">No</span>'
+        : '<span style="color:#22c55e;font-weight:600">Yes</span>';
+      ciHTML += '<tr style="border-bottom:1px solid #1e293b">' +
+        '<td style="padding:10px 14px;font-weight:600">' + d.param + '</td>' +
+        '<td style="padding:10px 14px;text-align:right;color:' + corrColor + ';font-weight:700;font-size:14px">' + d.correlation.toFixed(3) + '</td>' +
+        '<td style="padding:10px 14px;text-align:center;color:#94a3b8">' + ciStr + '</td>' +
+        '<td style="padding:10px 14px;text-align:center">' + reliable + '</td></tr>';
+    });
+    ciHTML += '</tbody></table>';
+    ciContent.innerHTML = ciHTML;
   }
 
   // Correlation sensitivity analysis display
@@ -5224,34 +5293,44 @@ function displayMCResults(mc) {
   if (corrSensContent && mc.correlationSensitivity) {
     const fmtN = v => Math.round(v).toLocaleString();
     const fmtM = v => '\u00A3' + (v / 1e6).toFixed(1) + 'M';
-    let html = '<table class="capacity-table" style="font-size:12px"><thead><tr>' +
-      '<th>Correlation Assumption</th><th>Claims P10</th><th>Claims P50</th><th>Claims P90</th>' +
-      '<th>Value P10</th><th>Value P50</th><th>Value P90</th></tr></thead><tbody>';
+    let corrHTML = '<table class="capacity-table" style="font-size:13px">' +
+      '<thead><tr><th style="padding:10px 14px" rowspan="2">Scenario</th>' +
+      '<th style="padding:10px 14px;text-align:center;border-bottom:none" colspan="3">Total Claims</th>' +
+      '<th style="padding:10px 14px;text-align:center;border-bottom:none" colspan="3">Financial Value</th></tr>' +
+      '<tr><th style="padding:6px 14px;text-align:right;color:#3b82f6">P10</th>' +
+      '<th style="padding:6px 14px;text-align:right;color:#f59e0b">P50</th>' +
+      '<th style="padding:6px 14px;text-align:right;color:#ef4444">P90</th>' +
+      '<th style="padding:6px 14px;text-align:right;color:#3b82f6">P10</th>' +
+      '<th style="padding:6px 14px;text-align:right;color:#f59e0b">P50</th>' +
+      '<th style="padding:6px 14px;text-align:right;color:#ef4444">P90</th></tr></thead><tbody>';
     mc.correlationSensitivity.forEach(cs => {
-      html += '<tr><td style="font-weight:600">' + cs.label + '</td>' +
-        '<td>' + fmtN(cs.claims.P10) + '</td>' +
-        '<td style="font-weight:700">' + fmtN(cs.claims.P50) + '</td>' +
-        '<td style="color:#ef4444">' + fmtN(cs.claims.P90) + '</td>' +
-        '<td>' + fmtM(cs.value.P10) + '</td>' +
-        '<td style="font-weight:700">' + fmtM(cs.value.P50) + '</td>' +
-        '<td style="color:#ef4444">' + fmtM(cs.value.P90) + '</td></tr>';
+      corrHTML += '<tr>' +
+        '<td style="padding:10px 14px;font-weight:600">' + cs.label + '</td>' +
+        '<td style="padding:10px 14px;text-align:right;color:#3b82f6">' + fmtN(cs.claims.P10) + '</td>' +
+        '<td style="padding:10px 14px;text-align:right;font-weight:700;color:#f59e0b">' + fmtN(cs.claims.P50) + '</td>' +
+        '<td style="padding:10px 14px;text-align:right;color:#ef4444">' + fmtN(cs.claims.P90) + '</td>' +
+        '<td style="padding:10px 14px;text-align:right;color:#3b82f6">' + fmtM(cs.value.P10) + '</td>' +
+        '<td style="padding:10px 14px;text-align:right;font-weight:700;color:#f59e0b">' + fmtM(cs.value.P50) + '</td>' +
+        '<td style="padding:10px 14px;text-align:right;color:#ef4444">' + fmtM(cs.value.P90) + '</td></tr>';
     });
-    html += '</tbody></table>';
-    // Compute and display the range
+    corrHTML += '</tbody></table>';
     if (mc.correlationSensitivity.length >= 3) {
       const allP90Claims = mc.correlationSensitivity.map(cs => cs.claims.P90);
       const allP90Values = mc.correlationSensitivity.map(cs => cs.value.P90);
       const claimsRange = Math.max(...allP90Claims) - Math.min(...allP90Claims);
-      const valueRange = Math.max(...allP90Values) - Math.min(...allP90Values);
       const claimsPctRange = Math.min(...allP90Claims) > 0 ? ((claimsRange / Math.min(...allP90Claims)) * 100).toFixed(0) : 'N/A';
-      html += '<div style="margin-top:8px;font-size:11px;color:#94a3b8">' +
-        '<strong>Impact of correlation assumptions:</strong> P90 claims range spans ' + claimsPctRange + '% (' +
-        fmtN(Math.min(...allP90Claims)) + ' to ' + fmtN(Math.max(...allP90Claims)) + '); ' +
-        'P90 value range spans ' + fmtM(Math.min(...allP90Values)) + ' to ' + fmtM(Math.max(...allP90Values)) + '. ' +
-        (parseFloat(claimsPctRange) > 30 ? '<span style="color:#eab308">Correlation assumptions are a significant driver — results should be interpreted with caution.</span>' : 'Correlation assumptions have moderate impact.') +
-        '</div>';
+      const isSignificant = parseFloat(claimsPctRange) > 30;
+      corrHTML += '<div class="mc-warning-banner ' + (isSignificant ? 'warn-amber' : '') + '" style="margin-top:16px;' + (isSignificant ? '' : 'background:#0f172a;border:1px solid #334155') + '">' +
+        '<div class="mc-warn-icon">' + (isSignificant ? '&#9888;' : '&#9432;') + '</div>' +
+        '<div class="mc-warn-body">' +
+        '<div class="mc-warn-title" style="color:' + (isSignificant ? '#f59e0b' : '#94a3b8') + '">Correlation Impact</div>' +
+        '<div class="mc-warn-text">P90 claims range spans <strong>' + claimsPctRange + '%</strong> (' +
+        fmtN(Math.min(...allP90Claims)) + ' \u2013 ' + fmtN(Math.max(...allP90Claims)) + '). P90 value range: ' +
+        fmtM(Math.min(...allP90Values)) + ' \u2013 ' + fmtM(Math.max(...allP90Values)) + '. ' +
+        (isSignificant ? 'Correlation assumptions are a significant driver \u2014 interpret results with caution.' : 'Correlation assumptions have moderate impact on results.') +
+        '</div></div></div>';
     }
-    corrSensContent.innerHTML = html;
+    corrSensContent.innerHTML = corrHTML;
   }
 
   displayComparison(mc);
@@ -5466,31 +5545,43 @@ function displayComparison(mc) {
     { label: 'Additional Staff', det: s.additionalStaff, mc: st.additionalStaff, fmt },
     { label: 'Ultimate Claims', det: s.ultimateClaimsMid || s.ultimateClaims || 0, mc: st.ultimateClaims, fmt },
     { label: 'Estimated Value', det: s.estimatedTotalValue || 0, mc: st.estimatedValue, fmt: fmtMoney },
-    { label: 'Inflation-Adj Value', det: s.estimatedTotalValue || 0, mc: st.inflationAdjustedValue, fmt: fmtMoney },
+    { label: 'Inflation-Adjusted', det: s.estimatedTotalValue || 0, mc: st.inflationAdjustedValue, fmt: fmtMoney },
     { label: 'Present Value', det: s.estimatedTotalValue || 0, mc: st.presentValue, fmt: fmtMoney },
     { label: 'IBNR at Midpoint', det: 0, mc: st.ibnrAtMidpoint, fmt }
   ];
 
-  document.getElementById('mcComparisonContent').innerHTML =
-    '<table class="capacity-table" style="font-size:12px"><thead><tr>' +
-    '<th>Metric</th><th>Deterministic</th><th>MC P10</th><th>MC P50 (Median)</th><th>MC P90</th><th>MC Mean</th><th>Difference (P50 vs Det)</th>' +
-    '</tr></thead><tbody>' +
-    rows.filter(r => r.mc).map(r => {
-      const diff = r.mc.P50 - r.det;
-      const diffPct = r.det !== 0 ? ((diff / r.det) * 100).toFixed(1) : 'N/A';
-      const diffColor = Math.abs(diff) / Math.max(1, Math.abs(r.det)) > 0.1 ? '#eab308' : '#22c55e';
-      return '<tr><td style="font-weight:600">' + r.label + '</td>' +
-        '<td>' + r.fmt(r.det) + '</td>' +
-        '<td style="color:#3b82f6">' + r.fmt(r.mc.P10) + '</td>' +
-        '<td style="color:#f59e0b;font-weight:700">' + r.fmt(r.mc.P50) + '</td>' +
-        '<td style="color:#ef4444">' + r.fmt(r.mc.P90) + '</td>' +
-        '<td>' + r.fmt(r.mc.mean) + '</td>' +
-        '<td style="color:' + diffColor + '">' + (diff >= 0 ? '+' : '') + r.fmt(diff) + ' (' + diffPct + '%)</td></tr>';
-    }).join('') +
-    '<tr><td style="font-weight:600">Can Meet Target</td>' +
-    '<td style="color:' + (s.canMeetTarget ? '#22c55e' : '#ef4444') + '">' + (s.canMeetTarget ? 'Yes' : 'No') + '</td>' +
-    '<td colspan="5" style="color:#f59e0b;font-weight:700">' + (st.canMeetTarget.probabilityYes * 100).toFixed(1) + '% probability of meeting target</td></tr>' +
-    '</tbody></table>';
+  const pad = 'padding:10px 14px';
+  let html = '<table class="capacity-table" style="font-size:13px;border-spacing:0"><thead>' +
+    '<tr><th style="' + pad + '">Metric</th>' +
+    '<th style="' + pad + ';text-align:right">Deterministic</th>' +
+    '<th style="' + pad + ';text-align:right;color:#3b82f6">P10</th>' +
+    '<th style="' + pad + ';text-align:right;color:#f59e0b">P50</th>' +
+    '<th style="' + pad + ';text-align:right;color:#ef4444">P90</th>' +
+    '<th style="' + pad + ';text-align:right">\u0394 (P50 vs Det)</th></tr></thead><tbody>';
+  rows.filter(r => r.mc).forEach(r => {
+    const diff = r.mc.P50 - r.det;
+    const diffPct = r.det !== 0 ? ((diff / r.det) * 100).toFixed(1) : '\u2014';
+    const isLargeDiff = Math.abs(diff) / Math.max(1, Math.abs(r.det)) > 0.1;
+    const diffColor = isLargeDiff ? '#eab308' : '#64748b';
+    const diffSign = diff >= 0 ? '+' : '';
+    html += '<tr>' +
+      '<td style="' + pad + ';font-weight:600">' + r.label + '</td>' +
+      '<td style="' + pad + ';text-align:right;color:#94a3b8">' + r.fmt(r.det) + '</td>' +
+      '<td style="' + pad + ';text-align:right;color:#3b82f6">' + r.fmt(r.mc.P10) + '</td>' +
+      '<td style="' + pad + ';text-align:right;color:#f59e0b;font-weight:700">' + r.fmt(r.mc.P50) + '</td>' +
+      '<td style="' + pad + ';text-align:right;color:#ef4444">' + r.fmt(r.mc.P90) + '</td>' +
+      '<td style="' + pad + ';text-align:right;color:' + diffColor + '">' + diffSign + r.fmt(diff) +
+      ' <span style="font-size:11px;opacity:.7">(' + diffPct + '%)</span></td></tr>';
+  });
+  // Target row
+  const probYes = (st.canMeetTarget.probabilityYes * 100).toFixed(1);
+  const probColor = st.canMeetTarget.probabilityYes > 0.7 ? '#22c55e' : st.canMeetTarget.probabilityYes > 0.3 ? '#f59e0b' : '#ef4444';
+  html += '<tr style="border-top:2px solid #334155">' +
+    '<td style="' + pad + ';font-weight:600">Can Meet Target</td>' +
+    '<td style="' + pad + ';text-align:right;color:' + (s.canMeetTarget ? '#22c55e' : '#ef4444') + '">' + (s.canMeetTarget ? 'Yes' : 'No') + '</td>' +
+    '<td colspan="4" style="' + pad + ';text-align:right;color:' + probColor + ';font-weight:700;font-size:15px">' + probYes + '% probability</td></tr>';
+  html += '</tbody></table>';
+  document.getElementById('mcComparisonContent').innerHTML = html;
 }
 
 // ===== HISTORICAL VALIDATION =====
