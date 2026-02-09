@@ -4709,10 +4709,14 @@ function buildExceedanceCurve(arr) {
 
 function spearmanCorrelation(x, y) {
   const n = x.length;
+  // Reuse index array to reduce allocation pressure (hot path in bootstrap)
+  const idxArr = new Array(n);
+  for (let k = 0; k < n; k++) idxArr[k] = k;
   function rankArray(arr) {
-    const indexed = arr.map((v, i) => ({ v, i })).sort((a, b) => a.v - b.v);
+    for (let k = 0; k < n; k++) idxArr[k] = k;
+    idxArr.sort((a, b) => arr[a] - arr[b]);
     const ranks = new Array(n);
-    indexed.forEach((item, rank) => { ranks[item.i] = rank + 1; });
+    for (let k = 0; k < n; k++) ranks[idxArr[k]] = k + 1;
     return ranks;
   }
   const rx = rankArray(x), ry = rankArray(y);
@@ -4808,6 +4812,13 @@ function runMonteCarlo() {
   const inputSamples = {};
   mcConfig.paramDefs.forEach(pd => { inputSamples[pd.key] = []; });
 
+  // Hoist loop-invariant computations for performance
+  const baseCCSnapshot = config.claimComplexity || DEFAULT_CONFIG.claimComplexity;
+  const horizonWeeks = resolveHorizonConfig(s.incident, s.severity, s.timeHorizon || 'medium').weeks;
+  const horizonYears = horizonWeeks / 52;
+  const loopInflationRate = horizonYears > 5 ? (mcConfig.inflationRate || 0.035) : 0;
+  const loopDiscountRate = horizonYears > 5 ? (mcConfig.discountRate || 0.02) : 0;
+
   let completed = 0, converged = false, prevMedian = null, prevP10 = null, prevP90 = null;
   let consecutiveStableChecks = 0;
   const MIN_ITERS_BEFORE_CONVERGENCE = Math.max(2000, Math.floor(iterations * 0.2));
@@ -4827,28 +4838,18 @@ function runMonteCarlo() {
 
       // Complexity mix stochasticity: shift proportions toward complex claims
       const complexityShift = (getMCRandom() - 0.3) * 0.4; // range ~-0.12 to +0.28, biased toward complex
-      const baseCC = config.claimComplexity || DEFAULT_CONFIG.claimComplexity;
+      const cmAuto = Math.max(0, Math.min(100, baseCCSnapshot.autoProcessedPct * (1 - complexityShift)));
+      const cmTwo = Math.max(0, Math.min(100, baseCCSnapshot.twoDayPct * (1 - complexityShift * 0.5)));
+      const cmCustom = baseCCSnapshot.customDayPct;
+      const cmSum = cmAuto + cmTwo + cmCustom;
+      const cmScale = cmSum > 100 ? 100 / cmSum : 1;
       const complexityMixOverride = {
-        autoProcessedPct: Math.max(0, Math.min(100, baseCC.autoProcessedPct * (1 - complexityShift))),
-        twoDayPct: Math.max(0, Math.min(100, baseCC.twoDayPct * (1 - complexityShift * 0.5))),
-        customDayPct: baseCC.customDayPct,
-        customDays: baseCC.customDays,
-        standardDays: baseCC.standardDays
+        autoProcessedPct: cmAuto * cmScale,
+        twoDayPct: cmTwo * cmScale,
+        customDayPct: cmCustom * cmScale,
+        customDays: baseCCSnapshot.customDays,
+        standardDays: baseCCSnapshot.standardDays
       };
-      // Ensure total doesn't exceed 100
-      const cmTotal = complexityMixOverride.autoProcessedPct + complexityMixOverride.twoDayPct + complexityMixOverride.customDayPct;
-      if (cmTotal > 100) {
-        const scale = 100 / cmTotal;
-        complexityMixOverride.autoProcessedPct *= scale;
-        complexityMixOverride.twoDayPct *= scale;
-        complexityMixOverride.customDayPct *= scale;
-      }
-
-      // Inflation and discounting for long-horizon scenarios
-      const horizonWeeks = resolveHorizonConfig(s.incident, s.severity, s.timeHorizon || 'medium').weeks;
-      const horizonYears = horizonWeeks / 52;
-      const inflationRate = horizonYears > 5 ? (mcConfig.inflationRate || 0.035) : 0;
-      const discountRate = horizonYears > 5 ? (mcConfig.discountRate || 0.02) : 0;
 
       // Claim size distribution: lognormal sigma for severity uncertainty
       const claimSizeSigma = 0.5 + getMCRandom() * 0.8; // sigma 0.5-1.3
@@ -4876,8 +4877,8 @@ function runMonteCarlo() {
         targetWeeks: s.targetWeeks,
         shapeUncertaintyRandom: shapeRandom,
         complexityMixOverride,
-        inflationRate,
-        discountRate,
+        inflationRate: loopInflationRate,
+        discountRate: loopDiscountRate,
         claimSizeSigma
       });
 
@@ -4947,26 +4948,33 @@ function runMonteCarlo() {
       }
 
       // Improvement 10: Bootstrap confidence intervals around sensitivity correlations
+      // Use subsampling for performance: bootstrap on a sample of 500 points, 200 resamples
       const outputKeys = ['totalClaims', 'estimatedValue', 'weeksToClear', 'additionalStaff'];
-      const BOOTSTRAP_RESAMPLES = 1000;
+      const BOOTSTRAP_RESAMPLES = 200;
+      const BOOTSTRAP_SAMPLE_SIZE = Math.min(500, completed);
       outputKeys.forEach(outKey => {
         lastMCResults.sensitivity[outKey] = [];
         mcConfig.paramDefs.forEach(pd => {
           if (inputSamples[pd.key] && results[outKey]) {
             const corr = spearmanCorrelation(inputSamples[pd.key], results[outKey]);
-            // Bootstrap 95% CI around the Spearman correlation
-            const bootstrapCorrs = [];
-            const xArr = inputSamples[pd.key];
-            const yArr = results[outKey];
-            const n = Math.min(xArr.length, yArr.length);
+            // Subsample for bootstrap efficiency
+            const fullN = Math.min(inputSamples[pd.key].length, results[outKey].length);
+            const subX = new Array(BOOTSTRAP_SAMPLE_SIZE);
+            const subY = new Array(BOOTSTRAP_SAMPLE_SIZE);
+            for (let j = 0; j < BOOTSTRAP_SAMPLE_SIZE; j++) {
+              const idx = Math.floor(getMCRandom() * fullN);
+              subX[j] = inputSamples[pd.key][idx];
+              subY[j] = results[outKey][idx];
+            }
+            const bootstrapCorrs = new Array(BOOTSTRAP_RESAMPLES);
             for (let b = 0; b < BOOTSTRAP_RESAMPLES; b++) {
-              const bx = new Array(n), by = new Array(n);
-              for (let j = 0; j < n; j++) {
-                const idx = Math.floor(getMCRandom() * n);
-                bx[j] = xArr[idx];
-                by[j] = yArr[idx];
+              const bx = new Array(BOOTSTRAP_SAMPLE_SIZE), by = new Array(BOOTSTRAP_SAMPLE_SIZE);
+              for (let j = 0; j < BOOTSTRAP_SAMPLE_SIZE; j++) {
+                const idx = Math.floor(getMCRandom() * BOOTSTRAP_SAMPLE_SIZE);
+                bx[j] = subX[idx];
+                by[j] = subY[idx];
               }
-              bootstrapCorrs.push(spearmanCorrelation(bx, by));
+              bootstrapCorrs[b] = spearmanCorrelation(bx, by);
             }
             bootstrapCorrs.sort((a, b) => a - b);
             const ciLow = bootstrapCorrs[Math.floor(BOOTSTRAP_RESAMPLES * 0.025)];
@@ -4985,7 +4993,7 @@ function runMonteCarlo() {
       lastMCResults.correlationSensitivity = runCorrelationSensitivity(
         s, site, totalAffected, claimRate, incidentMult, claimMultPP,
         splits, useBlast, reserveFactor, avgClaimValue, baseWeeklyCapacity,
-        Math.min(completed, 2000) // use fewer iterations for speed
+        500 // mini-MC: 500 iterations per correlation scenario for speed
       );
 
       displayMCResults(lastMCResults);
