@@ -2837,10 +2837,10 @@ function runScenario() {
     propertyClaims = Math.round(baseTotalClaims * splits.property);
     totalClaims = injuryClaims + propertyClaims;
   } else if (claimType === 'injury') {
-    injuryClaims = baseTotalClaims;
+    injuryClaims = Math.round(baseTotalClaims * splits.injury);
     totalClaims = injuryClaims;
   } else {
-    propertyClaims = baseTotalClaims;
+    propertyClaims = Math.round(baseTotalClaims * splits.property);
     totalClaims = propertyClaims;
   }
 
