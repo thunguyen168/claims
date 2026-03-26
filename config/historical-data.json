@@ -1,0 +1,112 @@
+{
+  "chemicalExplosion": {
+    "reference": "BP Texas City (2005), Buncefield UK (2005)",
+    "byVariety": {
+      "minor":       { "fatalities": 0,    "directInjuries": "1-10",   "propertyClaims": "10-50",    "latentHealth": "0-10" },
+      "moderate":    { "fatalities": "0-5", "directInjuries": "10-100", "propertyClaims": "50-500",   "latentHealth": "10-100" },
+      "major":       { "fatalities": "5-20","directInjuries": "100-500","propertyClaims": "500-5,000","latentHealth": "100-1,000" },
+      "catastrophic":{ "fatalities": "20+", "directInjuries": "500+",   "propertyClaims": "5,000+",   "latentHealth": "1,000+" }
+    },
+    "historicalExamples": {
+      "bpTexasCity2005": {
+        "fatalities":              15,
+        "injured":                 180,
+        "totalClaims":             4000,
+        "openClaimsAt3_5Years":    1000,
+        "totalSettlements":        "$2.1 billion",
+        "propertyDamage":          "$200 million",
+        "firstTrial":              "2.5 years post-incident",
+        "finalOSHASettlement":     "7 years post-incident"
+      },
+      "buncefield2005": {
+        "fatalities":              0,
+        "injured":                 43,
+        "totalClaims":             2700,
+        "totalEstimate":           "\u00a3300 million - \u00a31 billion",
+        "classActionHearing":      "10 months post-incident",
+        "biSettlementTime":        "9+ months to finalise"
+      }
+    }
+  },
+  "nuclear": {
+    "reference": "Fukushima (2011), Three Mile Island (1979), Windscale (1957)",
+    "claimDevelopment": {
+      "immediate":   { "timeline": "0-6 months",      "claimTypes": "Evacuation, acute injury",                      "percentOfUltimate": "5-10%" },
+      "shortTerm":   { "timeline": "6 months - 3 years","claimTypes": "Property, business interruption",              "percentOfUltimate": "20-30%" },
+      "mediumTerm":  { "timeline": "3-10 years",        "claimTypes": "Ongoing health monitoring, environment",       "percentOfUltimate": "30-40%" },
+      "longTerm":    { "timeline": "10-30 years",        "claimTypes": "Latent cancers, genetic effects",             "percentOfUltimate": "20-40%" }
+    },
+    "historicalExamples": {
+      "fukushima2011": {
+        "evacuees":                     164000,
+        "compensationPaidBy2021":       "\u00a59.7 trillion (~$70 billion)",
+        "avgFamilyCompensation":        "~$900,000",
+        "monthlyPsychologicalPayments": "~$1,000/month for 6+ years",
+        "decommissioningEstimate":      "30-40 years"
+      },
+      "threeMileIsland1979": {
+        "lawsuitsFiled":           2000,
+        "documentedCompensation":  "$82 million",
+        "classActionSettlement":   "$25 million (1981, 2 years post)",
+        "cleanupCompleted":        "1993 (14 years)",
+        "totalCleanupCost":        "$1 billion"
+      }
+    }
+  },
+  "fertiliserExplosion": {
+    "reference": "West, Texas (2013), Texas City Disaster (1947)",
+    "claimConcentrationByRadius": {
+      "0-500m":   { "density": "Very High (90%+)",  "primaryTypes": "Total loss, fatality, severe injury" },
+      "500m-1km": { "density": "High (60-80%)",     "primaryTypes": "Significant structural, injury" },
+      "1-3km":    { "density": "Moderate (20-40%)", "primaryTypes": "Windows, minor structural" },
+      "3-5km":    { "density": "Low (5-10%)",       "primaryTypes": "Glass breakage, hearing" }
+    },
+    "historicalExamples": {
+      "westTexas2013": {
+        "fatalities":       15,
+        "injured":          260,
+        "buildingsDamaged": 150,
+        "totalInsuredLosses":  "~$230 million",
+        "companyInsurance":    "$1 million (severe underinsurance)",
+        "citySettlement":      "$10.44 million (5 years post)",
+        "femaAwards":          "$63.4 million to school district"
+      }
+    }
+  },
+  "toxicRelease": {
+    "reference": "Bhopal (1984), Seveso (1976)",
+    "longTailCharacteristics": [
+      "Latency periods: 5-40+ years for cancers",
+      "Causation disputes: Proving link between exposure and illness",
+      "Generational effects: Children born after incident showing effects",
+      "Environmental persistence: Ongoing groundwater/soil contamination"
+    ],
+    "historicalExamples": {
+      "bhopal1984": {
+        "immediateDeaths":           3000,
+        "totalInjuryClaimsAwarded":  574304,
+        "totalClaimsRejected":       455213,
+        "totalCasesRegistered":      1029517,
+        "settlementAmount":          "$470 million",
+        "settlementYear":            1989,
+        "avgDeathCompensation":      "$2,200",
+        "avgInjuryCompensation":     "$300-$500",
+        "ongoingEffects":            "40+ years later, health effects still documented"
+      }
+    }
+  },
+  "industrialFire": {
+    "reference": "NFPA data, Allianz Global Claims Review",
+    "context": {
+      "percentOfDirectPropertyDamage": "69% of industrial sector losses",
+      "avgAnnualInsuredLosses":        "$700+ million (manufacturing/industrial)",
+      "globalRank":                    "#1 cause of corporate insurance losses (21% by value)"
+    },
+    "bySeverity": {
+      "contained":          { "propertyClaims": "1-10",     "injuryClaims": "0-5",   "biClaims": "0-5",   "typicalDuration": "3-12 months" },
+      "significant":        { "propertyClaims": "10-100",   "injuryClaims": "5-50",  "biClaims": "10-50", "typicalDuration": "6-24 months" },
+      "majorMultiBuilding": { "propertyClaims": "100-1,000","injuryClaims": "50-200","biClaims": "50-200","typicalDuration": "12-48 months" },
+      "catastrophic":       { "propertyClaims": "1,000+",   "injuryClaims": "200+",  "biClaims": "200+",  "typicalDuration": "24-60+ months" }
+    }
+  }
+}

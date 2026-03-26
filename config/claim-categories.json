@@ -1,0 +1,58 @@
+{
+  "acutePhysicalInjury": {
+    "name": "Acute Physical Injury",
+    "description": "Burns, trauma, immediate effects",
+    "loggingTimeline":    { "min": 0, "max": 7,  "unit": "days" },
+    "settlementTimeline": { "min": 6, "max": 24, "unit": "months" },
+    "applicableIncidents": ["fire", "explosion", "chemical", "nuclear"]
+  },
+  "propertyDamage": {
+    "name": "Property Damage",
+    "description": "Structural, contents, vehicles",
+    "loggingTimeline":    { "min": 0, "max": 30, "unit": "days" },
+    "settlementTimeline": { "min": 3, "max": 18, "unit": "months" },
+    "applicableIncidents": ["fire", "explosion", "chemical", "nuclear"]
+  },
+  "businessInterruption": {
+    "name": "Business Interruption",
+    "description": "Ongoing assessment required",
+    "loggingTimeline":    { "min": 1, "max": 3,  "unit": "months" },
+    "settlementTimeline": { "min": 12, "max": 36, "unit": "months" },
+    "applicableIncidents": ["fire", "explosion", "chemical", "nuclear"]
+  },
+  "evacuationDisplacement": {
+    "name": "Evacuation/Displacement",
+    "description": "Temporary accommodation costs",
+    "loggingTimeline":    { "min": 0,  "max": 14, "unit": "days" },
+    "settlementTimeline": { "min": 6,  "max": 18, "unit": "months" },
+    "applicableIncidents": ["chemical", "nuclear", "explosion"]
+  },
+  "environmentalRemediation": {
+    "name": "Environmental Remediation",
+    "description": "Long-term monitoring needed",
+    "loggingTimeline":    { "min": 3, "max": 24, "unit": "months" },
+    "settlementTimeline": { "min": 5, "max": 40, "unit": "years" },
+    "applicableIncidents": ["chemical", "nuclear"]
+  },
+  "latentHealthClaims": {
+    "name": "Latent Health Claims",
+    "description": "Cancer, respiratory disease (5-60 years post-incident)",
+    "loggingTimeline":    { "min": 5, "max": 60, "unit": "years" },
+    "settlementTimeline": { "min": 1, "max": 3,  "unit": "yearsAfterDiagnosis" },
+    "applicableIncidents": ["chemical", "nuclear"]
+  },
+  "psychologicalInjury": {
+    "name": "Psychological Injury",
+    "description": "PTSD, anxiety",
+    "loggingTimeline":    { "min": 1,  "max": 36, "unit": "months" },
+    "settlementTimeline": { "min": 12, "max": 36, "unit": "months" },
+    "applicableIncidents": ["fire", "explosion", "chemical", "nuclear"]
+  },
+  "secondaryConsequential": {
+    "name": "Secondary/Consequential",
+    "description": "Supply chain, third parties",
+    "loggingTimeline":    { "min": 3,  "max": 24, "unit": "months" },
+    "settlementTimeline": { "min": 12, "max": 48, "unit": "months" },
+    "applicableIncidents": ["fire", "explosion", "chemical", "nuclear"]
+  }
+}

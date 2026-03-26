@@ -1,0 +1,19 @@
+{
+  "explosion": {
+    "bpTexasCity": { "name": "BP Texas City (2005)",      "totalClaims": 4000,    "totalValue": 2100000000, "severity": "catastrophic", "population": 80000 },
+    "buncefield":  { "name": "Buncefield UK (2005)",      "totalClaims": 2700,    "totalValue": 700000000,  "severity": "major",        "population": 60000 }
+  },
+  "chemical": {
+    "bhopal":      { "name": "Bhopal (1984)",              "totalClaims": 1029517, "totalValue": 470000000,  "severity": "catastrophic", "population": 500000 }
+  },
+  "nuclear": {
+    "fukushima":       { "name": "Fukushima (2011)",           "totalClaims": 164000,  "totalValue": 70000000000,"severity": "catastrophic", "population": 200000 },
+    "threeMileIsland": { "name": "Three Mile Island (1979)",   "totalClaims": 2000,    "totalValue": 82000000,   "severity": "moderate",     "population": 50000 }
+  },
+  "fertiliser": {
+    "westTexas":   { "name": "West, Texas (2013)",         "totalClaims": 425,     "totalValue": 230000000,  "severity": "catastrophic", "population": 2800 }
+  },
+  "fire": {
+    "genericMajor":{ "name": "Typical Major Industrial Fire","totalClaims": 350,   "totalValue": 42000000,   "severity": "major",        "population": 25000 }
+  }
+}

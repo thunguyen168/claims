@@ -1,0 +1,29 @@
+{
+  "explosionFire": {
+    "name": "Explosion/Fire Incident",
+    "distribution": [
+      { "period": "Week 1-4",   "percent": 70, "types": "Property damage, acute injury, evacuation" },
+      { "period": "Month 2-12", "percent": 20, "types": "Business interruption, delayed property, PTSD" },
+      { "period": "Year 1-5",   "percent": 8,  "types": "Complex injury, litigation, environmental" },
+      { "period": "Year 5-30",  "percent": 2,  "types": "Latent illness (if chemical exposure)" }
+    ]
+  },
+  "toxicRelease": {
+    "name": "Toxic Release Incident",
+    "distribution": [
+      { "period": "Week 1-4",    "percent": 25, "types": "Evacuation, acute poisoning, immediate property" },
+      { "period": "Month 2-24",  "percent": 30, "types": "Respiratory illness, property decontamination" },
+      { "period": "Year 2-10",   "percent": 25, "types": "Chronic illness develops, environmental cleanup" },
+      { "period": "Year 10-40",  "percent": 20, "types": "Cancers, generational effects, ongoing environmental" }
+    ]
+  },
+  "nuclear": {
+    "name": "Nuclear Incident",
+    "distribution": [
+      { "period": "Week 1-4",    "percent": 10, "types": "Evacuation, acute radiation (if any)" },
+      { "period": "Month 2-36",  "percent": 35, "types": "Property exclusion zones, business disruption" },
+      { "period": "Year 3-15",   "percent": 30, "types": "Health monitoring, thyroid cancers, environment" },
+      { "period": "Year 15-30",  "percent": 25, "types": "Late cancers, continued decommissioning" }
+    ]
+  }
+}

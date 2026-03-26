@@ -1,0 +1,72 @@
+{
+  "fire": {
+    "injury": {
+      "minor":        { "peakWeek": 2, "shape": "sharp_spike",     "tailWeight": 0.05 },
+      "moderate":     { "peakWeek": 2, "shape": "spike",           "tailWeight": 0.12 },
+      "major":        { "peakWeek": 3, "shape": "spike",           "tailWeight": 0.20 },
+      "catastrophic": { "peakWeek": 3, "shape": "spike_long_tail", "tailWeight": 0.30 }
+    },
+    "property": {
+      "minor":        { "peakWeek": 2, "shape": "spike",         "tailWeight": 0.08 },
+      "moderate":     { "peakWeek": 3, "shape": "spike_rescope", "tailWeight": 0.18 },
+      "major":        { "peakWeek": 3, "shape": "spike_rescope", "tailWeight": 0.28 },
+      "catastrophic": { "peakWeek": 4, "shape": "spike_rescope", "tailWeight": 0.38 }
+    }
+  },
+  "explosion": {
+    "injury": {
+      "minor":        { "peakWeek": 1, "shape": "sharp_spike",     "tailWeight": 0.05 },
+      "moderate":     { "peakWeek": 1, "shape": "sharp_spike",     "tailWeight": 0.10 },
+      "major":        { "peakWeek": 2, "shape": "spike",           "tailWeight": 0.18 },
+      "catastrophic": { "peakWeek": 2, "shape": "spike_long_tail", "tailWeight": 0.25 }
+    },
+    "property": {
+      "minor":        { "peakWeek": 1, "shape": "sharp_spike",  "tailWeight": 0.10 },
+      "moderate":     { "peakWeek": 2, "shape": "sharp_spike",  "tailWeight": 0.22 },
+      "major":        { "peakWeek": 2, "shape": "spike_bi_tail","tailWeight": 0.30 },
+      "catastrophic": { "peakWeek": 3, "shape": "spike_bi_tail","tailWeight": 0.40 }
+    }
+  },
+  "chemical": {
+    "injury": {
+      "minor":        { "peakWeek": 2, "shape": "sharp_spike",     "tailWeight": 0.15 },
+      "moderate":     { "peakWeek": 2, "shape": "spike_long_tail", "tailWeight": 0.30 },
+      "major":        { "peakWeek": 3, "shape": "spike_long_tail", "tailWeight": 0.45 },
+      "catastrophic": { "peakWeek": 3, "shape": "very_long_tail",  "tailWeight": 0.55 }
+    },
+    "property": {
+      "minor":        { "peakWeek": 3, "shape": "moderate_spike",    "tailWeight": 0.10 },
+      "moderate":     { "peakWeek": 4, "shape": "moderate_spike",    "tailWeight": 0.22 },
+      "major":        { "peakWeek": 4, "shape": "extended_plateau",  "tailWeight": 0.32 },
+      "catastrophic": { "peakWeek": 5, "shape": "contamination_tail","tailWeight": 0.40 }
+    }
+  },
+  "nuclear": {
+    "injury": {
+      "minor":        { "peakWeek": 3, "shape": "low_early",     "tailWeight": 0.25 },
+      "moderate":     { "peakWeek": 4, "shape": "delayed_rise",  "tailWeight": 0.40 },
+      "major":        { "peakWeek": 5, "shape": "delayed_rise",  "tailWeight": 0.55 },
+      "catastrophic": { "peakWeek": 6, "shape": "latency_driven","tailWeight": 0.70 }
+    },
+    "property": {
+      "minor":        { "peakWeek": 2, "shape": "rapid_rise",          "tailWeight": 0.20 },
+      "moderate":     { "peakWeek": 3, "shape": "rapid_rise",          "tailWeight": 0.40 },
+      "major":        { "peakWeek": 4, "shape": "evacuation_plateau",  "tailWeight": 0.55 },
+      "catastrophic": { "peakWeek": 5, "shape": "stigma_tail",         "tailWeight": 0.60 }
+    }
+  },
+  "fertiliser": {
+    "injury": {
+      "minor":        { "peakWeek": 1, "shape": "sharp_spike",     "tailWeight": 0.06 },
+      "moderate":     { "peakWeek": 1, "shape": "sharp_spike",     "tailWeight": 0.14 },
+      "major":        { "peakWeek": 2, "shape": "spike_long_tail", "tailWeight": 0.25 },
+      "catastrophic": { "peakWeek": 2, "shape": "spike_long_tail", "tailWeight": 0.35 }
+    },
+    "property": {
+      "minor":        { "peakWeek": 1, "shape": "sharp_spike",       "tailWeight": 0.08 },
+      "moderate":     { "peakWeek": 2, "shape": "spike_bi_tail",     "tailWeight": 0.20 },
+      "major":        { "peakWeek": 2, "shape": "spike_bi_tail",     "tailWeight": 0.30 },
+      "catastrophic": { "peakWeek": 3, "shape": "contamination_tail","tailWeight": 0.38 }
+    }
+  }
+}

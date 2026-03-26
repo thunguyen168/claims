@@ -1,0 +1,24 @@
+{
+  "standardLimitations": {
+    "personalInjury":      { "years": 3, "note": "From injury/knowledge, court discretion to extend" },
+    "propertyDamage":      { "years": 6, "note": "From date of damage" },
+    "employersLiability":  { "years": 3, "note": "Discovery rule applies" }
+  },
+  "nuclearLimitations": {
+    "pre2022": {
+      "operatorLiabilityCap": "\u00a3140 million",
+      "personalInjury":             { "years": 10 },
+      "propertyDamage":             { "years": 10 },
+      "environmentalReinstatement": false
+    },
+    "post2022": {
+      "operatorLiabilityCap": "\u20ac700 million \u2192 \u20ac1.2 billion",
+      "personalInjury":             { "years": 30, "note": "Extended from 10 years" },
+      "propertyDamage":             { "years": 10 },
+      "environmentalReinstatement": true
+    }
+  },
+  "discoveryRule": {
+    "description": "For latent injuries, clock starts when claimant has knowledge of: (1) The injury, (2) That it was significant, (3) That it was attributable to defendant, (4) Identity of defendant"
+  }
+}

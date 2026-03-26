@@ -686,6 +686,42 @@ input[type="range"]::-moz-range-thumb{width:16px;height:16px;background:#3b82f6;
 // ╚══════════════════════════════════════════════════════════════╝
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CONFIG DECLARATIONS — populated async from config/ JSON files
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+let DEFAULT_CONFIG, CLAIM_CATEGORIES, UK_LEGAL_FRAMEWORK, HISTORICAL_CLAIM_VOLUMES,
+    CLAIM_DISTRIBUTION_TEMPLATES, SEVERITY_TIME_HORIZONS, CLAIM_PATTERNS,
+    AVERAGE_CLAIM_VALUES, MC_DEFAULT_CONFIG, HISTORICAL_VALIDATION;
+
+async function loadAllConfig() {
+  const [
+    defaults, claimCategories, legalFramework, historicalData,
+    distributionTemplates, timeHorizons, claimPatterns,
+    claimValues, mcDefaults, historicalValidation
+  ] = await Promise.all([
+    fetch('config/defaults.json').then(r => r.json()),
+    fetch('config/claim-categories.json').then(r => r.json()),
+    fetch('config/legal-framework.json').then(r => r.json()),
+    fetch('config/historical-data.json').then(r => r.json()),
+    fetch('config/distribution-templates.json').then(r => r.json()),
+    fetch('config/time-horizons.json').then(r => r.json()),
+    fetch('config/claim-patterns.json').then(r => r.json()),
+    fetch('config/claim-values.json').then(r => r.json()),
+    fetch('config/mc-defaults.json').then(r => r.json()),
+    fetch('config/historical-validation.json').then(r => r.json())
+  ]);
+  DEFAULT_CONFIG            = defaults;
+  CLAIM_CATEGORIES          = claimCategories;
+  UK_LEGAL_FRAMEWORK        = legalFramework;
+  HISTORICAL_CLAIM_VOLUMES  = historicalData;
+  CLAIM_DISTRIBUTION_TEMPLATES = distributionTemplates;
+  SEVERITY_TIME_HORIZONS    = timeHorizons;
+  CLAIM_PATTERNS            = claimPatterns;
+  AVERAGE_CLAIM_VALUES      = claimValues;
+  MC_DEFAULT_CONFIG         = mcDefaults;
+  HISTORICAL_VALIDATION     = historicalValidation;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 0: UTILITY INFRASTRUCTURE
 // Security, validation, browser compat, UX utilities
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1266,317 +1302,15 @@ function calculateSurgeCosts(surgeEntries, totalWeeks, workDaysPerWeek) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 // ===== DEFAULT CONFIGURATION =====
-const DEFAULT_CONFIG = {
-  organisation: {
-    staffCount: 8,
-    workDaysPerWeek: 5
-  },
-  claimComplexity: {
-    autoProcessedPct: 10,    // % of claims auto-processed (0 days)
-    twoDayPct: 20,           // % of claims processed in 2 days
-    customDayPct: 30,        // % of claims processed in customDays
-    customDays: 3,           // number of days for the custom tier
-    standardDays: 4,         // number of days for the standard tier
-    // remainder = 100 - auto - twoDay - custom = processed in standardDays
-  },
-  // Processing days by claim type (for more detailed analysis)
-  processingDays: {
-    propertySimple: 3,      // Simple property: 3 days
-    propertyComplex: 15,    // Complex property: 15 days
-    bi: 60,                 // Business interruption: 60 days (10-20x simple property)
-    injuryAcute: 5,         // Acute injury: 5 days
-    injuryComplex: 20       // Complex/latent injury: 20 days
-  },
-  incidentMultipliers: {
-    fire: 1.0,
-    explosion: 1.3,
-    chemical: 1.5,
-    nuclear: 2.0
-  },
-  // Claim type split ratios (injury vs property) by incident type
-  claimTypeSplits: {
-    fire: { injury: 0.25, property: 0.75 },        // Fire: mostly property claims
-    explosion: { injury: 0.30, property: 0.70 },   // Explosion: more injury than fire
-    chemical: { injury: 0.75, property: 0.25 },    // FIXED: Bhopal pattern - injury dominant (574K injury vs small property)
-    nuclear: { injury: 0.35, property: 0.65 },     // Nuclear: property-heavy (evacuation/decontamination)
-    fertiliser: { injury: 0.35, property: 0.65 }   // Added fertiliser type (West, Texas pattern)
-  },
-  // Claim multiplier per person - accounts for multiple claims per affected individual
-  // Bhopal: 1M+ registered cases for ~500K exposed (household members, follow-up, repeat filings)
-  claimMultiplierPerPerson: {
-    fire: 1.0,
-    explosion: 1.1,
-    chemical: 1.8,      // Multiple claims: household members, follow-up, repeat
-    nuclear: 1.5,
-    fertiliser: 1.2
-  },
-  severityRates: {
-    minor: 0.02,
-    moderate: 0.08,
-    major: 0.20,
-    catastrophic: 0.45
-  },
-  // Reserve development factors for ultimate claims estimates
-  reserveDevelopmentFactors: {
-    short: { min: 1.0, max: 1.2, midpoint: 1.1, note: 'Initial estimates often low' },
-    medium: { min: 1.2, max: 1.5, midpoint: 1.35, note: 'Litigation costs emerge' },
-    long: { min: 1.5, max: 3.0, midpoint: 2.25, note: 'Latent claims emerge' },
-    chemicalLong: { min: 2.0, max: 5.0, midpoint: 3.5, note: 'Bhopal: claims for 40+ years' },
-    nuclearLong: { min: 2.5, max: 6.0, midpoint: 4.25, note: '30-year limitation period' }
-  },
-  // Blast radius claim concentration - based on West, Texas and similar explosion data
-  blastRadiusConcentration: {
-    '0-500m': 0.90,     // 90% claim density (total loss, fatalities, severe injury)
-    '500m-1km': 0.70,   // 60-80% → use 70% (significant structural, injury)
-    '1-3km': 0.30,      // 20-40% → use 30% (windows, minor structural)
-    '3-5km': 0.075      // 5-10% → use 7.5% (glass breakage, hearing)
-  },
-  sites: [
-    { id: 'hinkley', name: 'Hinkley Point', location: 'Somerset, England', population: 35000, staffOnSite: 4000, active: true },
-    { id: 'sizewell', name: 'Sizewell', location: 'Suffolk, England', population: 25000, staffOnSite: 2500, active: true },
-    { id: 'heysham', name: 'Heysham', location: 'Lancashire, England', population: 30000, staffOnSite: 3000, active: true }
-  ]
-};
+// DEFAULT_CONFIG loaded from config/defaults.json
 
-// ===== CLAIM CATEGORIES & TIMING (Research-Based) =====
-// Based on historical incident analysis: BP Texas City, Buncefield, Fukushima, Bhopal, West Texas
-const CLAIM_CATEGORIES = {
-  acutePhysicalInjury: {
-    name: 'Acute Physical Injury',
-    description: 'Burns, trauma, immediate effects',
-    loggingTimeline: { min: 0, max: 7, unit: 'days' },
-    settlementTimeline: { min: 6, max: 24, unit: 'months' },
-    applicableIncidents: ['fire', 'explosion', 'chemical', 'nuclear']
-  },
-  propertyDamage: {
-    name: 'Property Damage',
-    description: 'Structural, contents, vehicles',
-    loggingTimeline: { min: 0, max: 30, unit: 'days' },
-    settlementTimeline: { min: 3, max: 18, unit: 'months' },
-    applicableIncidents: ['fire', 'explosion', 'chemical', 'nuclear']
-  },
-  businessInterruption: {
-    name: 'Business Interruption',
-    description: 'Ongoing assessment required',
-    loggingTimeline: { min: 1, max: 3, unit: 'months' },
-    settlementTimeline: { min: 12, max: 36, unit: 'months' },
-    applicableIncidents: ['fire', 'explosion', 'chemical', 'nuclear']
-  },
-  evacuationDisplacement: {
-    name: 'Evacuation/Displacement',
-    description: 'Temporary accommodation costs',
-    loggingTimeline: { min: 0, max: 14, unit: 'days' },
-    settlementTimeline: { min: 6, max: 18, unit: 'months' },
-    applicableIncidents: ['chemical', 'nuclear', 'explosion']
-  },
-  environmentalRemediation: {
-    name: 'Environmental Remediation',
-    description: 'Long-term monitoring needed',
-    loggingTimeline: { min: 3, max: 24, unit: 'months' },
-    settlementTimeline: { min: 5, max: 40, unit: 'years' },
-    applicableIncidents: ['chemical', 'nuclear']
-  },
-  latentHealthClaims: {
-    name: 'Latent Health Claims',
-    description: 'Cancer, respiratory disease (5-60 years post-incident)',
-    loggingTimeline: { min: 5, max: 60, unit: 'years' },
-    settlementTimeline: { min: 1, max: 3, unit: 'yearsAfterDiagnosis' },
-    applicableIncidents: ['chemical', 'nuclear']
-  },
-  psychologicalInjury: {
-    name: 'Psychological Injury',
-    description: 'PTSD, anxiety',
-    loggingTimeline: { min: 1, max: 36, unit: 'months' },
-    settlementTimeline: { min: 12, max: 36, unit: 'months' },
-    applicableIncidents: ['fire', 'explosion', 'chemical', 'nuclear']
-  },
-  secondaryConsequential: {
-    name: 'Secondary/Consequential',
-    description: 'Supply chain, third parties',
-    loggingTimeline: { min: 3, max: 24, unit: 'months' },
-    settlementTimeline: { min: 12, max: 48, unit: 'months' },
-    applicableIncidents: ['fire', 'explosion', 'chemical', 'nuclear']
-  }
-};
+// CLAIM_CATEGORIES loaded from config/claim-categories.json
 
-// ===== UK LEGAL FRAMEWORK & LIMITATION PERIODS =====
-const UK_LEGAL_FRAMEWORK = {
-  standardLimitations: {
-    personalInjury: { years: 3, note: 'From injury/knowledge, court discretion to extend' },
-    propertyDamage: { years: 6, note: 'From date of damage' },
-    employersLiability: { years: 3, note: 'Discovery rule applies' }
-  },
-  nuclearLimitations: {
-    // UK Nuclear Installations Act 1965 (as amended 2022)
-    pre2022: {
-      operatorLiabilityCap: '£140 million',
-      personalInjury: { years: 10 },
-      propertyDamage: { years: 10 },
-      environmentalReinstatement: false
-    },
-    post2022: {
-      operatorLiabilityCap: '€700 million → €1.2 billion',
-      personalInjury: { years: 30, note: 'Extended from 10 years' },
-      propertyDamage: { years: 10 },
-      environmentalReinstatement: true
-    }
-  },
-  discoveryRule: {
-    description: 'For latent injuries, clock starts when claimant has knowledge of: (1) The injury, (2) That it was significant, (3) That it was attributable to defendant, (4) Identity of defendant'
-  }
-};
+// UK_LEGAL_FRAMEWORK loaded from config/legal-framework.json
 
-// ===== HISTORICAL CLAIM VOLUME DATA =====
-// Based on actual incident data from research
-const HISTORICAL_CLAIM_VOLUMES = {
-  // Chemical Plant Explosions
-  chemicalExplosion: {
-    reference: 'BP Texas City (2005), Buncefield UK (2005)',
-    byVariety: {
-      minor: { fatalities: 0, directInjuries: '1-10', propertyClaims: '10-50', latentHealth: '0-10' },
-      moderate: { fatalities: '0-5', directInjuries: '10-100', propertyClaims: '50-500', latentHealth: '10-100' },
-      major: { fatalities: '5-20', directInjuries: '100-500', propertyClaims: '500-5,000', latentHealth: '100-1,000' },
-      catastrophic: { fatalities: '20+', directInjuries: '500+', propertyClaims: '5,000+', latentHealth: '1,000+' }
-    },
-    historicalExamples: {
-      bpTexasCity2005: {
-        fatalities: 15,
-        injured: 180,
-        totalClaims: 4000,
-        openClaimsAt3_5Years: 1000,
-        totalSettlements: '$2.1 billion',
-        propertyDamage: '$200 million',
-        firstTrial: '2.5 years post-incident',
-        finalOSHASettlement: '7 years post-incident'
-      },
-      buncefield2005: {
-        fatalities: 0,
-        injured: 43,
-        totalClaims: 2700,
-        totalEstimate: '£300 million - £1 billion',
-        classActionHearing: '10 months post-incident',
-        biSettlementTime: '9+ months to finalise'
-      }
-    }
-  },
-  // Nuclear Incidents
-  nuclear: {
-    reference: 'Fukushima (2011), Three Mile Island (1979), Windscale (1957)',
-    claimDevelopment: {
-      immediate: { timeline: '0-6 months', claimTypes: 'Evacuation, acute injury', percentOfUltimate: '5-10%' },
-      shortTerm: { timeline: '6 months - 3 years', claimTypes: 'Property, business interruption', percentOfUltimate: '20-30%' },
-      mediumTerm: { timeline: '3-10 years', claimTypes: 'Ongoing health monitoring, environment', percentOfUltimate: '30-40%' },
-      longTerm: { timeline: '10-30 years', claimTypes: 'Latent cancers, genetic effects', percentOfUltimate: '20-40%' }
-    },
-    historicalExamples: {
-      fukushima2011: {
-        evacuees: 164000,
-        compensationPaidBy2021: '¥9.7 trillion (~$70 billion)',
-        avgFamilyCompensation: '~$900,000',
-        monthlyPsychologicalPayments: '~$1,000/month for 6+ years',
-        decommissioningEstimate: '30-40 years'
-      },
-      threeMileIsland1979: {
-        lawsuitsFiled: 2000,
-        documentedCompensation: '$82 million',
-        classActionSettlement: '$25 million (1981, 2 years post)',
-        cleanupCompleted: '1993 (14 years)',
-        totalCleanupCost: '$1 billion'
-      }
-    }
-  },
-  // Fertiliser/Ammonium Nitrate Explosions
-  fertiliserExplosion: {
-    reference: 'West, Texas (2013), Texas City Disaster (1947)',
-    claimConcentrationByRadius: {
-      '0-500m': { density: 'Very High (90%+)', primaryTypes: 'Total loss, fatality, severe injury' },
-      '500m-1km': { density: 'High (60-80%)', primaryTypes: 'Significant structural, injury' },
-      '1-3km': { density: 'Moderate (20-40%)', primaryTypes: 'Windows, minor structural' },
-      '3-5km': { density: 'Low (5-10%)', primaryTypes: 'Glass breakage, hearing' }
-    },
-    historicalExamples: {
-      westTexas2013: {
-        fatalities: 15,
-        injured: 260,
-        buildingsDamaged: 150,
-        totalInsuredLosses: '~$230 million',
-        companyInsurance: '$1 million (severe underinsurance)',
-        citySettlement: '$10.44 million (5 years post)',
-        femaAwards: '$63.4 million to school district'
-      }
-    }
-  },
-  // Toxic Chemical Releases
-  toxicRelease: {
-    reference: 'Bhopal (1984), Seveso (1976)',
-    longTailCharacteristics: [
-      'Latency periods: 5-40+ years for cancers',
-      'Causation disputes: Proving link between exposure and illness',
-      'Generational effects: Children born after incident showing effects',
-      'Environmental persistence: Ongoing groundwater/soil contamination'
-    ],
-    historicalExamples: {
-      bhopal1984: {
-        immediateDeaths: 3000,
-        totalInjuryClaimsAwarded: 574304,
-        totalClaimsRejected: 455213,
-        totalCasesRegistered: 1029517,
-        settlementAmount: '$470 million',
-        settlementYear: 1989,
-        avgDeathCompensation: '$2,200',
-        avgInjuryCompensation: '$300-$500',
-        ongoingEffects: '40+ years later, health effects still documented'
-      }
-    }
-  },
-  // Industrial Fires
-  industrialFire: {
-    reference: 'NFPA data, Allianz Global Claims Review',
-    context: {
-      percentOfDirectPropertyDamage: '69% of industrial sector losses',
-      avgAnnualInsuredLosses: '$700+ million (manufacturing/industrial)',
-      globalRank: '#1 cause of corporate insurance losses (21% by value)'
-    },
-    bySeverity: {
-      contained: { propertyClaims: '1-10', injuryClaims: '0-5', biClaims: '0-5', typicalDuration: '3-12 months' },
-      significant: { propertyClaims: '10-100', injuryClaims: '5-50', biClaims: '10-50', typicalDuration: '6-24 months' },
-      majorMultiBuilding: { propertyClaims: '100-1,000', injuryClaims: '50-200', biClaims: '50-200', typicalDuration: '12-48 months' },
-      catastrophic: { propertyClaims: '1,000+', injuryClaims: '200+', biClaims: '200+', typicalDuration: '24-60+ months' }
-    }
-  }
-};
+// HISTORICAL_CLAIM_VOLUMES loaded from config/historical-data.json
 
-// ===== CLAIM DISTRIBUTION TEMPLATES (Research-Based Percentages) =====
-// Bimodal distribution: immediate spike + long tail for latent claims
-const CLAIM_DISTRIBUTION_TEMPLATES = {
-  explosionFire: {
-    name: 'Explosion/Fire Incident',
-    distribution: [
-      { period: 'Week 1-4', percent: 70, types: 'Property damage, acute injury, evacuation' },
-      { period: 'Month 2-12', percent: 20, types: 'Business interruption, delayed property, PTSD' },
-      { period: 'Year 1-5', percent: 8, types: 'Complex injury, litigation, environmental' },
-      { period: 'Year 5-30', percent: 2, types: 'Latent illness (if chemical exposure)' }
-    ]
-  },
-  toxicRelease: {
-    name: 'Toxic Release Incident',
-    distribution: [
-      { period: 'Week 1-4', percent: 25, types: 'Evacuation, acute poisoning, immediate property' },
-      { period: 'Month 2-24', percent: 30, types: 'Respiratory illness, property decontamination' },
-      { period: 'Year 2-10', percent: 25, types: 'Chronic illness develops, environmental cleanup' },
-      { period: 'Year 10-40', percent: 20, types: 'Cancers, generational effects, ongoing environmental' }
-    ]
-  },
-  nuclear: {
-    name: 'Nuclear Incident',
-    distribution: [
-      { period: 'Week 1-4', percent: 10, types: 'Evacuation, acute radiation (if any)' },
-      { period: 'Month 2-36', percent: 35, types: 'Property exclusion zones, business disruption' },
-      { period: 'Year 3-15', percent: 30, types: 'Health monitoring, thyroid cancers, environment' },
-      { period: 'Year 15-30', percent: 25, types: 'Late cancers, continued decommissioning' }
-    ]
-  }
-};
+// CLAIM_DISTRIBUTION_TEMPLATES loaded from config/distribution-templates.json
 
 // ===== TIME HORIZON CONFIGURATIONS =====
 // Legacy fixed horizons (kept as fallback)
@@ -1586,155 +1320,7 @@ const TIME_HORIZONS = {
   long: { weeks: 520, label: '10 Years', unitLabel: 'Month' }
 };
 
-// ===== SEVERITY-BASED TIME HORIZONS (Research-Calibrated) =====
-// Time horizons dynamically calibrated by incident type and severity level.
-// Based on historical claim lifecycle data: settlement timelines, latency periods,
-// limitation periods, and documented claim development patterns.
-const SEVERITY_TIME_HORIZONS = {
-  // Fire: NFPA/Allianz data. Property 3-18mo resolution, BI 12-36mo.
-  // Minor fires resolve quickly; catastrophic may involve chemical exposure tails.
-  fire: {
-    minor: {
-      short: { weeks: 8 },
-      medium: { weeks: 26 },
-      long: { weeks: 104 },
-      note: 'Minor fires: most claims resolve within weeks. Settlement 3-6 months for simple property.'
-    },
-    moderate: {
-      short: { weeks: 12 },
-      medium: { weeks: 52 },
-      long: { weeks: 156 },
-      note: 'Moderate fires: complex property + BI claims develop over 6-18 months. PTSD claims at 12-36 months.'
-    },
-    major: {
-      short: { weeks: 12 },
-      medium: { weeks: 78 },
-      long: { weeks: 260 },
-      note: 'Major fires: BI exceeds PD by ~2.7x. Litigation extends 3-5 years (BP Texas City pattern).'
-    },
-    catastrophic: {
-      short: { weeks: 16 },
-      medium: { weeks: 104 },
-      long: { weeks: 364 },
-      note: 'Catastrophic fires: potential chemical exposure creates long-tail health claims. 69% of direct PD in industrial sector.'
-    }
-  },
-  // Explosion: BP Texas City ($2.1B/7yrs), Buncefield (£300M-1B, BI 9+ months).
-  // 90%+ claims within 500m blast radius. BI becomes pacing item at 12-36 months.
-  explosion: {
-    minor: {
-      short: { weeks: 8 },
-      medium: { weeks: 26 },
-      long: { weeks: 104 },
-      note: 'Minor explosions: localised blast damage. Property claims within 500m resolve in weeks.'
-    },
-    moderate: {
-      short: { weeks: 12 },
-      medium: { weeks: 52 },
-      long: { weeks: 156 },
-      note: 'Moderate explosions: BI claims develop over 12-36 months. Buncefield: BI settlements took 9+ months.'
-    },
-    major: {
-      short: { weeks: 12 },
-      medium: { weeks: 78 },
-      long: { weeks: 260 },
-      note: 'Major explosions: BP Texas City pattern - 4,000 claims, settlements over 7 years. Forensic accounting required for BI.'
-    },
-    catastrophic: {
-      short: { weeks: 16 },
-      medium: { weeks: 104 },
-      long: { weeks: 364 },
-      note: 'Catastrophic explosions: $2.1B+ settlement potential (BP Texas City). Secondary/consequential claims emerge at 3-24 months.'
-    }
-  },
-  // Chemical (toxic release): Bhopal (1M+ claims over 40 years), Seveso (1976).
-  // Bimodal: 25% acute (weeks 1-4), then decades of chronic illness, cancers.
-  // UK discovery rule: 3-year limitation from knowledge of injury.
-  chemical: {
-    minor: {
-      short: { weeks: 12 },
-      medium: { weeks: 104 },
-      long: { weeks: 520 },
-      note: 'Minor chemical release: acute poisoning 25% in weeks 1-4. Respiratory illness develops at months 2-24. Environmental remediation 5-10 years.'
-    },
-    moderate: {
-      short: { weeks: 16 },
-      medium: { weeks: 156 },
-      long: { weeks: 1040 },
-      note: 'Moderate toxic release: chronic illness at years 2-10. Environmental cleanup extends to decades. Discovery rule applies for latent injuries.'
-    },
-    major: {
-      short: { weeks: 24 },
-      medium: { weeks: 260 },
-      long: { weeks: 1560 },
-      note: 'Major toxic release: Bhopal pattern - 574,304 injury claims, $470M settlement. Cancers and generational effects documented 40+ years later.'
-    },
-    catastrophic: {
-      short: { weeks: 26 },
-      medium: { weeks: 260 },
-      long: { weeks: 2080 },
-      note: 'Catastrophic chemical disaster: Bhopal-scale. 1M+ claims spanning 40+ years. Long-tail cancers, generational effects, ongoing environmental remediation.'
-    }
-  },
-  // Nuclear: Fukushima ($70B+ by 2021), Three Mile Island ($82M, 14-year cleanup).
-  // UK Nuclear Installations Act 2022: 30-year personal injury limitation.
-  // Thyroid cancers peak at 5-20 years post-incident.
-  nuclear: {
-    minor: {
-      short: { weeks: 12 },
-      medium: { weeks: 156 },
-      long: { weeks: 780 },
-      note: 'Minor nuclear incident: evacuation claims immediate. Health monitoring at years 3-15. Three Mile Island: $82M documented, 14-year cleanup.'
-    },
-    moderate: {
-      short: { weeks: 16 },
-      medium: { weeks: 260 },
-      long: { weeks: 1040 },
-      note: 'Moderate nuclear incident: property exclusion zones, BI disruption months 2-36. Thyroid cancers emerge years 5-20.'
-    },
-    major: {
-      short: { weeks: 24 },
-      medium: { weeks: 364 },
-      long: { weeks: 1560 },
-      note: 'Major nuclear incident: Fukushima-scale pattern. 164,000+ evacuees. UK law: 30-year personal injury limitation (2022 Act). $70B+ compensation.'
-    },
-    catastrophic: {
-      short: { weeks: 26 },
-      medium: { weeks: 520 },
-      long: { weeks: 1560 },
-      note: 'Catastrophic nuclear disaster: 30-year limitation period applies. 20-40% of ultimate claims emerge at years 10-30 (late cancers, genetic effects).'
-    }
-  },
-  // Fertiliser (ammonium nitrate): West, Texas (2013) pattern.
-  // Similar to explosion but with potential chemical exposure tail.
-  // $230M losses vs $1M coverage. 150 buildings, 15 fatalities.
-  fertiliser: {
-    minor: {
-      short: { weeks: 8 },
-      medium: { weeks: 26 },
-      long: { weeks: 104 },
-      note: 'Minor fertiliser incident: localised blast + potential ammonia exposure. Property claims resolve in weeks.'
-    },
-    moderate: {
-      short: { weeks: 12 },
-      medium: { weeks: 52 },
-      long: { weeks: 156 },
-      note: 'Moderate fertiliser explosion: West, Texas parallel. BI and environmental claims develop over months.'
-    },
-    major: {
-      short: { weeks: 12 },
-      medium: { weeks: 78 },
-      long: { weeks: 312 },
-      note: 'Major fertiliser explosion: West, Texas - 150 buildings damaged, FEMA $63.4M to school district alone. Chemical exposure extends timeline.'
-    },
-    catastrophic: {
-      short: { weeks: 16 },
-      medium: { weeks: 104 },
-      long: { weeks: 520 },
-      note: 'Catastrophic fertiliser disaster: $230M+ losses (West, Texas). Chemical contamination creates long-tail similar to toxic release incidents.'
-    }
-  }
-};
+// SEVERITY_TIME_HORIZONS loaded from config/time-horizons.json
 
 // ===== SEVERITY TIME HORIZON HELPERS =====
 
@@ -1802,124 +1388,15 @@ function updateTimeHorizonLabels() {
   }
 }
 
-// ===== INCIDENT CLAIM PATTERNS =====
-// Severity-differentiated patterns: shape and tail weight vary by severity level.
-// Minor incidents: concentrated early spike, fast resolution, light tails.
-// Catastrophic incidents: early spike still present but broader, heavier tails,
-// more complex secondary peaks reflecting prolonged litigation and latent effects.
-// All peak positions in weeks (simulation always runs weekly).
-const CLAIM_PATTERNS = {
-  // Fire patterns - NFPA/Allianz data
-  fire: {
-    // Fire injury: early spike from burns/smoke inhalation
-    // Minor: concentrated spike, fast resolution (weeks). Catastrophic: heavier disability/PTSD tail.
-    injury: {
-      minor:        { peakWeek: 2, shape: 'sharp_spike',  tailWeight: 0.05 },  // Simple burns, fast resolution
-      moderate:     { peakWeek: 2, shape: 'spike',         tailWeight: 0.12 },  // Some disability cases extend timeline
-      major:        { peakWeek: 3, shape: 'spike',         tailWeight: 0.20 },  // PTSD + complex injury tail (12-36 months)
-      catastrophic: { peakWeek: 3, shape: 'spike_long_tail', tailWeight: 0.30 } // Severe burns, disability, litigation extends years
-    },
-    // Fire property: immediate spike + re-scope waves as hidden damage discovered
-    // Minor: single spike. Major/catastrophic: re-scope waves, BI exceeds PD by ~2.7x.
-    property: {
-      minor:        { peakWeek: 2, shape: 'spike',          tailWeight: 0.08 },  // Simple property, 3-6mo resolution
-      moderate:     { peakWeek: 3, shape: 'spike_rescope',   tailWeight: 0.18 },  // Re-scope waves for hidden damage
-      major:        { peakWeek: 3, shape: 'spike_rescope',   tailWeight: 0.28 },  // Complex property + BI develops 12-36mo
-      catastrophic: { peakWeek: 4, shape: 'spike_rescope',   tailWeight: 0.38 }   // Major BI tail, rebuild delays, litigation
-    }
-  },
-  // Explosion patterns - BP Texas City, Buncefield calibrated
-  explosion: {
-    // Explosion injury: sharp immediate spike (0-7 days), high severity, early reporting
-    // Minor: concentrated. Catastrophic: more severe injuries, longer rehabilitation tail.
-    injury: {
-      minor:        { peakWeek: 1, shape: 'sharp_spike',  tailWeight: 0.05 },  // Localised, fast resolution
-      moderate:     { peakWeek: 1, shape: 'sharp_spike',   tailWeight: 0.10 },  // Burns, TBI - specialist assessors needed
-      major:        { peakWeek: 2, shape: 'spike',         tailWeight: 0.18 },  // Complex injuries, amputations, longer rehab
-      catastrophic: { peakWeek: 2, shape: 'spike_long_tail', tailWeight: 0.25 } // Mass casualty, extended rehabilitation + litigation
-    },
-    // Explosion property: instant sharp spike across blast radius (90%+ claims within 500m)
-    // Minor: concentrated blast. Catastrophic: wider radius + BI develops over 12-36 months.
-    property: {
-      minor:        { peakWeek: 1, shape: 'sharp_spike',   tailWeight: 0.10 },  // Localised blast damage
-      moderate:     { peakWeek: 2, shape: 'sharp_spike',    tailWeight: 0.22 },  // Wider radius, BI starting
-      major:        { peakWeek: 2, shape: 'spike_bi_tail',  tailWeight: 0.30 },  // Significant BI tail (9+ months, Buncefield)
-      catastrophic: { peakWeek: 3, shape: 'spike_bi_tail',  tailWeight: 0.40 }   // Massive BI (BP Texas City: 7-year settlements)
-    }
-  },
-  // Chemical (toxic release) patterns - Bhopal/Seveso calibrated
-  chemical: {
-    // Chemical injury: acute poisoning spike (25% in weeks 1-4), then LONG tail
-    // Minor: mainly acute. Catastrophic: decades of chronic illness (Bhopal: 40+ years).
-    injury: {
-      minor:        { peakWeek: 2, shape: 'sharp_spike',     tailWeight: 0.15 },  // Acute poisoning, limited exposure
-      moderate:     { peakWeek: 2, shape: 'spike_long_tail',  tailWeight: 0.30 },  // Respiratory illness at months 2-24
-      major:        { peakWeek: 3, shape: 'spike_long_tail',  tailWeight: 0.45 },  // Chronic illness years 2-10, cancers
-      catastrophic: { peakWeek: 3, shape: 'very_long_tail',   tailWeight: 0.55 }   // Bhopal-scale: 1M+ claims over 40 years
-    },
-    // Chemical property: mid-fast spike, contamination persistence varies with severity
-    // Minor: standard property. Catastrophic: soil/groundwater contamination, decades of remediation.
-    property: {
-      minor:        { peakWeek: 3, shape: 'moderate_spike',    tailWeight: 0.10 },  // Limited contamination
-      moderate:     { peakWeek: 4, shape: 'moderate_spike',     tailWeight: 0.22 },  // Some decontamination needed
-      major:        { peakWeek: 4, shape: 'extended_plateau',   tailWeight: 0.32 },  // Environmental cleanup extends years
-      catastrophic: { peakWeek: 5, shape: 'contamination_tail', tailWeight: 0.40 }   // Decades of remediation, secondary discovery peaks
-    }
-  },
-  // Nuclear (radiological) patterns - Fukushima/Three Mile Island/Chernobyl calibrated
-  nuclear: {
-    // Nuclear injury: small immediate spike, VERY long tail (latency effects)
-    // Minor: health monitoring only. Catastrophic: thyroid cancers peak at 5-20 years.
-    injury: {
-      minor:        { peakWeek: 3, shape: 'low_early',      tailWeight: 0.25 },  // Precautionary evacuation, monitoring
-      moderate:     { peakWeek: 4, shape: 'delayed_rise',    tailWeight: 0.40 },  // Health monitoring, some latent effects
-      major:        { peakWeek: 5, shape: 'delayed_rise',    tailWeight: 0.55 },  // Thyroid cancers emerge years 5-20
-      catastrophic: { peakWeek: 6, shape: 'latency_driven',  tailWeight: 0.70 }   // Fukushima/Chernobyl-scale: 30-year claims
-    },
-    // Nuclear property: evacuation spike, extended plateau from exclusion zones
-    // Minor: brief evacuation. Catastrophic: permanent exclusion zones, stigma-driven resurgences.
-    property: {
-      minor:        { peakWeek: 2, shape: 'rapid_rise',         tailWeight: 0.20 },  // Brief evacuation, quick return
-      moderate:     { peakWeek: 3, shape: 'rapid_rise',          tailWeight: 0.40 },  // Extended evacuation, some BI
-      major:        { peakWeek: 4, shape: 'evacuation_plateau',  tailWeight: 0.55 },  // Exclusion zones, years of displacement
-      catastrophic: { peakWeek: 5, shape: 'stigma_tail',         tailWeight: 0.60 }   // Permanent exclusion, stigma resurgences decades later
-    }
-  },
-  // Fertiliser (ammonium nitrate) patterns - West, Texas 2013 calibrated
-  // Blast pattern similar to explosion but with chemical exposure tail
-  fertiliser: {
-    // Fertiliser injury: sharp blast injury spike + chemical exposure tail (ammonia/nitrate)
-    injury: {
-      minor:        { peakWeek: 1, shape: 'sharp_spike',     tailWeight: 0.06 },  // Localised blast, minor chemical
-      moderate:     { peakWeek: 1, shape: 'sharp_spike',      tailWeight: 0.14 },  // Burns + ammonia exposure
-      major:        { peakWeek: 2, shape: 'spike_long_tail',  tailWeight: 0.25 },  // Significant chemical exposure tail
-      catastrophic: { peakWeek: 2, shape: 'spike_long_tail',  tailWeight: 0.35 }   // West Texas-scale: mass injury + chemical exposure
-    },
-    // Fertiliser property: blast damage spike + environmental contamination
-    property: {
-      minor:        { peakWeek: 1, shape: 'sharp_spike',     tailWeight: 0.08 },  // Localised blast radius
-      moderate:     { peakWeek: 2, shape: 'spike_bi_tail',    tailWeight: 0.20 },  // BI developing, some contamination
-      major:        { peakWeek: 2, shape: 'spike_bi_tail',    tailWeight: 0.30 },  // 150 buildings (West Texas), BI + environmental
-      catastrophic: { peakWeek: 3, shape: 'contamination_tail', tailWeight: 0.38 } // Massive blast radius + chemical contamination tail
-    }
-  }
-};
+// CLAIM_PATTERNS loaded from config/claim-patterns.json
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // SECTION 2: STATE MANAGEMENT
 // Config persistence, mutable state
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-// Load config from localStorage or use defaults
-let config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
-try {
-  const saved = loadWithIntegrity('claimsToolConfig');
-  if (saved) {
-    config = migrateConfig(saved);
-  }
-} catch(e) {
-  console.warn('Failed to load config, using defaults:', e);
-}
+// config is initialised in the async init() after config files are loaded
+let config;
 
 function saveConfig() {
   saveWithIntegrity('claimsToolConfig', config);
@@ -2639,47 +2116,7 @@ function applyBlastRadiusConcentration(totalClaims, site, useConcentrated) {
   return { total: weightedTotal, byRadius };
 }
 
-// Get average claim value for underinsurance calculation
-// Average claim values by incident type and severity (in £)
-// Sources cited for transparency and validation
-const AVERAGE_CLAIM_VALUES = {
-  fire: {
-    values: { minor: 15000, moderate: 45000, major: 120000, catastrophic: 350000 },
-    sources: [
-      'Allianz Global Claims Review 2023: Average industrial fire claim £45K-£350K',
-      'ABI UK Commercial Property Claims Data 2022'
-    ]
-  },
-  explosion: {
-    values: { minor: 25000, moderate: 75000, major: 200000, catastrophic: 500000 },
-    sources: [
-      'BP Texas City 2005: $2.1B total / 4,000 claims ≈ $525K avg',
-      'Buncefield 2005: £1B / 2,700 claims ≈ £370K avg'
-    ]
-  },
-  chemical: {
-    values: { minor: 8000, moderate: 25000, major: 80000, catastrophic: 250000 },
-    sources: [
-      'Bhopal 1984: $470M / 574,304 injury claims ≈ $818 avg (historically low)',
-      'Adjusted for UK jurisdiction and inflation to £8K-£250K range'
-    ]
-  },
-  nuclear: {
-    values: { minor: 50000, moderate: 150000, major: 400000, catastrophic: 900000 },
-    sources: [
-      'Fukushima 2011: ¥9.7T / 164,000 evacuees ≈ $590K/family avg',
-      'Three Mile Island 1979: $82M documented compensation',
-      'UK Nuclear Installations Act 2022: €700M-1.2B operator liability'
-    ]
-  },
-  fertiliser: {
-    values: { minor: 20000, moderate: 60000, major: 180000, catastrophic: 450000 },
-    sources: [
-      'West, Texas 2013: $230M losses / 150 buildings + 260 injuries',
-      'FEMA awards: $63.4M to school district alone'
-    ]
-  }
-};
+// AVERAGE_CLAIM_VALUES loaded from config/claim-values.json
 
 function getAverageClaimValue(incident, severity) {
   return AVERAGE_CLAIM_VALUES[incident]?.values?.[severity] || 50000;
@@ -4334,70 +3771,10 @@ ${mcSectionHtml}
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 // ===== MC DEFAULT CONFIGURATION =====
-const MC_DEFAULT_CONFIG = {
-  iterations: 10000,
-  convergenceTolerance: 0.02,
-  convergenceCheckInterval: 500,
-  batchSize: 500,
-  inflationRate: 0.035,    // 3.5% annual UK claims inflation (above general inflation)
-  discountRate: 0.02,       // 2% annual discount rate for present value calculations
-  paramDefs: [
-    { key: 'claimRate',       label: 'Claim Rate',              minFactor: 0.4, maxFactor: 2.0, modeFactor: 1.15, note: '% of affected population filing',
-      definition: 'The proportion of the affected population that files claims. Mode set above 1.0 reflecting actuarial evidence that initial claim rate estimates are typically optimistic (Bhopal, Fukushima). Values below 1.0 model lower take-up; values above 1.0 model situations where more people claim than initially estimated.' },
-    { key: 'incidentMult',    label: 'Incident Multiplier',     minFactor: 0.6, maxFactor: 1.8, modeFactor: 1.10, note: 'Severity scaling factor',
-      definition: 'Scales the base claim count by incident severity. Mode above 1.0 reflects tendency for incident impact to exceed initial assessments. Different incident types have different base multipliers; this parameter adds uncertainty around that multiplier.' },
-    { key: 'claimMultPP',     label: 'Claims Per Person',       minFactor: 0.7, maxFactor: 1.5, modeFactor: 1.08, note: 'Multiple filings per individual',
-      definition: 'The average number of separate claims filed per affected individual. Mode slightly above 1.0 reflecting evidence that multiple filings per person are more common than initially estimated. Chemical incidents historically show the highest values (e.g. Bhopal: 1.8 claims per person).' },
-    { key: 'injuryRatio',     label: 'Injury/Property Split',   minFactor: 0.6, maxFactor: 1.4, modeFactor: 1.0, note: 'Injury proportion vs property',
-      definition: 'Scales the proportion of claims that are bodily injury versus property damage. Mode at 1.0 (symmetric) as there is no systematic bias in injury/property split estimates.' },
-    { key: 'peakWeekShift',   label: 'Peak Timing Shift',       minFactor: -2,  maxFactor: 2,   modeFactor: 0, note: 'Weeks earlier/later than expected', isAbsolute: true,
-      definition: 'Shifts the peak claim arrival week earlier or later than the base estimate. A value of -2 means claims peak 2 weeks earlier; +2 means 2 weeks later. This is an absolute shift in weeks, not a multiplicative factor. Reflects uncertainty in how quickly claims are filed after an incident.' },
-    { key: 'tailWeight',      label: 'Tail Weight',             minFactor: 0.7, maxFactor: 1.4, modeFactor: 1.12, note: 'Long-tail claim emergence',
-      definition: 'Controls how many claims emerge in the long tail after the initial peak. Mode above 1.0 reflecting actuarial evidence that tail claims are routinely underestimated. Chemical and nuclear incidents typically have heavy tails — Bhopal saw claims emerging 40+ years later.' },
-    { key: 'processingTime',  label: 'Processing Time',         minFactor: 0.7, maxFactor: 1.5, modeFactor: 1.10, note: 'Days per claim variability',
-      definition: 'Scales the average number of days required to process each claim. Mode above 1.0 reflecting that processing typically takes longer than planned under incident stress. Inversely affects weekly processing capacity.' },
-    { key: 'population',      label: 'Affected Population',     minFactor: 0.5, maxFactor: 2.0, modeFactor: 1.10, note: 'Actual vs estimated exposure',
-      definition: 'Scales the total affected population. Mode above 1.0 reflecting evidence that actual exposure typically exceeds initial estimates (Fukushima 200K+ evacuees vs initial projections). A factor of 2.0 means double the estimated population is affected.' },
-    { key: 'claimValue',      label: 'Avg Claim Value',         minFactor: 0.4, maxFactor: 2.5, modeFactor: 1.15, note: 'Per-claim financial amount',
-      definition: 'Scales the average financial value per claim. Mode above 1.0 reflecting actuarial evidence that claim costs are systematically underestimated in initial reserves. Strongly correlated with claim rate — larger incidents tend to produce both more and costlier claims.' },
-    { key: 'reserveDev',      label: 'Reserve Development',     minFactor: 0.8, maxFactor: 1.3, modeFactor: 1.08, note: 'Ultimate claims multiplier',
-      definition: 'Scales the reserve development factor. Mode above 1.0 reflecting actuarial evidence that reserves almost always develop upward — initial estimates typically undercount eventual claims. Strongly correlated with tail weight.' },
-    { key: 'staffAvail',      label: 'Staff Availability',      minFactor: 0.6, maxFactor: 1.0, modeFactor: 0.85, note: 'Attrition under stress',
-      definition: 'The proportion of claims staff actually available during incident response. Mode below 1.0 reflecting evidence that staff availability is typically over-estimated due to burnout, sick leave, and turnover. Negatively correlated with processing time.' }
-  ],
-  // Correlation matrix (Gaussian copula) - order matches paramDefs
-  correlationMatrix: [
-  //  clmR  incM  clMP  injR  pkWk  tail  proc  popn  clVl  rsDv  stAv
-    [ 1.00, 0.30, 0.20, 0.10, 0.05, 0.40,-0.10, 0.30, 0.50, 0.30,-0.10], // claimRate
-    [ 0.30, 1.00, 0.25, 0.05, 0.10, 0.30, 0.15, 0.20, 0.40, 0.25,-0.05], // incidentMult
-    [ 0.20, 0.25, 1.00, 0.10, 0.05, 0.20, 0.10, 0.15, 0.20, 0.15, 0.00], // claimMultPP
-    [ 0.10, 0.05, 0.10, 1.00, 0.00, 0.10, 0.05, 0.00, 0.15, 0.05, 0.00], // injuryRatio
-    [ 0.05, 0.10, 0.05, 0.00, 1.00, 0.15, 0.00, 0.00, 0.00, 0.10, 0.00], // peakWeekShift
-    [ 0.40, 0.30, 0.20, 0.10, 0.15, 1.00, 0.10, 0.15, 0.30, 0.50,-0.05], // tailWeight
-    [-0.10, 0.15, 0.10, 0.05, 0.00, 0.10, 1.00, 0.00, 0.10, 0.10,-0.30], // processingTime
-    [ 0.30, 0.20, 0.15, 0.00, 0.00, 0.15, 0.00, 1.00, 0.20, 0.15, 0.00], // population
-    [ 0.50, 0.40, 0.20, 0.15, 0.00, 0.30, 0.10, 0.20, 1.00, 0.35,-0.05], // claimValue
-    [ 0.30, 0.25, 0.15, 0.05, 0.10, 0.50, 0.10, 0.15, 0.35, 1.00,-0.05], // reserveDev
-    [-0.10,-0.05, 0.00, 0.00, 0.00,-0.05,-0.30, 0.00,-0.05,-0.05, 1.00]  // staffAvail
-  ]
-};
+// MC_DEFAULT_CONFIG loaded from config/mc-defaults.json
 
-let mcConfig = JSON.parse(JSON.stringify(MC_DEFAULT_CONFIG));
-try {
-  const savedMC = loadWithIntegrity('claimsToolMCConfig');
-  if (savedMC && savedMC.paramDefs) {
-    // Validate correlation matrix matches paramDefs (Issue 10)
-    if (savedMC.correlationMatrix && savedMC.paramDefs &&
-        savedMC.correlationMatrix.length === savedMC.paramDefs.length) {
-      mcConfig = savedMC;
-    } else {
-      console.warn('MC config correlation matrix size mismatch. Using defaults.');
-      showToast('MC config had mismatched matrix size. Reset to defaults.', 'warning');
-    }
-  }
-} catch(e) {
-  console.warn('Failed to load MC config:', e);
-}
+// mcConfig is initialised in the async init() after config files are loaded
+let mcConfig;
 
 function saveMCConfig() {
   saveWithIntegrity('claimsToolMCConfig', mcConfig);
@@ -4772,25 +4149,7 @@ function spearmanCorrelation(x, y) {
 }
 
 // ===== HISTORICAL VALIDATION DATA =====
-const HISTORICAL_VALIDATION = {
-  explosion: {
-    bpTexasCity: { name: 'BP Texas City (2005)', totalClaims: 4000, totalValue: 2100000000, severity: 'catastrophic', population: 80000 },
-    buncefield: { name: 'Buncefield UK (2005)', totalClaims: 2700, totalValue: 700000000, severity: 'major', population: 60000 }
-  },
-  chemical: {
-    bhopal: { name: 'Bhopal (1984)', totalClaims: 1029517, totalValue: 470000000, severity: 'catastrophic', population: 500000 }
-  },
-  nuclear: {
-    fukushima: { name: 'Fukushima (2011)', totalClaims: 164000, totalValue: 70000000000, severity: 'catastrophic', population: 200000 },
-    threeMileIsland: { name: 'Three Mile Island (1979)', totalClaims: 2000, totalValue: 82000000, severity: 'moderate', population: 50000 }
-  },
-  fertiliser: {
-    westTexas: { name: 'West, Texas (2013)', totalClaims: 425, totalValue: 230000000, severity: 'catastrophic', population: 2800 }
-  },
-  fire: {
-    genericMajor: { name: 'Typical Major Industrial Fire', totalClaims: 350, totalValue: 42000000, severity: 'major', population: 25000 }
-  }
-};
+// HISTORICAL_VALIDATION loaded from config/historical-validation.json
 
 // ===== MAIN MC RUNNER =====
 function runMonteCarlo() {
@@ -5849,9 +5208,43 @@ try {
   }
 } catch(e) {}
 
-populateSites();
-updateTimeHorizonLabels();
-runScenario();
+(async function init() {
+  await loadAllConfig();
+
+  // Initialise config from defaults + localStorage
+  config = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+  try {
+    const saved = loadWithIntegrity('claimsToolConfig');
+    if (saved) config = migrateConfig(saved);
+  } catch(e) { console.warn('Failed to load config, using defaults:', e); }
+
+  // Initialise MC config from defaults + localStorage
+  mcConfig = JSON.parse(JSON.stringify(MC_DEFAULT_CONFIG));
+  try {
+    const savedMC = loadWithIntegrity('claimsToolMCConfig');
+    if (savedMC && savedMC.paramDefs) {
+      if (savedMC.correlationMatrix && savedMC.paramDefs &&
+          savedMC.correlationMatrix.length === savedMC.paramDefs.length) {
+        mcConfig = savedMC;
+      } else {
+        console.warn('MC config correlation matrix size mismatch. Using defaults.');
+        showToast('MC config had mismatched matrix size. Reset to defaults.', 'warning');
+      }
+    }
+  } catch(e) { console.warn('Failed to load MC config:', e); }
+
+  populateSites();
+  updateTimeHorizonLabels();
+  runScenario();
+
+  // Validate correlation matrix on init
+  try {
+    const initValidation = validateCorrelationMatrix(mcConfig.correlationMatrix, mcConfig.paramDefs);
+    if (!initValidation.valid) {
+      console.warn('MC correlation matrix validation warnings:', initValidation.errors);
+    }
+  } catch(e) {}
+})();
 
 // Setup chart tooltips (Issue 6)
 setupChartTooltip('forecastChart', 'forecastTooltip', function(x, y, w, h) {
@@ -5919,14 +5312,6 @@ const STAT_TERMS = {
   'Reserve development': 'Insurance reserves typically increase over time as more claims emerge and existing claims develop. The development factor (e.g., 1.5x) estimates the ratio of ultimate claims to initial estimates.',
   'IBNR': 'Incurred But Not Reported — claims that have occurred but not yet been filed. Common in long-tail lines like chemical exposure or nuclear incidents.'
 };
-
-// Validate correlation matrix on init
-try {
-  const initValidation = validateCorrelationMatrix(mcConfig.correlationMatrix, mcConfig.paramDefs);
-  if (!initValidation.valid) {
-    console.warn('MC correlation matrix validation warnings:', initValidation.errors);
-  }
-} catch(e) {}
 
 // Log browser compatibility info
 if (!supportsCanvas) { console.warn('Canvas API not supported. Charts will not render.'); }
