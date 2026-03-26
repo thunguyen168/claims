@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * build.js — Claims Resilience Tool bundler
  *
