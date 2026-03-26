@@ -1,7 +1,7 @@
 # Implementation Progress
 
 ## Phase 1: Foundation
-- [ ] Extract configuration into separate JSON files
+- [x] Extract configuration into separate JSON files
 - [ ] Create module structure (src/engine, src/ui, etc.)
 - [ ] Extract simulation engine as pure functions
 - [ ] Extract Monte Carlo engine as pure functions
