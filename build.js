@@ -119,14 +119,17 @@ html = html.slice(0, funcStartIdx) + replacementFn + html.slice(funcEndIdx);
 // The application currently uses a single inline <script> with no ES module
 // imports. When src/ modules are introduced, resolve and concatenate them here.
 
-// ── 6. Write dist/index.html ────────────────────────────────────────────────
+// ── 6. Write output ─────────────────────────────────────────────────────────
+const OUT_FILENAME = 'Claims Resilience Tool.html';
+
 if (!fs.existsSync(DIST)) {
   fs.mkdirSync(DIST, { recursive: true });
 }
-const outPath = path.join(DIST, 'index.html');
+const outPath = path.join(DIST, OUT_FILENAME);
 fs.writeFileSync(outPath, html, 'utf8');
 
 const sizeKB = (Buffer.byteLength(html, 'utf8') / 1024).toFixed(1);
-console.log(`Built dist/index.html  (${sizeKB} KB)`);
-console.log(`Inlined ${configs.length} config files:`);
-configs.forEach(({ file, globalName }) => console.log(`  ${globalName}  <-  ${file}`));
+console.log(`Built dist/${OUT_FILENAME}  (${sizeKB} KB)`);
+console.log(`Inlined ${configs.length} config files.`);
+console.log();
+console.log(`Send "dist/${OUT_FILENAME}" to the client — they double-click to open.`);
