@@ -693,6 +693,22 @@ let DEFAULT_CONFIG, CLAIM_CATEGORIES, UK_LEGAL_FRAMEWORK, HISTORICAL_CLAIM_VOLUM
     AVERAGE_CLAIM_VALUES, MC_DEFAULT_CONFIG, HISTORICAL_VALIDATION;
 
 async function loadAllConfig() {
+  // Bundled mode: build.js injects config as named constants before this script.
+  // Check for the sentinel variable; if present, use inline data and skip fetch.
+  if (typeof CONFIG_DEFAULTS !== 'undefined') {
+    DEFAULT_CONFIG               = CONFIG_DEFAULTS;
+    CLAIM_CATEGORIES             = CONFIG_CLAIM_CATEGORIES;
+    UK_LEGAL_FRAMEWORK           = CONFIG_LEGAL_FRAMEWORK;
+    HISTORICAL_CLAIM_VOLUMES     = CONFIG_HISTORICAL_DATA;
+    CLAIM_DISTRIBUTION_TEMPLATES = CONFIG_DISTRIBUTION_TEMPLATES;
+    SEVERITY_TIME_HORIZONS       = CONFIG_TIME_HORIZONS;
+    CLAIM_PATTERNS               = CONFIG_CLAIM_PATTERNS;
+    AVERAGE_CLAIM_VALUES         = CONFIG_CLAIM_VALUES;
+    MC_DEFAULT_CONFIG            = CONFIG_MC_DEFAULTS;
+    HISTORICAL_VALIDATION        = CONFIG_HISTORICAL_VALIDATION;
+    return;
+  }
+  // Development mode: fetch from config/ directory (requires HTTP server).
   const [
     defaults, claimCategories, legalFramework, historicalData,
     distributionTemplates, timeHorizons, claimPatterns,
@@ -709,16 +725,16 @@ async function loadAllConfig() {
     fetch('config/mc-defaults.json').then(r => r.json()),
     fetch('config/historical-validation.json').then(r => r.json())
   ]);
-  DEFAULT_CONFIG            = defaults;
-  CLAIM_CATEGORIES          = claimCategories;
-  UK_LEGAL_FRAMEWORK        = legalFramework;
-  HISTORICAL_CLAIM_VOLUMES  = historicalData;
+  DEFAULT_CONFIG               = defaults;
+  CLAIM_CATEGORIES             = claimCategories;
+  UK_LEGAL_FRAMEWORK           = legalFramework;
+  HISTORICAL_CLAIM_VOLUMES     = historicalData;
   CLAIM_DISTRIBUTION_TEMPLATES = distributionTemplates;
-  SEVERITY_TIME_HORIZONS    = timeHorizons;
-  CLAIM_PATTERNS            = claimPatterns;
-  AVERAGE_CLAIM_VALUES      = claimValues;
-  MC_DEFAULT_CONFIG         = mcDefaults;
-  HISTORICAL_VALIDATION     = historicalValidation;
+  SEVERITY_TIME_HORIZONS       = timeHorizons;
+  CLAIM_PATTERNS               = claimPatterns;
+  AVERAGE_CLAIM_VALUES         = claimValues;
+  MC_DEFAULT_CONFIG            = mcDefaults;
+  HISTORICAL_VALIDATION        = historicalValidation;
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
