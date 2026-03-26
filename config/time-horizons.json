@@ -1,0 +1,132 @@
+{
+  "fire": {
+    "minor": {
+      "short":  { "weeks": 8 },
+      "medium": { "weeks": 26 },
+      "long":   { "weeks": 104 },
+      "note": "Minor fires: most claims resolve within weeks. Settlement 3-6 months for simple property."
+    },
+    "moderate": {
+      "short":  { "weeks": 12 },
+      "medium": { "weeks": 52 },
+      "long":   { "weeks": 156 },
+      "note": "Moderate fires: complex property + BI claims develop over 6-18 months. PTSD claims at 12-36 months."
+    },
+    "major": {
+      "short":  { "weeks": 12 },
+      "medium": { "weeks": 78 },
+      "long":   { "weeks": 260 },
+      "note": "Major fires: BI exceeds PD by ~2.7x. Litigation extends 3-5 years (BP Texas City pattern)."
+    },
+    "catastrophic": {
+      "short":  { "weeks": 16 },
+      "medium": { "weeks": 104 },
+      "long":   { "weeks": 364 },
+      "note": "Catastrophic fires: potential chemical exposure creates long-tail health claims. 69% of direct PD in industrial sector."
+    }
+  },
+  "explosion": {
+    "minor": {
+      "short":  { "weeks": 8 },
+      "medium": { "weeks": 26 },
+      "long":   { "weeks": 104 },
+      "note": "Minor explosions: localised blast damage. Property claims within 500m resolve in weeks."
+    },
+    "moderate": {
+      "short":  { "weeks": 12 },
+      "medium": { "weeks": 52 },
+      "long":   { "weeks": 156 },
+      "note": "Moderate explosions: BI claims develop over 12-36 months. Buncefield: BI settlements took 9+ months."
+    },
+    "major": {
+      "short":  { "weeks": 12 },
+      "medium": { "weeks": 78 },
+      "long":   { "weeks": 260 },
+      "note": "Major explosions: BP Texas City pattern - 4,000 claims, settlements over 7 years. Forensic accounting required for BI."
+    },
+    "catastrophic": {
+      "short":  { "weeks": 16 },
+      "medium": { "weeks": 104 },
+      "long":   { "weeks": 364 },
+      "note": "Catastrophic explosions: $2.1B+ settlement potential (BP Texas City). Secondary/consequential claims emerge at 3-24 months."
+    }
+  },
+  "chemical": {
+    "minor": {
+      "short":  { "weeks": 12 },
+      "medium": { "weeks": 104 },
+      "long":   { "weeks": 520 },
+      "note": "Minor chemical release: acute poisoning 25% in weeks 1-4. Respiratory illness develops at months 2-24. Environmental remediation 5-10 years."
+    },
+    "moderate": {
+      "short":  { "weeks": 16 },
+      "medium": { "weeks": 156 },
+      "long":   { "weeks": 1040 },
+      "note": "Moderate toxic release: chronic illness at years 2-10. Environmental cleanup extends to decades. Discovery rule applies for latent injuries."
+    },
+    "major": {
+      "short":  { "weeks": 24 },
+      "medium": { "weeks": 260 },
+      "long":   { "weeks": 1560 },
+      "note": "Major toxic release: Bhopal pattern - 574,304 injury claims, $470M settlement. Cancers and generational effects documented 40+ years later."
+    },
+    "catastrophic": {
+      "short":  { "weeks": 26 },
+      "medium": { "weeks": 260 },
+      "long":   { "weeks": 2080 },
+      "note": "Catastrophic chemical disaster: Bhopal-scale. 1M+ claims spanning 40+ years. Long-tail cancers, generational effects, ongoing environmental remediation."
+    }
+  },
+  "nuclear": {
+    "minor": {
+      "short":  { "weeks": 12 },
+      "medium": { "weeks": 156 },
+      "long":   { "weeks": 780 },
+      "note": "Minor nuclear incident: evacuation claims immediate. Health monitoring at years 3-15. Three Mile Island: $82M documented, 14-year cleanup."
+    },
+    "moderate": {
+      "short":  { "weeks": 16 },
+      "medium": { "weeks": 260 },
+      "long":   { "weeks": 1040 },
+      "note": "Moderate nuclear incident: property exclusion zones, BI disruption months 2-36. Thyroid cancers emerge years 5-20."
+    },
+    "major": {
+      "short":  { "weeks": 24 },
+      "medium": { "weeks": 364 },
+      "long":   { "weeks": 1560 },
+      "note": "Major nuclear incident: Fukushima-scale pattern. 164,000+ evacuees. UK law: 30-year personal injury limitation (2022 Act). $70B+ compensation."
+    },
+    "catastrophic": {
+      "short":  { "weeks": 26 },
+      "medium": { "weeks": 520 },
+      "long":   { "weeks": 1560 },
+      "note": "Catastrophic nuclear disaster: 30-year limitation period applies. 20-40% of ultimate claims emerge at years 10-30 (late cancers, genetic effects)."
+    }
+  },
+  "fertiliser": {
+    "minor": {
+      "short":  { "weeks": 8 },
+      "medium": { "weeks": 26 },
+      "long":   { "weeks": 104 },
+      "note": "Minor fertiliser incident: localised blast + potential ammonia exposure. Property claims resolve in weeks."
+    },
+    "moderate": {
+      "short":  { "weeks": 12 },
+      "medium": { "weeks": 52 },
+      "long":   { "weeks": 156 },
+      "note": "Moderate fertiliser explosion: West, Texas parallel. BI and environmental claims develop over months."
+    },
+    "major": {
+      "short":  { "weeks": 12 },
+      "medium": { "weeks": 78 },
+      "long":   { "weeks": 312 },
+      "note": "Major fertiliser explosion: West, Texas - 150 buildings damaged, FEMA $63.4M to school district alone. Chemical exposure extends timeline."
+    },
+    "catastrophic": {
+      "short":  { "weeks": 16 },
+      "medium": { "weeks": 104 },
+      "long":   { "weeks": 520 },
+      "note": "Catastrophic fertiliser disaster: $230M+ losses (West, Texas). Chemical contamination creates long-tail similar to toxic release incidents."
+    }
+  }
+}

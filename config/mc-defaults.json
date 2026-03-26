@@ -1,0 +1,90 @@
+{
+  "iterations": 10000,
+  "convergenceTolerance": 0.02,
+  "convergenceCheckInterval": 500,
+  "batchSize": 500,
+  "inflationRate": 0.035,
+  "discountRate": 0.02,
+  "paramDefs": [
+    {
+      "key": "claimRate",      "label": "Claim Rate",
+      "minFactor": 0.4,        "maxFactor": 2.0,  "modeFactor": 1.15,
+      "note": "% of affected population filing",
+      "definition": "The proportion of the affected population that files claims. Mode set above 1.0 reflecting actuarial evidence that initial claim rate estimates are typically optimistic (Bhopal, Fukushima). Values below 1.0 model lower take-up; values above 1.0 model situations where more people claim than initially estimated."
+    },
+    {
+      "key": "incidentMult",   "label": "Incident Multiplier",
+      "minFactor": 0.6,        "maxFactor": 1.8,  "modeFactor": 1.10,
+      "note": "Severity scaling factor",
+      "definition": "Scales the base claim count by incident severity. Mode above 1.0 reflects tendency for incident impact to exceed initial assessments. Different incident types have different base multipliers; this parameter adds uncertainty around that multiplier."
+    },
+    {
+      "key": "claimMultPP",    "label": "Claims Per Person",
+      "minFactor": 0.7,        "maxFactor": 1.5,  "modeFactor": 1.08,
+      "note": "Multiple filings per individual",
+      "definition": "The average number of separate claims filed per affected individual. Mode slightly above 1.0 reflecting evidence that multiple filings per person are more common than initially estimated. Chemical incidents historically show the highest values (e.g. Bhopal: 1.8 claims per person)."
+    },
+    {
+      "key": "injuryRatio",    "label": "Injury/Property Split",
+      "minFactor": 0.6,        "maxFactor": 1.4,  "modeFactor": 1.0,
+      "note": "Injury proportion vs property",
+      "definition": "Scales the proportion of claims that are bodily injury versus property damage. Mode at 1.0 (symmetric) as there is no systematic bias in injury/property split estimates."
+    },
+    {
+      "key": "peakWeekShift",  "label": "Peak Timing Shift",
+      "minFactor": -2,         "maxFactor": 2,    "modeFactor": 0,
+      "note": "Weeks earlier/later than expected",
+      "isAbsolute": true,
+      "definition": "Shifts the peak claim arrival week earlier or later than the base estimate. A value of -2 means claims peak 2 weeks earlier; +2 means 2 weeks later. This is an absolute shift in weeks, not a multiplicative factor. Reflects uncertainty in how quickly claims are filed after an incident."
+    },
+    {
+      "key": "tailWeight",     "label": "Tail Weight",
+      "minFactor": 0.7,        "maxFactor": 1.4,  "modeFactor": 1.12,
+      "note": "Long-tail claim emergence",
+      "definition": "Controls how many claims emerge in the long tail after the initial peak. Mode above 1.0 reflecting actuarial evidence that tail claims are routinely underestimated. Chemical and nuclear incidents typically have heavy tails \u2014 Bhopal saw claims emerging 40+ years later."
+    },
+    {
+      "key": "processingTime", "label": "Processing Time",
+      "minFactor": 0.7,        "maxFactor": 1.5,  "modeFactor": 1.10,
+      "note": "Days per claim variability",
+      "definition": "Scales the average number of days required to process each claim. Mode above 1.0 reflecting that processing typically takes longer than planned under incident stress. Inversely affects weekly processing capacity."
+    },
+    {
+      "key": "population",     "label": "Affected Population",
+      "minFactor": 0.5,        "maxFactor": 2.0,  "modeFactor": 1.10,
+      "note": "Actual vs estimated exposure",
+      "definition": "Scales the total affected population. Mode above 1.0 reflecting evidence that actual exposure typically exceeds initial estimates (Fukushima 200K+ evacuees vs initial projections). A factor of 2.0 means double the estimated population is affected."
+    },
+    {
+      "key": "claimValue",     "label": "Avg Claim Value",
+      "minFactor": 0.4,        "maxFactor": 2.5,  "modeFactor": 1.15,
+      "note": "Per-claim financial amount",
+      "definition": "Scales the average financial value per claim. Mode above 1.0 reflecting actuarial evidence that claim costs are systematically underestimated in initial reserves. Strongly correlated with claim rate \u2014 larger incidents tend to produce both more and costlier claims."
+    },
+    {
+      "key": "reserveDev",     "label": "Reserve Development",
+      "minFactor": 0.8,        "maxFactor": 1.3,  "modeFactor": 1.08,
+      "note": "Ultimate claims multiplier",
+      "definition": "Scales the reserve development factor. Mode above 1.0 reflecting actuarial evidence that reserves almost always develop upward \u2014 initial estimates typically undercount eventual claims. Strongly correlated with tail weight."
+    },
+    {
+      "key": "staffAvail",     "label": "Staff Availability",
+      "minFactor": 0.6,        "maxFactor": 1.0,  "modeFactor": 0.85,
+      "note": "Attrition under stress",
+      "definition": "The proportion of claims staff actually available during incident response. Mode below 1.0 reflecting evidence that staff availability is typically over-estimated due to burnout, sick leave, and turnover. Negatively correlated with processing time."
+    }
+  ],
+  "correlationMatrix": [
+    [ 1.00, 0.30, 0.20, 0.10, 0.05, 0.40,-0.10, 0.30, 0.50, 0.30,-0.10],
+    [ 0.30, 1.00, 0.25, 0.05, 0.10, 0.30, 0.15, 0.20, 0.40, 0.25,-0.05],
+    [ 0.20, 0.25, 1.00, 0.10, 0.05, 0.20, 0.10, 0.15, 0.20, 0.15, 0.00],
+    [ 0.10, 0.05, 0.10, 1.00, 0.00, 0.10, 0.05, 0.00, 0.15, 0.05, 0.00],
+    [ 0.05, 0.10, 0.05, 0.00, 1.00, 0.15, 0.00, 0.00, 0.00, 0.10, 0.00],
+    [ 0.40, 0.30, 0.20, 0.10, 0.15, 1.00, 0.10, 0.15, 0.30, 0.50,-0.05],
+    [-0.10, 0.15, 0.10, 0.05, 0.00, 0.10, 1.00, 0.00, 0.10, 0.10,-0.30],
+    [ 0.30, 0.20, 0.15, 0.00, 0.00, 0.15, 0.00, 1.00, 0.20, 0.15, 0.00],
+    [ 0.50, 0.40, 0.20, 0.15, 0.00, 0.30, 0.10, 0.20, 1.00, 0.35,-0.05],
+    [ 0.30, 0.25, 0.15, 0.05, 0.10, 0.50, 0.10, 0.15, 0.35, 1.00,-0.05],
+    [-0.10,-0.05, 0.00, 0.00, 0.00,-0.05,-0.30, 0.00,-0.05,-0.05, 1.00]
+  ]
+}

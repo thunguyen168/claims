@@ -1,0 +1,38 @@
+{
+  "fire": {
+    "values": { "minor": 15000, "moderate": 45000, "major": 120000, "catastrophic": 350000 },
+    "sources": [
+      "Allianz Global Claims Review 2023: Average industrial fire claim \u00a345K-\u00a3350K",
+      "ABI UK Commercial Property Claims Data 2022"
+    ]
+  },
+  "explosion": {
+    "values": { "minor": 25000, "moderate": 75000, "major": 200000, "catastrophic": 500000 },
+    "sources": [
+      "BP Texas City 2005: $2.1B total / 4,000 claims \u2248 $525K avg",
+      "Buncefield 2005: \u00a31B / 2,700 claims \u2248 \u00a3370K avg"
+    ]
+  },
+  "chemical": {
+    "values": { "minor": 8000, "moderate": 25000, "major": 80000, "catastrophic": 250000 },
+    "sources": [
+      "Bhopal 1984: $470M / 574,304 injury claims \u2248 $818 avg (historically low)",
+      "Adjusted for UK jurisdiction and inflation to \u00a38K-\u00a3250K range"
+    ]
+  },
+  "nuclear": {
+    "values": { "minor": 50000, "moderate": 150000, "major": 400000, "catastrophic": 900000 },
+    "sources": [
+      "Fukushima 2011: \u00a59.7T / 164,000 evacuees \u2248 $590K/family avg",
+      "Three Mile Island 1979: $82M documented compensation",
+      "UK Nuclear Installations Act 2022: \u20ac700M-1.2B operator liability"
+    ]
+  },
+  "fertiliser": {
+    "values": { "minor": 20000, "moderate": 60000, "major": 180000, "catastrophic": 450000 },
+    "sources": [
+      "West, Texas 2013: $230M losses / 150 buildings + 260 injuries",
+      "FEMA awards: $63.4M to school district alone"
+    ]
+  }
+}
